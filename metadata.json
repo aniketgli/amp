@@ -1,0 +1,8 @@
+{
+  "name": "Remix Requisition Management System",
+  "description": "Digital requisition portal for WII Email, Internet, HRMS, PMS, and Research Lab Access with automated multi-tier approval workflows and role-based access control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
