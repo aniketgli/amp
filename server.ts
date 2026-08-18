@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { testDatabaseConnection } from "./src/db/connection.js";
+import { registerUserInDb, loginUserInDb } from "./src/db/authService.js";
 
 dotenv.config();
 
@@ -43,6 +44,34 @@ app.get("/api/health", (req, res) => {
 app.get("/api/db/test", async (req, res) => {
   const testResult = await testDatabaseConnection();
   res.json(testResult);
+});
+
+// Registration Endpoint
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { fullName, email, phone, password, role, intercomExtension } = req.body;
+    if (!fullName || !email || !phone || !password) {
+      return res.status(400).json({ error: "Name, email, phone, and password are required." });
+    }
+    const newUser = await registerUserInDb({ fullName, email, phone, password, role, intercomExtension });
+    res.json({ success: true, user: newUser });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Registration failed." });
+  }
+});
+
+// Login Endpoint
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+    const user = await loginUserInDb(email, password);
+    res.json({ success: true, user });
+  } catch (err: any) {
+    res.status(401).json({ error: err.message || "Authentication failed." });
+  }
 });
 
 // Helper for fuzzy string matching / similarity
