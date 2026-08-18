@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 5173;
 
 // Body parser for handling base64 PDF and document uploads
 app.use(express.json({ limit: "25mb" }));
@@ -305,6 +305,10 @@ Return ONLY a valid JSON object matching this schema.`;
     });
   }
 });
+
+
+
+
 
 // Vite Middleware for development & Static file serving in production
 async function startServer() {
