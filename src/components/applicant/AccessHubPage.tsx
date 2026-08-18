@@ -122,17 +122,17 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
-      {/* Header Banner - Standardized Uniform Layout */}
-      <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5 min-h-[140px]">
+      {/* Header Banner */}
+      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5 min-h-[140px]">
         <div className="absolute top-0 right-0 w-80 h-full bg-emerald-500/5 pointer-events-none blur-2xl" />
-        <div className="space-y-1.5 max-w-2xl z-10 relative">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1">
+        <div className="space-y-1.5 max-w-2xl min-w-0 flex-1 z-10 relative">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
               <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access Management Portal
             </span>
-            <span className="text-xs text-slate-400">• Wildlife Institute of India</span>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">• Wildlife Institute of India</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
             {currentRole === 'applicant' && 'Personnel Requisition & Access Hub'}
             {currentRole === 'supervisor' && 'PI & Supervising Officer Access Management Hub'}
             {currentRole === 'lab_nodal' && 'WII Research Laboratories Nodal Operations Desk'}
@@ -141,7 +141,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
             {currentRole === 'section_head' && 'Section Head Executive Access Oversight'}
             {currentRole === 'admin' && 'Central Security & System Access Command Center'}
           </h1>
-          <p className="text-xs text-slate-300 truncate max-w-xl block">
+          <p className="text-xs text-slate-300 leading-relaxed max-w-xl block">
             {currentRole === 'applicant' &&
               'View active credentials, authorized service privileges, and facility passes across Wildlife Institute of India IT infrastructure and Research Laboratories.'}
             {currentRole === 'supervisor' &&
@@ -160,15 +160,15 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
         </div>
 
         {/* Right Section Action Button */}
-        <div className="z-10 relative shrink-0">
+        <div className="flex flex-row items-center sm:flex-col sm:items-end gap-2 sm:gap-2.5 z-10 relative shrink-0 w-full sm:w-auto min-w-0">
           <button
             type="button"
             onClick={() => onNavigateTab ? onNavigateTab('my_requests') : null}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-44 text-center truncate"
           >
-            <FileText className="w-4 h-4 text-white" />
-            <span>All Requests</span>
-            <ArrowRight className="w-4 h-4 text-emerald-200 ml-0.5" />
+            <FileText className="w-4 h-4 text-white shrink-0" />
+            <span className="truncate">All Requests</span>
+            <ArrowRight className="w-4 h-4 text-emerald-200 ml-0.5 shrink-0" />
           </button>
         </div>
       </div>
@@ -231,26 +231,26 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
       </div>
 
       {/* SECTION 1: WII EMAIL ID SERVICE */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 text-white rounded-lg shadow-2xs">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden min-w-0">
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 bg-blue-600 text-white rounded-lg shadow-2xs shrink-0">
               <Mail className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">1. Official WII Email ID (@wii.gov.in)</h3>
-              <p className="text-xs text-slate-500">Institute Webmail Account, Domain Access & Group Mappings</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-slate-900 leading-tight">1. Official WII Email ID (@wii.gov.in)</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Institute Webmail Account, Domain Access & Group Mappings</p>
             </div>
           </div>
 
-          <div>
+          <div className="self-start sm:self-auto shrink-0">
             {approvedEmailReq ? (
               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-xs border border-emerald-300 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active Service
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Active Service
               </span>
             ) : pendingEmailReq ? (
               <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-extrabold rounded-full text-xs border border-amber-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-amber-600" /> Requisition Pending
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Requisition Pending
               </span>
             ) : (
               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 font-bold rounded-full text-xs border border-slate-200">
@@ -260,25 +260,25 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
           </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-3.5 sm:p-5 min-w-0">
           {approvedEmailReq ? (
-            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Active Authorized Email Account
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Active Authorized Email Account
                 </span>
                 <button
                   onClick={() => handleOpenModal('email', 'renewal')}
-                  className="px-3 py-1 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                  className="w-full sm:w-auto px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs shrink-0"
                 >
-                  <RotateCw className="w-3 h-3 text-blue-600" />
+                  <RotateCw className="w-3 h-3 text-blue-600 shrink-0" />
                   Renew Email Access
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-slate-200">
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Webmail</span>
-                  <span className="font-mono text-xs font-bold text-blue-700">
+                  <span className="font-mono text-xs font-bold text-blue-700 break-all">
                     {approvedEmailReq.itHrmsDetails?.assignedWiiEmail || 'Issued by IT Cell'}
                   </span>
                 </div>
@@ -295,7 +295,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                 <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{approvedEmailReq.id}-EML</code></span>
                 <a href="https://mail.wii.gov.in" target="_blank" rel="noreferrer" className="text-blue-700 font-bold hover:underline flex items-center gap-1">
                   Open WII Webmail Portal <ExternalLink className="w-3 h-3" />
@@ -303,16 +303,16 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               </div>
             </div>
           ) : pendingEmailReq ? (
-            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600" /> Email Requisition Pending Verification
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" /> Email Requisition Pending Verification
                 </span>
-                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300">
+                <span className="self-start sm:self-auto px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300 shrink-0">
                   Under Workflow Review
                 </span>
               </div>
-              <p className="text-slate-600 text-[11px]">
+              <p className="text-slate-600 text-[11px] leading-relaxed">
                 Requisition <code className="font-mono bg-amber-100 px-1 rounded">{pendingEmailReq.id}</code> has been submitted and is currently being verified by your Supervising Officer / IT Cell.
               </p>
               <button
@@ -330,19 +330,19 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               </button>
             </div>
           ) : (
-            <div className="p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            <div className="p-4 sm:p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
               <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-200">
                 <Mail className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-800">No Active WII Webmail Account</div>
-                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5">
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5 leading-relaxed">
                   Apply for an official @wii.gov.in email address to access institutional communications, research groups, and domain resources.
                 </p>
               </div>
               <button
                 onClick={() => handleOpenModal('email', 'new')}
-                className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto"
               >
                 <PlusCircle className="w-4 h-4" />
                 Apply for Official WII Email ID
@@ -353,26 +353,26 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
       </div>
 
       {/* SECTION 2: CAMPUS INTERNET & MAC REGISTRATION */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-2xs">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden min-w-0">
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-2xs shrink-0">
               <Wifi className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">2. Campus Internet & Wi-Fi MAC Address Registration</h3>
-              <p className="text-xs text-slate-500">Device Hardware Address MAC Binding for High-Speed LAN & Campus Wi-Fi</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-slate-900 leading-tight">2. Campus Internet & Wi-Fi MAC Address Registration</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Device Hardware Address MAC Binding for High-Speed LAN & Campus Wi-Fi</p>
             </div>
           </div>
 
-          <div>
+          <div className="self-start sm:self-auto shrink-0">
             {approvedNetReq ? (
               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-xs border border-emerald-300 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> MAC Bound
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> MAC Bound
               </span>
             ) : pendingNetReq ? (
               <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-extrabold rounded-full text-xs border border-amber-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-amber-600" /> MAC Registration Pending
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" /> MAC Registration Pending
               </span>
             ) : (
               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 font-bold rounded-full text-xs border border-slate-200">
@@ -382,18 +382,18 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
           </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-3.5 sm:p-5 min-w-0">
           {approvedNetReq ? (
-            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Registered Device Hardware MAC
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Registered Device Hardware MAC
                 </span>
                 <button
                   onClick={() => handleOpenModal('mac', 'renewal')}
-                  className="px-3 py-1 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                  className="w-full sm:w-auto px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs shrink-0"
                 >
-                  <RotateCw className="w-3 h-3 text-blue-600" />
+                  <RotateCw className="w-3 h-3 text-blue-600 shrink-0" />
                   Renew Device MAC
                 </button>
               </div>
@@ -404,7 +404,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-bold">Verified Hardware MAC</span>
-                  <code className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <code className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 break-all inline-block">
                     {approvedNetReq.itHrmsDetails?.verifiedMacAddress || approvedNetReq.itHrmsDetails?.macAddress || 'Registered'}
                   </code>
                 </div>
@@ -415,24 +415,24 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                 <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{approvedNetReq.id}-NET</code></span>
                 <span className="text-emerald-700 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> IT MAC Registration Verified
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> IT MAC Registration Verified
                 </span>
               </div>
             </div>
           ) : pendingNetReq ? (
-            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600" /> Campus Internet MAC Registration Pending
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" /> Campus Internet MAC Registration Pending
                 </span>
-                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300">
+                <span className="self-start sm:self-auto px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300 shrink-0">
                   IT Cell Verification
                 </span>
               </div>
-              <p className="text-slate-600 text-[11px]">
+              <p className="text-slate-600 text-[11px] leading-relaxed">
                 Device registration request <code className="font-mono bg-amber-100 px-1 rounded">{pendingNetReq.id}</code> is pending verification by IT Cell.
               </p>
               <button
@@ -450,19 +450,19 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               </button>
             </div>
           ) : (
-            <div className="p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            <div className="p-4 sm:p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
               <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
                 <Wifi className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-800">No Campus Internet Device Bound</div>
-                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5">
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5 leading-relaxed">
                   Register your laptop or workstation MAC hardware address to enable Wi-Fi and high-speed LAN access across WII campus.
                 </p>
               </div>
               <button
                 onClick={() => handleOpenModal('mac', 'new')}
-                className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto"
               >
                 <PlusCircle className="w-4 h-4" />
                 Register MAC Hardware Device
@@ -473,26 +473,26 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
       </div>
 
       {/* SECTION 3: BIOMETRIC & HRMS / PMS PORTAL */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-600 text-white rounded-lg shadow-2xs">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden min-w-0">
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 bg-purple-600 text-white rounded-lg shadow-2xs shrink-0">
               <Fingerprint className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">3. HRMS / PMS Portal & Biometric Attendance</h3>
-              <p className="text-xs text-slate-500">Personnel Management System Portal Accounts & Biometric ID Mapping</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-slate-900 leading-tight">3. HRMS / PMS Portal & Biometric Attendance</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Personnel Management System Portal Accounts & Biometric ID Mapping</p>
             </div>
           </div>
 
-          <div>
+          <div className="self-start sm:self-auto shrink-0">
             {approvedHrmsReq ? (
               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-xs border border-emerald-300 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active HRMS
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Active HRMS
               </span>
             ) : pendingHrmsReq ? (
               <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-extrabold rounded-full text-xs border border-amber-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending Approval
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Pending Approval
               </span>
             ) : (
               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 font-bold rounded-full text-xs border border-slate-200">
@@ -502,18 +502,18 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
           </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-3.5 sm:p-5 min-w-0">
           {approvedHrmsReq ? (
-            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Active HRMS Portal & Biometric Access
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Active HRMS Portal & Biometric Access
                 </span>
                 <button
                   onClick={() => handleOpenModal('hrms', 'renewal')}
-                  className="px-3 py-1 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                  className="w-full sm:w-auto px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs shrink-0"
                 >
-                  <RotateCw className="w-3 h-3 text-blue-600" />
+                  <RotateCw className="w-3 h-3 text-blue-600 shrink-0" />
                   Renew HRMS Access
                 </button>
               </div>
@@ -524,7 +524,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Biometric ID</span>
-                  <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-block">
                     {approvedHrmsReq.itHrmsDetails?.assignedBiometricId || applicantProfile.biometricId || 'WII-BIO-1048'}
                   </span>
                 </div>
@@ -535,24 +535,24 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                 <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{approvedHrmsReq.id}-HRM</code></span>
                 <span className="text-purple-700 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> HRMS & Attendance Active
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" /> HRMS & Attendance Active
                 </span>
               </div>
             </div>
           ) : pendingHrmsReq ? (
-            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                 <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600" /> HRMS / Biometric Requisition Pending
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" /> HRMS / Biometric Requisition Pending
                 </span>
-                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300">
+                <span className="self-start sm:self-auto px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300 shrink-0 whitespace-nowrap">
                   Pending Verification
                 </span>
               </div>
-              <p className="text-slate-600 text-[11px]">
+              <p className="text-slate-600 text-[11px] leading-relaxed">
                 Requisition <code className="font-mono bg-amber-100 px-1 rounded">{pendingHrmsReq.id}</code> is currently being reviewed for HRMS portal mapping and biometric punch template registration.
               </p>
               <button
@@ -570,19 +570,19 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               </button>
             </div>
           ) : (
-            <div className="p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            <div className="p-4 sm:p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
               <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mx-auto border border-purple-200">
                 <Fingerprint className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-800">No Active HRMS / Biometric Access</div>
-                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5">
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5 leading-relaxed">
                   Apply for HRMS / PMS ERP portal access and Biometric Attendance registration for daily Institute duty logs.
                 </p>
               </div>
               <button
                 onClick={() => handleOpenModal('hrms', 'new')}
-                className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto"
               >
                 <PlusCircle className="w-4 h-4" />
                 Apply for HRMS & Biometric ID
@@ -602,30 +602,30 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
         const pendingLabCount = labRequisitions.filter((r) => r.status !== 'approved_provisioned' && r.status !== 'rejected').length;
 
         return (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-600 text-white rounded-lg shadow-2xs">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden min-w-0">
+            <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+              <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                <div className="p-2 bg-teal-600 text-white rounded-lg shadow-2xs shrink-0">
                   <FlaskConical className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
                     4. WII Research Laboratory Access Facilities
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Equipment Usage Authorization & Nodal Approvals across 9 Specialized Research Labs
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="self-start sm:self-auto shrink-0 flex flex-wrap items-center gap-2">
                 {activeLabCount > 0 ? (
                   <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-xs border border-emerald-300 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {activeLabCount} Active Lab Access
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {activeLabCount} Active Lab Access
                   </span>
                 ) : pendingLabCount > 0 ? (
                   <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-extrabold rounded-full text-xs border border-amber-300 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Requisition Pending
+                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Requisition Pending
                   </span>
                 ) : (
                   <span className="px-2.5 py-1 bg-slate-100 text-slate-600 font-bold rounded-full text-xs border border-slate-200">
@@ -645,21 +645,21 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               </div>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-3.5 sm:p-5 space-y-4 min-w-0">
               {labRequisitions.length === 0 ? (
-                <div className="p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                <div className="p-4 sm:p-6 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                   <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mx-auto border border-teal-200">
                     <FlaskConical className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-slate-800">No Active Research Laboratory Access</div>
-                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5">
+                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5 leading-relaxed">
                       Apply for equipment usage authorization across specialized WII research labs (GIS & Remote Sensing, Wildlife Forensics, Conservation Genetics, Analytical Suite, etc.).
                     </p>
                   </div>
                   <button
                     onClick={() => handleOpenModal('lab', 'new')}
-                    className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto"
                   >
                     <PlusCircle className="w-4 h-4" />
                     Apply for Research Laboratory Access
@@ -675,17 +675,17 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
 
                   if (req.status === 'approved_provisioned') {
                     return (
-                      <div key={`${req.id}-${idx}`} className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs">
-                        <div className="flex items-center justify-between">
+                      <div key={`${req.id}-${idx}`} className="p-3.5 sm:p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3 text-xs min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
                           <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Active Authorized Laboratory Access
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Active Authorized Laboratory Access
                           </span>
                           <div>
                             <button
                               onClick={() => handleOpenModal('lab', 'renewal', firstLab?.labId)}
-                              className="px-3 py-1 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              className="w-full sm:w-auto px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs shrink-0"
                             >
-                              <RotateCw className="w-3 h-3 text-blue-600" />
+                              <RotateCw className="w-3 h-3 text-blue-600 shrink-0" />
                               Renew Lab Access
                             </button>
                           </div>
@@ -710,7 +710,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] pt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                           <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{req.id}-LAB</code></span>
                           <button
                             onClick={() =>
@@ -721,7 +721,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                                 selectedServiceLabel: labNames || 'Research Lab Access',
                               })
                             }
-                            className="text-blue-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-blue-700 font-bold hover:underline flex items-center gap-1 cursor-pointer shrink-0"
                           >
                             View Requisition Status →
                           </button>
@@ -730,19 +730,19 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                     );
                   } else if (req.status === 'rejected') {
                     return (
-                      <div key={`${req.id}-${idx}`} className="p-4 rounded-xl border border-red-200 bg-red-50/50 space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-red-900 flex items-center gap-1.5">
-                            <XCircle className="w-4 h-4 text-red-600" /> Lab Access Requisition Rejected
+                      <div key={`${req.id}-${idx}`} className="p-3.5 sm:p-4 rounded-xl border border-red-200 bg-red-50/50 space-y-2 text-xs min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                          <span className="font-bold text-red-900 flex items-center gap-1.5 min-w-0">
+                            <XCircle className="w-4 h-4 text-red-600 shrink-0" /> Lab Access Requisition Rejected
                           </span>
-                          <span className="px-2.5 py-0.5 bg-red-100 text-red-800 font-bold rounded-full text-[10px] border border-red-300">
+                          <span className="self-start sm:self-auto px-2.5 py-0.5 bg-red-100 text-red-800 font-bold rounded-full text-[10px] border border-red-300 shrink-0 whitespace-nowrap">
                             Rejected
                           </span>
                         </div>
-                        <p className="text-slate-600 text-[11px]">
+                        <p className="text-slate-600 text-[11px] leading-relaxed">
                           Requisition <code className="font-mono bg-red-100 px-1 rounded">{req.id}</code> for <span className="font-semibold">{labNames}</span> was rejected.
                         </p>
-                        <div className="flex items-center justify-between text-[11px] pt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                           <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{req.id}-LAB</code></span>
                           <button
                             onClick={() =>
@@ -753,7 +753,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                                 selectedServiceLabel: labNames || 'Research Lab Access',
                               })
                             }
-                            className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer"
+                            className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer shrink-0"
                           >
                             View Requisition Details →
                           </button>
@@ -762,19 +762,19 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                     );
                   } else {
                     return (
-                      <div key={`${req.id}-${idx}`} className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                            <Clock className="w-4 h-4 text-amber-600" /> Lab Access Requisition Pending Verification
+                      <div key={`${req.id}-${idx}`} className="p-3.5 sm:p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2 text-xs min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                          <span className="font-bold text-amber-900 flex items-center gap-1.5 min-w-0">
+                            <Clock className="w-4 h-4 text-amber-600 shrink-0" /> Lab Access Requisition Pending Verification
                           </span>
-                          <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300">
+                          <span className="self-start sm:self-auto px-2.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] border border-amber-300 shrink-0 whitespace-nowrap">
                             Under Workflow Review
                           </span>
                         </div>
-                        <p className="text-slate-600 text-[11px]">
+                        <p className="text-slate-600 text-[11px] leading-relaxed">
                           Requisition <code className="font-mono bg-amber-100 px-1 rounded">{req.id}</code> for <span className="font-semibold">{labNames}</span> has been submitted and is currently being verified by your Supervising Officer / Nodal Officer.
                         </p>
-                        <div className="flex items-center justify-between text-[11px] pt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] pt-1 min-w-0">
                           <span className="text-slate-500 font-medium">Requisition Ref: <code className="font-mono bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-800">{req.id}-LAB</code></span>
                           <button
                             onClick={() =>
@@ -785,7 +785,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                                 selectedServiceLabel: labNames || 'Research Lab Access',
                               })
                             }
-                            className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer"
+                            className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer shrink-0"
                           >
                             View Requisition Status →
                           </button>

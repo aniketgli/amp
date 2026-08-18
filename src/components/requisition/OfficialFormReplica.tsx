@@ -16,8 +16,8 @@ export const OfficialFormReplica: React.FC<OfficialFormReplicaProps> = ({ requis
   const isItForm = requisition.type === 'IT_HRMS' || requisition.type === 'COMBINED';
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-300 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-300 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden min-w-0">
         {/* Modal Toolbar (hidden when printing) */}
         <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0 print:hidden">
           <div className="flex items-center gap-3">

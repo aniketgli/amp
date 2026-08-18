@@ -6,7 +6,8 @@ export type UserRole =
   | 'lab_nodal'
   | 'assoc_lab_nodal'
   | 'section_head'
-  | 'admin';
+  | 'admin'
+  | 'super_admin';
 
 export interface ManagedUser {
   id: string;

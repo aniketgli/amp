@@ -371,48 +371,48 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
   const verifiedLogsCount = profile.verifiedOfficeOrderLogs?.length || 0;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 sm:p-5 space-y-4 min-w-0">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
             <FileCheck2 className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider flex items-center gap-2 truncate">
               Office Order Verification & OCR Engine
             </h2>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 truncate">
               Scanned document parsing, profile cross-matching, and permanent 100% verified order logs.
             </p>
           </div>
         </div>
 
         {/* View Toggle Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 self-start sm:self-auto">
+        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 self-stretch sm:self-auto max-w-full overflow-x-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('current')}
-            className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-none px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'current'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+            <Layers className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             Current Order
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-none px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'history'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <History className="w-3.5 h-3.5 text-blue-600" />
-            Verified Order Logs
+            <History className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            Verified Logs
             {verifiedLogsCount > 0 && (
               <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ml-0.5">
                 {verifiedLogsCount}
@@ -424,20 +424,20 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
 
       {/* Tab 1: Current Active Order & Verification Matrix */}
       {activeTab === 'current' && (
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Status Badge */}
           {verificationResult && (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
               <span className="text-xs font-bold text-slate-700">Verification Outcome:</span>
-              <div>
+              <div className="self-start sm:self-auto">
                 {verificationResult.hasMismatches ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                    <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                     {verificationResult.mismatchCount} Discrepanc{verificationResult.mismatchCount > 1 ? 'ies' : 'y'} Detected
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     100% Verified & Logged
                   </span>
                 )}
@@ -524,35 +524,35 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
             /* Attached Document Display & Verification Result */
             <div className="space-y-4">
               {/* File summary bar */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-slate-900 text-white rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl min-w-0">
+                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                  <div className="p-2.5 bg-slate-900 text-white rounded-lg shrink-0">
                     <FileText className="w-5 h-5 text-emerald-400" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 truncate max-w-[180px] sm:max-w-xs">
                         {profile.officeOrderFileName || verificationResult?.fileName}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
                         OCR Processed
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500 flex items-center gap-3 mt-0.5">
-                      <span>Order Ref: <strong>{verificationResult?.extractedData.orderNumber || 'WII/ADMN/2026/ORD-891'}</strong></span>
-                      <span>•</span>
-                      <span>Sanction Date: <strong>{verificationResult?.extractedData.orderDate || '25 Jan 2026'}</strong></span>
+                    <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                      <span>Order Ref: <strong className="text-slate-800">{verificationResult?.extractedData.orderNumber || 'WII/ADMN/2026/ORD-891'}</strong></span>
+                      <span className="hidden sm:inline">•</span>
+                      <span>Sanction Date: <strong className="text-slate-800">{verificationResult?.extractedData.orderDate || '25 Jan 2026'}</strong></span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                   <button
                     type="button"
                     onClick={() => setShowDocModal(true)}
-                    className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 cursor-pointer flex items-center gap-1.5 transition-all"
+                    className="flex-1 sm:flex-none px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
                   >
-                    <Eye className="w-3.5 h-3.5 text-blue-600" />
+                    <Eye className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     View OCR Extraction
                   </button>
                   {isEditable && (
@@ -560,7 +560,7 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
                       type="button"
                       onClick={handleRemoveFile}
                       title="Remove document and upload another"
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -570,16 +570,16 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
 
               {/* If Mismatch: Prominent Discrepancy Error Banner */}
               {verificationResult?.hasMismatches && (
-                <div className="p-4 bg-rose-50/90 border-2 border-rose-300 rounded-xl space-y-3">
+                <div className="p-3.5 sm:p-4 bg-rose-50/90 border-2 border-rose-300 rounded-xl space-y-3 min-w-0">
                   <div className="flex items-start gap-3">
                     <div className="p-2 bg-rose-600 text-white rounded-lg shrink-0 mt-0.5">
                       <AlertTriangle className="w-5 h-5" />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <h3 className="text-xs font-extrabold text-rose-900 uppercase tracking-wider flex items-center gap-2">
                         Critical Information Mismatch Detected
                       </h3>
-                      <p className="text-xs text-rose-800">
+                      <p className="text-xs text-rose-800 leading-relaxed">
                         The uploaded Office Order does not match the information entered in your Profile form.
                         Please review the mismatches below and correct them before submitting.
                       </p>
@@ -587,7 +587,7 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
                   </div>
 
                   {/* Mismatch List */}
-                  <div className="bg-white/80 border border-rose-200 rounded-lg p-3 space-y-2">
+                  <div className="bg-white/80 border border-rose-200 rounded-lg p-3 space-y-2 min-w-0">
                     <p className="text-[11px] font-bold text-rose-900 uppercase tracking-wider">
                       List of Discrepancies:
                     </p>
@@ -597,7 +597,7 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
                         .map((item, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <strong className="text-slate-900">{item.label}:</strong>{' '}
                               <span>Form has <code className="bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-mono text-[11px]">"{item.formValue}"</code></span>,{' '}
                               <span>but Office Order specifies <code className="bg-emerald-100 text-emerald-900 px-1 py-0.5 rounded font-mono text-[11px] font-bold">"{item.docValue}"</code></span>
@@ -609,16 +609,16 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
 
                   {/* Quick Auto-Fix Button */}
                   {isEditable && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-rose-200">
                       <span className="text-[11px] text-rose-800 font-medium">
                         Want to automatically update your form fields with the official Office Order values?
                       </span>
                       <button
                         type="button"
                         onClick={handleAutoFixDiscrepancies}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                        className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0"
                       >
-                        <Wand2 className="w-4 h-4" />
+                        <Wand2 className="w-4 h-4 shrink-0" />
                         Auto-Fix & Sync Form with Office Order
                       </button>
                     </div>
@@ -628,21 +628,21 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
 
               {/* If All Matched: Green Success Banner */}
               {verificationResult && !verificationResult.hasMismatches && (
-                <div className="p-4 bg-emerald-50/80 border border-emerald-300 rounded-xl flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
+                <div className="p-3.5 sm:p-4 bg-emerald-50/80 border border-emerald-300 rounded-xl flex flex-col sm:flex-row sm:items-start justify-between gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     <div className="p-2 bg-emerald-600 text-white rounded-lg shrink-0 mt-0.5">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
                           Office Order 100% Verified & Saved to Logs
                         </h3>
-                        <span className="text-[10px] font-extrabold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded">
+                        <span className="text-[10px] font-extrabold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded shrink-0">
                           100% MATCH
                         </span>
                       </div>
-                      <p className="text-xs text-emerald-800">
+                      <p className="text-xs text-emerald-800 leading-relaxed">
                         All official parameters (Candidate Name, Sanctioned Cadre, Supervising PI, Project Cell, and Validity Period)
                         match the attached Office Order. This order is actively recorded in your profile verification history.
                       </p>
@@ -652,9 +652,9 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
                   <button
                     type="button"
                     onClick={() => setActiveTab('history')}
-                    className="shrink-0 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1.5 shadow-xs transition-all"
+                    className="w-full sm:w-auto shrink-0 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95"
                   >
-                    <History className="w-3.5 h-3.5" />
+                    <History className="w-3.5 h-3.5 shrink-0" />
                     View in Audit Logs
                   </button>
                 </div>
@@ -663,18 +663,57 @@ Status: ${log.status.toUpperCase()} (100% OCR Verified)`;
               {/* Field Comparison Table */}
               {verificationResult && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                  <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-slate-600" />
+                  <div className="bg-slate-100 px-3.5 py-2.5 sm:px-4 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 truncate">
+                      <Layers className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                       Field-by-Field Cross-Verification Matrix
                     </span>
-                    <span className="text-[11px] text-slate-500 font-mono">
+                    <span className="text-[11px] text-slate-500 font-mono shrink-0">
                       {verificationResult.comparisons.filter((c) => c.isMatch).length} / {verificationResult.comparisons.length} Match
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                  {/* Mobile Stacked Card View (< sm) */}
+                  <div className="block sm:hidden divide-y divide-slate-200 bg-white">
+                    {verificationResult.comparisons.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 space-y-2 ${!item.isMatch ? 'bg-rose-50/60' : ''}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-xs text-slate-800">{item.label}</span>
+                          {item.isMatch ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                              <Check className="w-3 h-3 text-emerald-600" /> Match
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 shrink-0">
+                              <X className="w-3 h-3 text-rose-600" /> Mismatch
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className="bg-slate-50/90 p-2 rounded-lg border border-slate-200/80 min-w-0">
+                            <span className="text-[9px] uppercase font-extrabold text-slate-400 block mb-0.5">Entered in Form</span>
+                            <span className={`font-medium block truncate ${!item.isMatch ? 'text-rose-700 font-bold' : 'text-slate-700'}`}>
+                              {item.formValue}
+                            </span>
+                          </div>
+                          <div className="bg-slate-50/90 p-2 rounded-lg border border-slate-200/80 min-w-0">
+                            <span className="text-[9px] uppercase font-extrabold text-slate-400 block mb-0.5">From Office Order</span>
+                            <span className={`font-mono block truncate ${!item.isMatch ? 'text-emerald-800 font-bold bg-emerald-100 px-1 py-0.5 rounded' : 'text-slate-900'}`}>
+                              {item.docValue}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop / Tablet Table View (≥ sm) */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse min-w-[550px]">
                       <thead>
                         <tr className="bg-slate-50 text-slate-600 text-[11px] uppercase tracking-wider border-b border-slate-200">
                           <th className="py-2.5 px-4 font-semibold">Credential Parameter</th>

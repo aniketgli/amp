@@ -91,7 +91,7 @@ export const ITHrmsForm: React.FC<ITHrmsFormProps> = ({ value, onChange }) => {
               <Mail className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">A. WII Official Email ID Requisition</h3>
+              <h3 className="text-sm font-bold text-slate-800">A. WII Official Email ID Access</h3>
               <p className="text-xs text-slate-500">
                 Official @wii.gov.in domain account and institutional mailing list memberships.
               </p>

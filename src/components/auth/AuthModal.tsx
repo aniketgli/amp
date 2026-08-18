@@ -83,13 +83,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setCaptchaError(null);
 
     if (!regName.trim() || !regEmail.trim() || !regPhone.trim()) {
-      alert('Please fill in all required fields (Name, Personal Email, and Phone Number).');
+      setCaptchaError('Please fill in all required fields.');
+      return;
+    }
+
+    const cleanPhone = regPhone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setCaptchaError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
     // Verify Captcha Code
     if (userCaptchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
-      setCaptchaError('Invalid Captcha Code entered. Please enter the code correctly.');
+      setCaptchaError('Invalid captcha code. Please try again.');
       return;
     }
 
@@ -97,14 +103,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       salutation: 'Dr.',
       applicantName: regName,
       personalEmail: regEmail,
-      mobileNo: regPhone,
+      mobileNo: cleanPhone,
       panNo: 'ASHPR1928K',
       designation: 'Applicant / Research Fellow',
       departmentCellProject: 'Dept. of Landscape Level Planning & GIS',
       supervisingOfficerName: 'Dr. R. K. Singh (Scientist - F / PI)',
     };
 
-    setRegSuccessMessage(`Registration successful! User account created for ${regName}.`);
+    setRegSuccessMessage(`Registration successful! Account created for ${regName}.`);
     setTimeout(() => {
       onLoginSuccess('applicant', newProfile);
       setRegSuccessMessage(null);
@@ -113,34 +119,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-hidden">
+      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200 min-w-0">
         
         {/* Header Banner */}
-        <div className="bg-slate-900 text-white p-6 relative">
+        <div className="bg-slate-900 text-white p-4 sm:p-6 relative shrink-0 min-w-0">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="absolute top-3.5 right-3.5 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-extrabold text-xl shadow-md border border-emerald-400">
+          <div className="flex items-center gap-3 pr-8 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-extrabold text-lg sm:text-xl shadow-md border border-emerald-400 shrink-0">
               WII
             </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                <Building2 className="w-3 h-3" /> Wildlife Institute of India Portal
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1 truncate">
+                <Building2 className="w-3 h-3 shrink-0" /> Wildlife Institute of India Portal
               </div>
-              <h2 className="text-xl font-extrabold text-white">
+              <h2 className="text-base sm:text-xl font-extrabold text-white leading-tight truncate">
                 {mode === 'login' ? 'User Authentication & Login' : 'New User Registration'}
               </h2>
             </div>
           </div>
 
           {/* Mode Tabs */}
-          <div className="flex gap-2 mt-5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+          <div className="flex gap-2 mt-4 sm:mt-5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
             <button
               type="button"
               onClick={() => setMode('login')}
@@ -150,7 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-4 h-4 shrink-0" />
               Portal Login
             </button>
             <button
@@ -162,14 +168,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-4 h-4 shrink-0" />
               Register Account
             </button>
           </div>
         </div>
 
         {/* Form Container */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 min-w-0">
           {regSuccessMessage && (
             <div className="mb-4 bg-emerald-50 border border-emerald-300 text-emerald-900 p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -297,17 +303,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               {/* 3. Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Phone Number (Mobile) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Phone Number (Mobile) *
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {regPhone.length}/10
+                  </span>
+                </div>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="tel"
                     required
+                    maxLength={10}
+                    pattern="[0-9]{10}"
                     value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="+91 98765 12345"
+                    onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876512345"
                     className="w-full text-xs pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-slate-900"
                   />
                 </div>

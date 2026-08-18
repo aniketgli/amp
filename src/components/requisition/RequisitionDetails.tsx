@@ -111,23 +111,23 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
     },
     {
       key: 'in_lab_review',
-      title: 'Lab Nodal',
-      actor: hasLab ? 'Lab Nodal Officers' : 'N/A (No Lab)',
+      title: 'Lab NO & ANO Review',
+      actor: hasLab ? 'Lab NO & ANO Officers' : 'N/A (Services Request Direct to IT Head)',
     },
     {
       key: 'pending_section_head',
-      title: 'Section Head IT',
-      actor: 'Dr. Panna Lal',
+      title: 'IT Head Clearance',
+      actor: 'Dr. Panna Lal (Section Head IT)',
     },
     {
       key: 'in_tech_verification',
-      title: 'Tech Officers',
-      actor: 'IT / HRMS Officers',
+      title: 'Manager Action',
+      actor: 'IT & HRMS Technical Managers',
     },
     {
       key: 'approved_provisioned',
       title: 'Active & Provisioned',
-      actor: 'All Systems Ready',
+      actor: 'All Systems Ready & Supervisor Informed',
     },
   ];
 
@@ -153,15 +153,38 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
   const currentStepIdx = getStepIndex(requisition.status);
 
+  // Helper to test if it's the active role's turn to take action
+  const canCurrentRoleAct = (req: RequisitionRecord, role: UserRole): boolean => {
+    if (req.status === 'rejected' || req.status === 'approved_provisioned' || req.status === 'deactivated') {
+      return false;
+    }
+    if (role === 'admin' || role === 'super_admin') return true;
+    if (role === 'supervisor') {
+      return req.status === 'submitted_pending_pi' || req.piApproval?.status === 'pending';
+    }
+    if (role === 'lab_nodal' || role === 'assoc_lab_nodal') {
+      return req.status === 'in_lab_review' && Boolean(req.labAccessDetails?.some((l) => l.selected && l.nodalApprovalStatus === 'pending'));
+    }
+    if (role === 'section_head') {
+      return req.status === 'pending_section_head';
+    }
+    if (role === 'it_officer' || role === 'hrms_officer') {
+      return req.status === 'in_tech_verification';
+    }
+    return false;
+  };
+
   // Workflow action handlers for Officers
   const handleOfficerAction = (action: 'approve' | 'reject' | 'provision') => {
     const updated: RequisitionRecord = { ...requisition };
     const now = new Date().toISOString();
     const actorName =
       currentRole === 'supervisor'
-        ? requisition.applicant.supervisingOfficerName || 'Dr. R. K. Singh'
-        : currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal'
-        ? 'Dr. S. K. Gupta (Lab Nodal Officer)'
+        ? requisition.applicant.supervisingOfficerName || 'Dr. R. K. Singh (Supervising Officer)'
+        : currentRole === 'lab_nodal'
+        ? 'Dr. S. K. Gupta (Lab Nodal Officer - NO)'
+        : currentRole === 'assoc_lab_nodal'
+        ? 'Dr. Associate Nodal Officer (ANO - Lab Cell)'
         : currentRole === 'section_head'
         ? 'Dr. Panna Lal (Section Head IT)'
         : currentRole === 'it_officer'
@@ -179,7 +202,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
           actorRole: currentRole,
           actorName,
           actionType: 'reject',
-          comments: officerComments || 'Requisition rejected with remarks.',
+          comments: officerComments || 'Requisition rejected with official remarks.',
           timestamp: now,
           digitalSignature: officerSign || actorName,
         },
@@ -192,6 +215,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
         timestamp: now,
         signature: officerSign || actorName,
       };
+      // Services request goes directly to IT Head; Lab request goes to NO/ANO Lab
       updated.status = hasLab ? 'in_lab_review' : 'pending_section_head';
       updated.history = [
         ...updated.history,
@@ -221,6 +245,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
           return lab;
         });
       }
+      // Either NO or ANO can forward to IT Head
       updated.status = 'pending_section_head';
       updated.history = [
         ...updated.history,
@@ -229,7 +254,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
           actorRole: currentRole,
           actorName,
           actionType: 'lab_approve',
-          comments: officerComments || 'Research laboratory access pass cleared.',
+          comments: officerComments || `Research laboratory access pass cleared by ${currentRole === 'assoc_lab_nodal' ? 'ANO' : 'NO'}.`,
           timestamp: now,
           digitalSignature: officerSign || actorName,
         },
@@ -288,7 +313,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
           actorRole: currentRole,
           actorName,
           actionType: 'tech_provision',
-          comments: officerComments || 'Technical identifiers provisioned and activated in core systems.',
+          comments: officerComments || 'Technical identifiers provisioned and activated in core systems by Manager.',
           timestamp: now,
           digitalSignature: officerSign || actorName,
         },
@@ -464,8 +489,14 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                   {isCompleted ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   ) : isCurrent ? (
-                    <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-pulse" />
-                  ) : null}
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      <Clock className="w-3.5 h-3.5 animate-pulse" /> Forwarded
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-tight">
+                      Forwarding Awaited
+                    </span>
+                  )}
                 </div>
                 <div className="font-semibold text-xs leading-tight">{step.title}</div>
                 <div className="text-[10px] opacity-80 mt-1 truncate">{step.actor}</div>
@@ -903,125 +934,137 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
         {/* RIGHT COLUMN (lg:col-span-5): Officer Action Desk + Audit Trail & Workflow History */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* OFFICER ACTION DESK (Only shown to Officers when action is needed) */}
+          {/* OFFICER ACTION DESK (Only shown to Officers when action is required for their active stage) */}
           {currentRole !== 'applicant' && requisition.status !== 'approved_provisioned' && requisition.status !== 'rejected' && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Officer Approval & Review Desk</h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Action required for <strong className="text-emerald-600 dark:text-emerald-400 uppercase">{currentRole}</strong></p>
+            canCurrentRoleAct(requisition, currentRole) ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Officer Approval & Review Desk</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Action required for <strong className="text-emerald-600 dark:text-emerald-400 uppercase">{currentRole}</strong></p>
+                  </div>
+                </div>
+
+                {/* Technical Provisioning Inputs if IT or HRMS Manager and service is requested */}
+                {(() => {
+                  const showEmailInput = (currentRole === 'it_officer' || currentRole === 'admin') && isEmailRequested;
+                  const showMacInput = (currentRole === 'it_officer' || currentRole === 'admin') && isInternetRequested;
+                  const showBioInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isBiometricRequested;
+                  const showHrmsInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isHrmsRequested;
+
+                  const showProvisioningSection = showEmailInput || showMacInput || showBioInput || showHrmsInput;
+
+                  if (!showProvisioningSection) return null;
+
+                  return (
+                    <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                      <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 block border-b border-slate-200 dark:border-slate-700 pb-1">
+                        System Account Provisioning
+                      </span>
+
+                      {showEmailInput && (
+                        <div>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Assigned WII Email</label>
+                          <input
+                            type="text"
+                            value={provWiiEmail}
+                            onChange={(e) => setProvWiiEmail(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+
+                      {showMacInput && (
+                        <div>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Verified Hardware MAC</label>
+                          <input
+                            type="text"
+                            value={provMac}
+                            onChange={(e) => setProvMac(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+
+                      {showBioInput && (
+                        <div>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Biometric Attendance ID</label>
+                          <input
+                            type="text"
+                            value={provBioId}
+                            onChange={(e) => setProvBioId(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+
+                      {showHrmsInput && (
+                        <div>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">HRMS Employee Code</label>
+                          <input
+                            type="text"
+                            value={provHrmsCode}
+                            onChange={(e) => setProvHrmsCode(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Remarks Input */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Officer Remarks & Findings</label>
+                  <textarea
+                    value={officerComments}
+                    onChange={(e) => setOfficerComments(e.target.value)}
+                    placeholder="Enter endorsement notes, verification findings, or rejection reasons..."
+                    rows={2}
+                    className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Digital Signature Input */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Digital Signature Sign-off</label>
+                  <input
+                    type="text"
+                    value={officerSign}
+                    onChange={(e) => setOfficerSign(e.target.value)}
+                    placeholder="Type your full name as Digital Sign-off..."
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => handleOfficerAction('reject')}
+                    className="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                  <button
+                    onClick={() => handleOfficerAction('approve')}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Endorse & Advance
+                  </button>
                 </div>
               </div>
-
-              {/* Technical Provisioning Inputs if IT or HRMS Officer and service is requested */}
-              {(() => {
-                const showEmailInput = (currentRole === 'it_officer' || currentRole === 'admin') && isEmailRequested;
-                const showMacInput = (currentRole === 'it_officer' || currentRole === 'admin') && isInternetRequested;
-                const showBioInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isBiometricRequested;
-                const showHrmsInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isHrmsRequested;
-
-                const showProvisioningSection = showEmailInput || showMacInput || showBioInput || showHrmsInput;
-
-                if (!showProvisioningSection) return null;
-
-                return (
-                  <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 block border-b border-slate-200 dark:border-slate-700 pb-1">
-                      System Account Provisioning
-                    </span>
-
-                    {showEmailInput && (
-                      <div>
-                        <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Assigned WII Email</label>
-                        <input
-                          type="text"
-                          value={provWiiEmail}
-                          onChange={(e) => setProvWiiEmail(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-
-                    {showMacInput && (
-                      <div>
-                        <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Verified Hardware MAC</label>
-                        <input
-                          type="text"
-                          value={provMac}
-                          onChange={(e) => setProvMac(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-
-                    {showBioInput && (
-                      <div>
-                        <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Biometric Attendance ID</label>
-                        <input
-                          type="text"
-                          value={provBioId}
-                          onChange={(e) => setProvBioId(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-
-                    {showHrmsInput && (
-                      <div>
-                        <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">HRMS Employee Code</label>
-                        <input
-                          type="text"
-                          value={provHrmsCode}
-                          onChange={(e) => setProvHrmsCode(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-slate-100 font-mono text-xs focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Remarks Input */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Officer Remarks & Findings</label>
-                <textarea
-                  value={officerComments}
-                  onChange={(e) => setOfficerComments(e.target.value)}
-                  placeholder="Enter endorsement notes, verification findings, or rejection reasons..."
-                  rows={2}
-                  className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
+                  <Info className="w-4 h-4 text-blue-500" />
+                  Read-Only Workflow Tracking Mode
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  This requisition is currently at stage: <strong className="text-blue-600 dark:text-blue-400 uppercase">{requisition.status.replace(/_/g, ' ')}</strong>. Action is currently pending with the designated officer for that stage.
+                </p>
               </div>
-
-              {/* Digital Signature Input */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Digital Signature Sign-off</label>
-                <input
-                  type="text"
-                  value={officerSign}
-                  onChange={(e) => setOfficerSign(e.target.value)}
-                  placeholder="Type your full name as Digital Sign-off..."
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={() => handleOfficerAction('reject')}
-                  className="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4" /> Reject
-                </button>
-                <button
-                  onClick={() => handleOfficerAction('approve')}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Approve & Advance
-                </button>
-              </div>
-            </div>
+            )
           )}
 
           {/* AUDIT TRAIL & WORKFLOW HISTORY CARD */}

@@ -114,10 +114,10 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
 
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-              WII Official Requisition
+              WII Official Access Request
             </span>
             <span className="text-xs font-bold text-slate-500">
-              Mode: {initialMode === 'renewal' ? 'Tenure Extension / Renewal' : 'New Service Requisition'}
+              Mode: {initialMode === 'renewal' ? 'Tenure Extension / Renewal' : 'New Service Access Request'}
             </span>
           </div>
         </div>
@@ -133,7 +133,7 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
               ) : (
                 <>
                   <PlusCircle className="w-5 h-5 text-blue-600" />
-                  New Access & Facilities Service Requisition
+                  New Access & Facilities Service Request
                 </>
               )}
             </h1>
@@ -417,7 +417,7 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-2.5 rounded-lg shadow-xs transition-all cursor-pointer"
             >
               <Send className="w-4 h-4" />
-              Submit Requisition Electronically
+              Submit Access Request Electronically
             </button>
           </div>
         </form>

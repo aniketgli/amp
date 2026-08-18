@@ -508,26 +508,26 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* Header Banner - Standardized Uniform Layout */}
-      <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5 min-h-[140px]">
+      {/* Header Banner */}
+      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5 min-h-[140px]">
         <div className="absolute top-0 right-0 w-80 h-full bg-emerald-500/5 pointer-events-none blur-2xl" />
-        <div className="space-y-1.5 max-w-2xl z-10 relative">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1">
+        <div className="space-y-1.5 max-w-2xl min-w-0 flex-1 z-10 relative">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
               <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access Management Portal
             </span>
-            <span className="text-xs text-slate-400">• Wildlife Institute of India</span>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">• Wildlife Institute of India</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
             Central Governance & Master Data Control
           </h1>
-          <p className="text-xs text-slate-300 truncate max-w-xl block">
+          <p className="text-xs text-slate-300 leading-relaxed max-w-xl block">
             Complete administrative control over User Roles & Accounts, Facilities Master, Services Master, system parameters, and emergency overrides.
           </p>
         </div>
 
         {/* Quick System Status Badges */}
-        <div className="bg-slate-800/90 border border-slate-700/80 p-3.5 rounded-xl text-xs space-y-1.5 min-w-[280px] shadow-xs relative z-10 shrink-0">
+        <div className="bg-slate-800/90 border border-slate-700/80 p-3.5 rounded-xl text-xs space-y-1.5 w-full sm:w-auto min-w-0 sm:min-w-[280px] shadow-xs relative z-10 shrink-0">
           <div className="flex justify-between items-center text-slate-300">
             <span className="font-medium text-slate-400">Total System Users:</span>
             <span className="font-extrabold text-white text-xs">{managedUsers.length}</span>
@@ -556,71 +556,81 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       </div>
 
       {/* Navigation Sub-Tabs (Strict Order: 1. Users, 2. Facilities, Labs & Services Master, 3. Override, 4. Config, 5. Audit) */}
-      <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-xs flex flex-wrap gap-1">
-        {/* 1. User Roles & Accounts */}
-        <button
-          onClick={() => setActiveSubTab('users')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'users'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          1. User Roles & Accounts ({managedUsers.length})
-        </button>
+      <div className="relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1.5 shadow-xs overflow-hidden">
+        {/* Subtle Mobile Scroll Right Indicator Overlay */}
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-slate-900 to-transparent sm:hidden z-10" />
 
-        {/* 2. Facilities, Labs & Services Master */}
-        <button
-          onClick={() => setActiveSubTab('masters')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'masters' || activeSubTab === 'facilities' || activeSubTab === 'labs' || activeSubTab === 'services'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          2. Facilities & Services Master ({facilitiesList.length + servicesList.length})
-        </button>
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar scroll-smooth pr-10 sm:pr-1.5 touch-pan-x">
+          {/* 1. User Roles & Accounts */}
+          <button
+            onClick={() => setActiveSubTab('users')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'users'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">1. Users ({managedUsers.length})</span>
+            <span className="hidden sm:inline">1. User Roles & Accounts ({managedUsers.length})</span>
+          </button>
 
-        {/* 3. Master Requisitions Override */}
-        <button
-          onClick={() => setActiveSubTab('requisitions_override')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'requisitions_override'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Zap className="w-4 h-4" />
-          3. Requisitions Override ({requisitions.length})
-        </button>
+          {/* 2. Facilities, Labs & Services Master */}
+          <button
+            onClick={() => setActiveSubTab('masters')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'masters' || activeSubTab === 'facilities' || activeSubTab === 'labs' || activeSubTab === 'services'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">2. Facilities ({facilitiesList.length + servicesList.length})</span>
+            <span className="hidden sm:inline">2. Facilities & Services Master ({facilitiesList.length + servicesList.length})</span>
+          </button>
 
-        {/* 4. System Maintenance & Parameters */}
-        <button
-          onClick={() => setActiveSubTab('system_config')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'system_config'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Sliders className="w-4 h-4" />
-          4. System Maintenance
-        </button>
+          {/* 3. Master Requisitions Override */}
+          <button
+            onClick={() => setActiveSubTab('requisitions_override')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'requisitions_override'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">3. Override ({requisitions.length})</span>
+            <span className="hidden sm:inline">3. Access Override ({requisitions.length})</span>
+          </button>
 
-        {/* 5. Global Security Audit Trail */}
-        <button
-          onClick={() => setActiveSubTab('audit_logs')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'audit_logs'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Activity className="w-4 h-4" />
-          5. Security Audit Trail
-        </button>
+          {/* 4. System Maintenance & Parameters */}
+          <button
+            onClick={() => setActiveSubTab('system_config')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'system_config'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">4. Config</span>
+            <span className="hidden sm:inline">4. System Maintenance</span>
+          </button>
+
+          {/* 5. Global Security Audit Trail */}
+          <button
+            onClick={() => setActiveSubTab('audit_logs')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'audit_logs'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">5. Audit Log</span>
+            <span className="hidden sm:inline">5. Security Audit Trail</span>
+          </button>
+        </div>
       </div>
 
       {/* ==================== SUB-TAB 1: USER ROLES & ACCOUNTS ==================== */}
@@ -637,21 +647,21 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative w-64">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search user, email, role..."
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               <button
                 onClick={() => setIsAddUserModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto shrink-0"
               >
                 <PlusCircle className="w-4 h-4" />
                 Add New User
@@ -659,8 +669,110 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse">
+          {/* Mobile Card List (< sm) */}
+          <div className="block sm:hidden space-y-3">
+            {filteredUsers.map((user) => {
+              const roleObj = OFFICIAL_ROLES.find((r) => r.id === user.role);
+              const roleTitleMap: Record<string, string> = {
+                applicant: 'User',
+                supervisor: 'Reporting Manager / Supervisor (PI)',
+                lab_nodal: 'Nodal Officer',
+                assoc_lab_nodal: 'Associate Nodal Officer',
+                it_officer: 'IT Head',
+                section_head: 'Manager',
+                hrms_officer: 'HRMS Officer',
+                admin: 'Admin',
+              };
+              const roleBadgeColorMap: Record<string, string> = {
+                admin: 'bg-purple-100 text-purple-900 border-purple-300',
+                applicant: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                supervisor: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+                it_officer: 'bg-blue-50 text-blue-800 border-blue-200',
+                section_head: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+                hrms_officer: 'bg-purple-50 text-purple-800 border-purple-200',
+                lab_nodal: 'bg-amber-50 text-amber-800 border-amber-200',
+                assoc_lab_nodal: 'bg-orange-50 text-orange-800 border-orange-200',
+              };
+              const displayTitle = roleTitleMap[user.role] || roleObj?.title || user.role;
+              const colorClass = roleBadgeColorMap[user.role] || 'bg-slate-100 text-slate-800 border-slate-200';
+
+              return (
+                <div key={user.id} className="p-3.5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-full ${
+                          roleObj?.avatarColor || 'bg-slate-700'
+                        } text-white font-bold flex items-center justify-center shrink-0 text-sm`}
+                      >
+                        {user.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate">{user.name}</div>
+                        <div className="text-[11px] text-slate-500 font-mono truncate">{user.email}</div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleToggleStatus(user.id)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shrink-0 transition-all cursor-pointer ${
+                        user.status === 'active'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-red-100 text-red-800 border border-red-300'
+                      }`}
+                    >
+                      {user.status}
+                    </button>
+                  </div>
+
+                  <div className="text-[11px] space-y-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                    <div>
+                      <span className="font-semibold text-slate-500">Designation:</span>{' '}
+                      <span className="font-bold text-slate-800">{user.designation}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-500">Department:</span>{' '}
+                      <span className="text-slate-700">{user.department}</span>
+                    </div>
+                    {user.intercom && (
+                      <div>
+                        <span className="font-semibold text-slate-500">Intercom:</span>{' '}
+                        <span className="font-mono text-slate-700">{user.intercom}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className={`inline-block text-[11px] font-bold px-2.5 py-1 rounded-lg border shadow-2xs ${colorClass}`}>
+                      {displayTitle}
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setEditingUser(user)}
+                        className="p-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        title="Edit Master Record"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Edit
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        title="Delete Master Record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (≥ sm) */}
+          <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl relative">
+            <table className="w-full min-w-[650px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px]">
                   <th className="p-3">User & Email</th>
@@ -668,7 +780,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   <th className="p-3">Assigned Role</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Intercom</th>
-                  <th className="p-3 text-right">Master Actions</th>
+                  <th className="p-3 text-right sticky right-0 bg-slate-50 z-10 border-l border-slate-200/80 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">Master Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -748,7 +860,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
                       <td className="p-3 font-mono text-slate-600">{user.intercom || 'N/A'}</td>
 
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right sticky right-0 bg-white z-10 border-l border-slate-200/80 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setEditingUser(user)}
@@ -973,63 +1085,63 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* ==================== SUB-TAB 5: REQUISITIONS OVERRIDE ==================== */}
       {activeSubTab === 'requisitions_override' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-6 shadow-xs space-y-4 min-w-0 overflow-hidden">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3 min-w-0">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Zap className="w-5 h-5 text-purple-600" />
-                Admin Master Approval Overrides
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2 min-w-0">
+                <Zap className="w-5 h-5 text-purple-600 shrink-0" />
+                <span className="truncate">Admin Master Approval Overrides</span>
               </h2>
               <p className="text-xs text-slate-500">
-                Directly force-approve, force-reject, or modify any submitted requisition regardless of its current workflow stage.
+                Directly force-approve, force-reject, or modify any submitted access request regardless of its current workflow stage.
               </p>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             {requisitions.map((req, idx) => (
               <div
                 key={`${req.id}-${idx}`}
-                className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white transition-all flex flex-wrap items-center justify-between gap-4"
+                className="p-3.5 sm:p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 min-w-0 overflow-hidden"
               >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-slate-900 text-xs">#{req.id}</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">{req.type}</span>
-                    <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[10px] font-bold rounded uppercase">
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+                    <span className="font-extrabold text-slate-900 text-xs shrink-0">#{req.id}</span>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded shrink-0">{req.type}</span>
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[10px] font-bold rounded uppercase break-all max-w-full">
                       Status: {req.status}
                     </span>
                   </div>
-                  <div className="text-xs font-bold text-slate-800">{req.applicant.applicantName}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-xs font-bold text-slate-800 truncate">{req.applicant.applicantName}</div>
+                  <div className="text-[11px] text-slate-500 break-words leading-relaxed">
                     Dept: {req.applicant.departmentCellProject} • PI: {req.applicant.supervisingOfficerName}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/80 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => handleForceApprove(req)}
                     disabled={req.status === 'approved_provisioned'}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                       req.status === 'approved_provisioned'
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                     }`}
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     Force Approve
                   </button>
 
                   <button
                     onClick={() => handleForceReject(req)}
                     disabled={req.status === 'rejected'}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
                       req.status === 'rejected'
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
                     }`}
                   >
-                    <XCircle className="w-3.5 h-3.5" />
+                    <XCircle className="w-3.5 h-3.5 shrink-0" />
                     Force Reject
                   </button>
                 </div>
@@ -1100,19 +1212,19 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* EDIT USER MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-purple-600" />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
+                <Edit3 className="w-4 h-4 text-purple-600 shrink-0" />
                 Edit Master User Record
               </h3>
-              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer">
+              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0">
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditUser} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveEditUser} className="space-y-4 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2">
               {/* User Identity Info Card (Read-Only) */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                 <div className="font-extrabold text-slate-900 text-xs">{editingUser.name}</div>
@@ -1174,22 +1286,22 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* ADD USER MODAL */}
       {isAddUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <PlusCircle className="w-4 h-4 text-purple-600" />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
+                <PlusCircle className="w-4 h-4 text-purple-600 shrink-0" />
                 Add New Master User / Officer
               </h3>
               <button
                 onClick={() => setIsAddUserModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateUser} className="space-y-4 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2">
               {/* Dropdown 1: Select Registered User */}
               <div>
                 <label className="block font-extrabold text-slate-800 mb-1 flex items-center gap-1.5">
@@ -1261,16 +1373,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* ADD FACILITY MODAL */}
       {isAddFacilityModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-600" />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
+                <Building2 className="w-4 h-4 text-purple-600 shrink-0" />
                 Add New Facility Master
               </h3>
               <button
                 onClick={() => setIsAddFacilityModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
               >
                 ✕
               </button>
@@ -1299,7 +1411,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 setNewFacility({ name: '', nodal: '', assocNodal: '', supervisor: '', dept: '', desc: '' });
                 showToast(`New facility added: ${newFacility.name}`);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
             >
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Facility Name</label>
@@ -1395,16 +1507,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* ADD SERVICE MODAL */}
       {isAddServiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-emerald-600" />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
+                <Wrench className="w-4 h-4 text-emerald-600 shrink-0" />
                 Add New Service Master
               </h3>
               <button
                 onClick={() => setIsAddServiceModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
               >
                 ✕
               </button>
@@ -1430,7 +1542,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 setNewService({ name: '', manager: '', quota: '' });
                 showToast(`New service added: ${newService.name}`);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
             >
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Service Title</label>
@@ -1497,24 +1609,24 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* EDIT FACILITY MODAL */}
       {editingFacility && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-purple-100 text-purple-700 rounded-lg font-mono text-xs font-bold">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-2 bg-purple-100 text-purple-700 rounded-lg font-mono text-xs font-bold shrink-0">
                   {editingFacility.id}
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-sm">Edit Facility Master</h3>
+                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm truncate">Edit Facility Master</h3>
               </div>
               <button
                 onClick={() => setEditingFacility(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditFacility} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveEditFacility} className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Facility Name</label>
                 <input
@@ -1620,24 +1732,24 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* EDIT SERVICE MODAL */}
       {editingService && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg font-mono text-xs font-bold">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg font-mono text-xs font-bold shrink-0">
                   {editingService.id}
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-sm">Edit Service Master</h3>
+                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm truncate">Edit Service Master</h3>
               </div>
               <button
                 onClick={() => setEditingService(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditService} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveEditService} className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Service Title</label>
                 <input

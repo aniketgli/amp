@@ -3,6 +3,12 @@ import { UserRole, ApplicantProfile } from '../../types/requisition';
 import { OFFICIAL_ROLES } from '../../data/initialData';
 import { WiiLogo } from '../common/WiiLogo';
 import {
+  registerUser,
+  authenticateRegisteredUser,
+  activateUserAccount,
+} from '../../utils/emailService';
+import { EmailInboxModal } from '../common/EmailInboxModal';
+import {
   User,
   Lock,
   Mail,
@@ -95,23 +101,23 @@ const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({ code
   }, [code]);
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2 max-w-full">
       <canvas
         ref={canvasRef}
-        width={170}
-        height={46}
-        className="rounded-xl border border-emerald-500/50 shadow-inner select-none cursor-pointer"
+        width={160}
+        height={44}
+        className="rounded-xl border border-emerald-500/50 shadow-inner select-none cursor-pointer max-w-[150px] sm:max-w-[160px] h-[44px] shrink-0"
         onClick={onRefresh}
         title="Click image to generate new Captcha code"
       />
       <button
         type="button"
         onClick={onRefresh}
-        className="p-2.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-800 hover:text-emerald-800 border border-slate-300 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold shrink-0 shadow-2xs"
+        className="p-2.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-800 hover:text-emerald-800 border border-slate-300 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 shadow-2xs min-h-[44px] min-w-[44px]"
         title="Refresh Captcha Code"
       >
         <RefreshCw className="w-4 h-4 text-emerald-600" />
-        <span>Refresh Code</span>
+        <span className="hidden sm:inline">Refresh Code</span>
       </button>
     </div>
   );
@@ -220,6 +226,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [userCaptchaInput, setUserCaptchaInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [regSuccessMessage, setRegSuccessMessage] = useState<string | null>(null);
+  const [isInactiveUserError, setIsInactiveUserError] = useState(false);
+  const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
 
   useEffect(() => {
     refreshCaptcha();
@@ -230,6 +238,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setCaptchaCode(newCode);
     setUserCaptchaInput('');
     setFormError(null);
+    setIsInactiveUserError(false);
   };
 
   const handleSelectDemoAccount = (acc: typeof DEMO_ACCOUNTS[0]) => {
@@ -240,11 +249,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setCaptchaCode(newCode);
     setUserCaptchaInput(newCode); // Auto-fill verified captcha for smooth demo testing
     setFormError(null);
+    setIsInactiveUserError(false);
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setIsInactiveUserError(false);
 
     if (!loginEmail.trim() || !loginPassword.trim()) {
       setFormError('Please enter both your Email ID and Password.');
@@ -260,25 +271,51 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     // Find matched demo account by email
     const matchedAcc = DEMO_ACCOUNTS.find((acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase());
+
+    // Check registered user authentication & activation status
+    const authRes = authenticateRegisteredUser(loginEmail, loginPassword);
+    if (!matchedAcc && !authRes.success) {
+      if (authRes.isInactive) {
+        setIsInactiveUserError(true);
+        setFormError(authRes.message);
+      } else {
+        setFormError(authRes.message);
+      }
+      return;
+    }
+
     const assignedRoles: UserRole[] = matchedAcc 
       ? matchedAcc.assignedRoles 
       : (selectedLoginRole && selectedLoginRole !== 'applicant' ? ['applicant', selectedLoginRole] : ['applicant']);
 
+    const userObj = authRes.user;
     const updatedProfile: Partial<ApplicantProfile> = {
-      applicantName: matchedAcc ? matchedAcc.name : loginEmail.split('@')[0],
+      applicantName: matchedAcc ? matchedAcc.name : (userObj ? userObj.fullName : loginEmail.split('@')[0]),
       personalEmail: loginEmail,
+      mobileNo: userObj ? userObj.phone : '+91 98765 12345',
     };
 
-    // Requirement 1: Always log in as normal user ('applicant') initially
     onLoginSuccess('applicant', assignedRoles, updatedProfile);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setIsInactiveUserError(false);
 
     if (!regName.trim() || !regEmail.trim() || !regPhone.trim() || !regPassword.trim()) {
-      setFormError('Please fill in all required registration fields (Name, Email, Phone, and Password).');
+      setFormError('Please fill in all required fields.');
+      return;
+    }
+
+    // Phone validation (strictly 10 digits starting with 6, 7, 8, or 9)
+    const cleanPhone = regPhone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      setFormError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setFormError('Mobile number must be 10 digits starting with 6, 7, 8, or 9.');
       return;
     }
 
@@ -288,32 +325,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     if (regPassword !== regConfirmPassword) {
-      setFormError('Password and Confirm Password do not match. Please re-enter carefully.');
+      setFormError('Passwords do not match.');
       return;
     }
 
     // Verify Captcha Code
     if (userCaptchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
-      setFormError('Invalid Security Verification (Captcha) Code. Please enter the code correctly.');
+      setFormError('Invalid captcha code. Please try again.');
       refreshCaptcha();
       return;
     }
 
-    const newProfile: Partial<ApplicantProfile> = {
-      salutation: 'Dr.',
-      applicantName: regName,
-      personalEmail: regEmail,
-      mobileNo: regPhone,
-      panNo: 'ASHPR1928K',
-      designation: 'User',
-      departmentCellProject: 'Dept. of Landscape Level Planning & GIS',
-      supervisingOfficerName: 'Dr. R. K. Singh (PI)',
-    };
+    // Register user in storage and dispatch activation link email
+    const regRes = registerUser({
+      fullName: regName,
+      email: regEmail,
+      phone: cleanPhone,
+      password: regPassword,
+    });
 
-    setRegSuccessMessage(`Registration successful! Account created for ${regName}. Redirecting to portal...`);
-    setTimeout(() => {
-      onLoginSuccess('applicant', ['applicant'], newProfile);
-    }, 1500);
+    if (!regRes.success) {
+      setFormError(regRes.message);
+      return;
+    }
+
+    setRegSuccessMessage(
+      `Activation link sent to ${regEmail}. Please check your email inbox to activate your account.`
+    );
   };
 
   return (
@@ -337,19 +375,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
           
           {/* Header Banner featuring Official WII Logo */}
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-6 sm:p-8 relative border-b border-slate-700">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-8 relative border-b border-slate-700">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
               
               {/* Official WII Logo & Title */}
-              <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200 inline-block">
+              <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl shadow-lg border border-slate-200 self-center sm:self-auto inline-block">
                 <WiiLogo size="md" />
               </div>
 
-              <div className="sm:text-right">
-                <h1 className="text-xl sm:text-2xl font-black text-white mt-2">
+              <div className="text-right">
+                <h1 className="text-xl sm:text-2xl font-black text-white">
                   {mode === 'login' ? 'Account Login' : 'New User Account Registration'}
                 </h1>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-xs text-slate-300 mt-0.5">
                   Access Management Portal
                 </p>
               </div>
@@ -395,16 +433,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             
             {/* Feedback Notifications */}
             {regSuccessMessage && (
-              <div className="mb-6 bg-emerald-50 border border-emerald-300 text-emerald-900 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-bounce shadow-xs">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
-                <span>{regSuccessMessage}</span>
+              <div className="max-w-2xl mx-auto mb-5 bg-emerald-50 border border-emerald-200 text-emerald-900 p-3.5 rounded-xl text-xs shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-xs text-emerald-950">Registration Successful</p>
+                    <p className="text-emerald-800 font-medium text-[11px] mt-0.5">{regSuccessMessage}</p>
+                  </div>
+                </div>
               </div>
             )}
 
             {formError && (
-              <div className="mb-6 bg-rose-50 border border-rose-300 text-rose-800 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 shadow-xs">
-                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-                <span>{formError}</span>
+              <div className="max-w-2xl mx-auto mb-5 bg-rose-50 border border-rose-200 text-rose-900 p-3.5 rounded-xl text-xs shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-xs text-rose-950">
+                      {isInactiveUserError ? 'Account Inactive' : 'Authentication Error'}
+                    </p>
+                    <p className="text-rose-800 font-medium text-[11px] mt-0.5">{formError}</p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -464,7 +514,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     required
                     value={userCaptchaInput}
                     onChange={(e) => setUserCaptchaInput(e.target.value)}
-                    placeholder="Enter the 6-character Captcha Code above"
+                    placeholder="Enter 6-character Captcha Code"
                     className="w-full text-xs px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono uppercase font-bold text-slate-900"
                   />
                 </div>
@@ -519,20 +569,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                 {/* 3. Phone */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Phone Number (Mobile) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-800">
+                      Phone Number (Mobile) *
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {regPhone.length}/10 digits
+                    </span>
+                  </div>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       type="tel"
                       required
+                      maxLength={10}
+                      pattern="[0-9]{10}"
                       value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      placeholder="+91 98765 12345"
+                      onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="e.g. 9876512345"
                       className="w-full text-xs pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-slate-900"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Enter valid 10-digit Indian mobile number (digits only)
+                  </p>
                 </div>
 
                 {/* 4. Password & Confirm Password */}
@@ -607,6 +667,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Interactive Email Outbox & Activation Link Viewer */}
+      <EmailInboxModal
+        isOpen={isInboxModalOpen}
+        onClose={() => setIsInboxModalOpen(false)}
+        onAccountActivated={(activatedEmail) => {
+          setFormError(null);
+          setIsInactiveUserError(false);
+          setRegSuccessMessage(`Account (${activatedEmail}) activated successfully! You can now log in.`);
+        }}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '../../types/requisition';
 import { findFacility } from '../../utils/storage';
-import { CheckCircle2, XCircle, ShieldCheck, Mail, Wifi, Fingerprint, Lock, X } from 'lucide-react';
+import { CheckCircle2, XCircle, ShieldCheck, Mail, Lock, X } from 'lucide-react';
 
 interface ApprovalActionModalProps {
   requisition: RequisitionRecord;
@@ -98,7 +98,9 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
               nodalOfficerName:
                 currentRole === 'admin'
                   ? 'System Admin (Lab Override)'
-                  : fac?.nodal || lab.nodalOfficerName || 'Dr. S. K. Gupta',
+                  : currentRole === 'assoc_lab_nodal'
+                  ? 'Dr. Associate Nodal Officer (ANO)'
+                  : fac?.nodal || lab.nodalOfficerName || 'Dr. S. K. Gupta (Lab Nodal Officer)',
               actionDate: now,
             };
           }
@@ -112,12 +114,19 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
         copy.status = 'rejected';
       }
 
+      const labActorName =
+        currentRole === 'admin'
+          ? 'System Administrator'
+          : currentRole === 'assoc_lab_nodal'
+          ? 'Dr. Associate Nodal Officer (ANO)'
+          : 'Dr. S. K. Gupta (Lab Nodal Officer)';
+
       copy.history.push({
         id: `h_${Date.now()}`,
         actorRole: currentRole,
-        actorName: currentRole === 'admin' ? 'System Administrator' : 'Dr. S. K. Gupta',
+        actorName: labActorName,
         actionType: decision === 'approve' ? 'lab_approve' : 'lab_reject',
-        comments,
+        comments: comments || `Research lab request ${decision === 'approve' ? 'forwarded to IT Head' : 'rejected'} by ${currentRole === 'assoc_lab_nodal' ? 'ANO' : 'NO'}.`,
         timestamp: now,
       });
     } else if (effectiveRole === 'section_head') {
@@ -183,48 +192,48 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full overflow-hidden">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 z-50 animate-fade-in overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-600 rounded-lg text-white">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-5 flex items-center justify-between shrink-0 min-w-0 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 bg-emerald-600 rounded-lg text-white shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xs sm:text-base font-bold leading-tight truncate">
                 Workflow Action Panel — {currentRole.replace('_', ' ').toUpperCase()}
               </h3>
-              <p className="text-xs text-slate-300">
+              <p className="text-[10px] sm:text-xs text-slate-300 truncate mt-0.5">
                 Requisition ID: <span className="font-mono text-emerald-400 font-bold">{requisition.id}</span>
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleExecuteAction} className="p-6 space-y-5 text-xs">
+        <form onSubmit={handleExecuteAction} className="p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs overflow-y-auto flex-1 min-h-0 min-w-0">
           {/* Applicant Summary */}
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap justify-between gap-2">
-            <div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+            <div className="min-w-0">
               <span className="text-slate-400 block text-[10px] font-bold uppercase">Applicant</span>
-              <span className="font-bold text-slate-800 text-sm">{requisition.applicant.applicantName}</span>
-              <span className="text-slate-500 block">
+              <span className="font-bold text-slate-800 text-sm block truncate">{requisition.applicant.applicantName}</span>
+              <span className="text-slate-500 block truncate">
                 {requisition.applicant.designation} ({requisition.applicant.departmentCellProject})
               </span>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right min-w-0">
               <span className="text-slate-400 block text-[10px] font-bold uppercase">PI / Supervisor</span>
-              <span className="font-semibold text-slate-800">{requisition.applicant.supervisingOfficerName}</span>
+              <span className="font-semibold text-slate-800 block truncate">{requisition.applicant.supervisingOfficerName}</span>
             </div>
           </div>
 
           {/* Decision Selector */}
           <div>
             <label className="block font-bold text-slate-700 mb-2">Select Approval / Action Decision:</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setDecision('approve')}

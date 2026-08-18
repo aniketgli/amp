@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '../../types/requisition';
 import { OFFICIAL_ROLES } from '../../data/initialData';
-import { getRequisitionServiceName } from '../../utils/storage';
+import { getRequisitionServiceName, isRequisitionVisibleForRole } from '../../utils/storage';
 import { ApprovalActionModal } from '../workflow/ApprovalActionModal';
 import {
   Clock,
@@ -52,57 +52,74 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 
   const activeRoleInfo = OFFICIAL_ROLES.find((r) => r.id === currentRole) || OFFICIAL_ROLES[0];
 
-  // Logic to get pending items for the active role
-  const rolePendingList = requisitions.filter((req) => {
+  // Requisitions visible at or forwarded to current role's stage
+  const visibleRequisitions = requisitions.filter((req) => isRequisitionVisibleForRole(req, currentRole));
+
+  // Logic to filter items pending for current role
+  const rolePendingList = visibleRequisitions.filter((req) => {
     if (req.status === 'rejected' || req.status === 'approved_provisioned' || req.status === 'deactivated') {
       return false;
     }
-    if (currentRole === 'admin' || currentRole === 'super_admin') return true;
-    if (currentRole === 'supervisor') return req.status === 'submitted_pending_pi' || req.piApproval?.status === 'pending';
-    if (currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal') {
-      return (
-        req.status === 'in_lab_review' &&
-        req.labAccessDetails &&
-        req.labAccessDetails.some((l) => l.selected && l.nodalApprovalStatus === 'pending')
-      );
+
+    if (currentRole === 'admin') {
+      return req.status !== 'approved_provisioned' && req.status !== 'rejected';
     }
-    if (currentRole === 'section_head') return req.status === 'pending_section_head';
+
+    if (currentRole === 'supervisor') {
+      return req.status === 'submitted_pending_pi' || req.piApproval?.status === 'pending';
+    }
+
+    if (currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal') {
+      if (req.status === 'in_lab_review' && req.labAccessDetails) {
+        return req.labAccessDetails.some((l) => l.selected && l.nodalApprovalStatus === 'pending');
+      }
+      return false;
+    }
+
+    if (currentRole === 'section_head') {
+      return req.status === 'pending_section_head';
+    }
+
     if (currentRole === 'it_officer') {
       return (
         req.status === 'in_tech_verification' &&
+        (req.type === 'IT_HRMS' || req.type === 'COMBINED') &&
         (!req.itCellVerification?.emailNetOfficer || req.itCellVerification.emailNetOfficer.status === 'pending')
       );
     }
+
     if (currentRole === 'hrms_officer') {
       return (
         req.status === 'in_tech_verification' &&
+        (req.type === 'IT_HRMS' || req.type === 'COMBINED') &&
         Boolean(req.itHrmsDetails?.requestHrmsPms) &&
         (!req.itCellVerification?.hrmsOfficer || req.itCellVerification.hrmsOfficer.status === 'pending')
       );
     }
+
     return false;
   });
 
-  // Calculate General Metrics
-  const totalCount = requisitions.length;
-  const approvedCount = requisitions.filter((r) => r.status === 'approved_provisioned').length;
-  const pendingCount = requisitions.filter(
+  // Calculate General Metrics for visible requisitions at current workflow stage
+  const totalCount = visibleRequisitions.length;
+  const approvedCount = visibleRequisitions.filter((r) => r.status === 'approved_provisioned').length;
+  const pendingCount = visibleRequisitions.filter(
     (r) => r.status !== 'approved_provisioned' && r.status !== 'rejected' && r.status !== 'deactivated'
   ).length;
 
-  const emailsIssued = requisitions.filter((r) => r.itHrmsDetails?.assignedWiiEmail).length;
-  const macsRegistered = requisitions.filter((r) => r.itHrmsDetails?.verifiedMacAddress).length;
+  const emailsIssued = visibleRequisitions.filter((r) => r.itHrmsDetails?.assignedWiiEmail).length;
+  const macsRegistered = visibleRequisitions.filter((r) => r.itHrmsDetails?.verifiedMacAddress).length;
 
-  const latestApprovedEmail = requisitions.find(
+  const latestApprovedEmail = visibleRequisitions.find(
     (r) => r.status === 'approved_provisioned' && r.itHrmsDetails?.assignedWiiEmail
   );
-  const latestApprovedMac = requisitions.find(
+  const latestApprovedMac = visibleRequisitions.find(
     (r) => r.status === 'approved_provisioned' && r.itHrmsDetails?.verifiedMacAddress
   );
-  const latestApprovedHrms = requisitions.find(
+  const latestApprovedHrms = visibleRequisitions.find(
     (r) => r.status === 'approved_provisioned' && r.itHrmsDetails?.hrmsAccessGranted
   );
-  const activeLabCount = requisitions.reduce((acc, r) => {
+  const activeLabCount = visibleRequisitions.reduce((acc, r) => {
     if (r.status === 'approved_provisioned' && r.labAccessDetails) {
       const count = r.labAccessDetails.filter((l) => l.selected && l.nodalApprovalStatus === 'approved').length;
       return acc + count;
@@ -112,30 +129,30 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
-      {/* Header Banner - Standardized Uniform Layout */}
-      <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5 min-h-[140px]">
+      {/* Header Banner */}
+      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5 min-h-[140px]">
         {/* Ambient subtle background glow */}
         <div className="absolute top-0 right-0 w-80 h-full bg-emerald-500/5 pointer-events-none blur-2xl" />
 
-        <div className="space-y-1.5 z-10 relative max-w-2xl">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1">
+        <div className="space-y-1.5 z-10 relative max-w-2xl min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
               <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access Management Portal
             </span>
-            <span className="text-xs text-slate-400">• Wildlife Institute of India</span>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">• Wildlife Institute of India</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-            {currentRole === 'applicant' && 'Personnel Requisition & Access Hub'}
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
+            {currentRole === 'applicant' && 'Personnel Access Hub'}
             {currentRole === 'supervisor' && 'PI & Supervising Officer Desk'}
             {currentRole === 'lab_nodal' && 'Research Labs - Nodal Facility Desk'}
             {currentRole === 'section_head' && 'Section Head IT Cell - Executive Hub'}
             {currentRole === 'it_officer' && 'Network & Email Provisioning Desk'}
             {currentRole === 'hrms_officer' && 'HRMS & Biometric ERP Desk'}
-            {currentRole === 'admin' && 'Master Requisition Control Panel'}
+            {currentRole === 'admin' && 'Master Access Control Panel'}
             {currentRole === 'super_admin' && 'Directorate Master Governance Desk'}
           </h1>
 
-          <p className="text-xs text-slate-300 truncate max-w-xl block">
+          <p className="text-xs text-slate-300 leading-relaxed max-w-xl block">
             {currentRole === 'applicant' && 'Submit and track official WII email IDs, campus Wi-Fi MACs, and lab access permissions.'}
             {currentRole === 'supervisor' && 'Review and endorse fellow requisitions and research facility access requests.'}
             {(currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal') && 'Authorize access for specialized analytical research laboratories.'}
@@ -147,22 +164,22 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         </div>
 
         {/* Role Action Buttons - Standardized Right Section */}
-        <div className="flex flex-wrap items-center gap-3 z-10 relative shrink-0">
+        <div className="flex flex-row items-center sm:flex-col sm:items-end gap-2 sm:gap-2.5 z-10 relative shrink-0 w-full sm:w-auto min-w-0">
           {currentRole === 'applicant' && (
             <>
               <button
                 onClick={() => onNavigateTab('new_request')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-44 text-center truncate"
               >
-                <PlusCircle className="w-4 h-4" />
-                Apply New Service
+                <PlusCircle className="w-4 h-4 shrink-0" />
+                <span className="truncate">Apply Services</span>
               </button>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-44 text-center truncate"
               >
-                <FileText className="w-4 h-4 text-emerald-400" />
-                My Applications ({requisitions.length})
+                <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">My Applications ({requisitions.length})</span>
               </button>
             </>
           )}
@@ -171,17 +188,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <UserCheck className="w-4 h-4" />
-                Fellow Endorsements {rolePendingList.length > 0 && `(${rolePendingList.length})`}
+                <UserCheck className="w-4 h-4 shrink-0" />
+                <span className="truncate">Fellow Endorsements {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
               </button>
               <button
                 onClick={() => onNavigateTab('new_request')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <PlusCircle className="w-4 h-4 text-emerald-400" />
-                New Access
+                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">New Access</span>
               </button>
             </>
           )}
@@ -190,17 +207,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <FlaskConical className="w-4 h-4" />
-                Lab Access Desk {rolePendingList.length > 0 && `(${rolePendingList.length})`}
+                <FlaskConical className="w-4 h-4 shrink-0" />
+                <span className="truncate">Lab Access Desk {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
               </button>
               <button
                 onClick={() => onNavigateTab('new_request')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <PlusCircle className="w-4 h-4 text-emerald-400" />
-                New Access
+                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">New Access</span>
               </button>
             </>
           )}
@@ -209,17 +226,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <ShieldCheck className="w-4 h-4" />
-                Executive Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span className="truncate">Executive Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
               </button>
               <button
                 onClick={() => onNavigateTab('new_request')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <PlusCircle className="w-4 h-4 text-emerald-400" />
-                New Access
+                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">New Access</span>
               </button>
             </>
           )}
@@ -228,17 +245,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <Server className="w-4 h-4" />
-                Provisioning Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}
+                <Server className="w-4 h-4 shrink-0" />
+                <span className="truncate">Provisioning Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
               </button>
               <button
                 onClick={() => onNavigateTab('new_request')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <PlusCircle className="w-4 h-4 text-emerald-400" />
-                New Access
+                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">New Access</span>
               </button>
             </>
           )}
@@ -247,17 +264,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <FileText className="w-4 h-4" />
-                All Requisitions ({requisitions.length})
+                <FileText className="w-4 h-4 shrink-0" />
+                <span className="truncate">All Access Requests ({requisitions.length})</span>
               </button>
               <button
                 onClick={() => onNavigateTab('super_admin_panel')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
-                Master Control
+                <SlidersHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">Master Control</span>
               </button>
             </>
           )}
@@ -266,17 +283,17 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <>
               <button
                 onClick={() => onNavigateTab('super_admin_panel')}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
               >
-                <SlidersHorizontal className="w-4 h-4" />
-                Master Governance
+                <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                <span className="truncate">Master Governance</span>
               </button>
               <button
                 onClick={() => onNavigateTab('my_requests')}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
               >
-                <FileText className="w-4 h-4 text-emerald-400" />
-                All Requisitions ({requisitions.length})
+                <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">All Access Requests ({requisitions.length})</span>
               </button>
             </>
           )}
@@ -587,11 +604,11 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                   Officer Action Desk
                 </span>
                 <h2 className="text-base font-extrabold text-slate-900">
-                  {currentRole === 'supervisor' && 'Requisitions Awaiting PI Endorsement (Stage 1)'}
+                  {currentRole === 'supervisor' && 'Access Requests Awaiting PI Endorsement (Stage 1)'}
                   {currentRole === 'lab_nodal' && 'Analytical Research Lab Access Requests (Stage 2)'}
-                  {currentRole === 'section_head' && 'Requisitions Awaiting Section Head IT Authorization (Stage 3)'}
-                  {currentRole === 'it_officer' && 'Requisitions Ready for Technical Email & Internet Provisioning (Stage 4)'}
-                  {currentRole === 'hrms_officer' && 'Requisitions Ready for HRMS ERP Account Provisioning (Stage 4)'}
+                  {currentRole === 'section_head' && 'Access Requests Awaiting Section Head IT Authorization (Stage 3)'}
+                  {currentRole === 'it_officer' && 'Access Requests Ready for Technical Email & Internet Provisioning (Stage 4)'}
+                  {currentRole === 'hrms_officer' && 'Access Requests Ready for HRMS ERP Account Provisioning (Stage 4)'}
                   {currentRole === 'admin' && 'System Master Pending Approval Queue'}
                 </h2>
               </div>
@@ -604,7 +621,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               onClick={() => onNavigateTab('my_requests')}
               className="text-xs font-bold text-blue-700 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer"
             >
-              View Full Master Register ({requisitions.length}) <ArrowRight className="w-3.5 h-3.5" />
+              View Full Master Register ({visibleRequisitions.length}) <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -613,7 +630,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
               <p className="text-sm font-bold text-slate-800">Your Action Inbox is Completely Clean!</p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No requisitions are currently waiting at your stage. You can review all records in the Requisitions Register.
+                No access requests are currently waiting at your stage. You can review all records in the Access Register.
               </p>
             </div>
           ) : (
@@ -621,26 +638,26 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               {rolePendingList.map((req, idx) => (
                 <div
                   key={`${req.id}-${idx}`}
-                  className="p-4 hover:bg-slate-50/80 transition-colors flex flex-wrap items-center justify-between gap-4"
+                  className="p-3.5 sm:p-4 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-mono font-bold flex items-center justify-center text-xs border border-amber-200 shrink-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-800 font-mono font-bold flex items-center justify-center text-xs border border-amber-200 shrink-0 shadow-2xs">
                       {req.id.includes('/') ? req.id.split('/').pop() : req.id.split('-').pop()}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">{req.applicant.applicantName}</span>
-                        <span className="font-mono text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 border border-slate-200">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">{req.applicant.applicantName}</span>
+                        <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 shrink-0">
                           {req.id}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-[11px] sm:text-xs text-slate-500 truncate mt-0.5">
                         {req.applicant.designation} • {req.applicant.departmentCellProject}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                     <div className="flex flex-wrap gap-1 text-[10px]">
                       {req.itHrmsDetails?.requestEmail && (
                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded border border-blue-200">
@@ -661,7 +678,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 
                     <button
                       onClick={() => setSelectedForAction(req)}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                      className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                     >
                       <ShieldCheck className="w-4 h-4" />
                       Action & Sign
@@ -677,21 +694,21 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
       {/* APPLICANT QUICK SERVICE ACCESS CARDS */}
       {currentRole === 'applicant' && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                Service Access Status & Fast Application
+          <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate">
+                <KeyRound className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="truncate">Service Access Status & Fast Application</span>
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
                 Quickly view active credentials or submit fresh requests for WII infrastructure.
               </p>
             </div>
             <button
               onClick={() => onNavigateTab('new_request')}
-              className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer"
+              className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap self-center"
             >
-              Open Full Service Hub <ChevronRight className="w-4 h-4" />
+              Open Full Service Hub <ChevronRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
 
@@ -857,16 +874,16 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
 
       {/* Submissions Log Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Requisitions Log Summary
+        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between gap-2">
+          <h3 className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1.5 min-w-0 truncate">
+            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="truncate">Access Log Summary</span>
           </h3>
           <button
             onClick={() => onNavigateTab('my_requests')}
-            className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
           >
-            Open Full Register <ArrowRight className="w-3.5 h-3.5" />
+            Open Full Register <ArrowRight className="w-3.5 h-3.5 shrink-0" />
           </button>
         </div>
 
@@ -876,7 +893,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <PlusCircle className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Requisitions Submitted Yet</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Access Requests Submitted Yet</h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
                 Apply for WII Email ID, Campus Internet MAC registration, HRMS / PMS account, or Research Lab access.
               </p>
@@ -895,36 +912,45 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <div
                 key={`${req.id}-${idx}`}
                 onClick={() => onSelectRequisition(req)}
-                className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer flex flex-wrap items-center justify-between gap-4"
+                className="p-3 sm:p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-4"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0 text-xs">
+                {/* Left: Avatar + Name + Req ID + Dept */}
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0 text-xs shadow-2xs">
                     {req.id.includes('/') ? req.id.split('/').pop() : req.id.split('-').pop()}
                   </div>
-                  <div>
-                    <div className="font-bold text-slate-900 dark:text-slate-100">{req.applicant.applicantName}</div>
-                    <div className="text-slate-500 dark:text-slate-400 text-[11px]">{req.applicant.departmentCellProject}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm truncate">
+                        {req.applicant.applicantName}
+                      </span>
+                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 shrink-0">
+                        {req.id}
+                      </span>
+                    </div>
+                    <div className="text-slate-500 dark:text-slate-400 text-[11px] truncate mt-0.5">
+                      {req.applicant.departmentCellProject}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                    {req.id}
-                  </span>
-                  <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-blue-50 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                {/* Right: Service Name & Status Pill */}
+                <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-1.5 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800/80">
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-blue-50 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate max-w-[170px] sm:max-w-[240px]">
                     {getRequisitionServiceName(req)}
                   </span>
                   <span
-                    className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase shrink-0 whitespace-nowrap ${
                       req.status === 'approved_provisioned'
                         ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                         : req.status === 'rejected'
                         ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                        : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse'
+                        : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
                     }`}
                   >
                     {req.status.replace(/_/g, ' ')}
                   </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400 hidden md:block shrink-0" />
                 </div>
               </div>
             ))}

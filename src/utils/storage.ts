@@ -348,37 +348,36 @@ export const getRequisitionRefId = (req: RequisitionRecord): string => {
 
 export const getRequisitionServiceName = (req: RequisitionRecord): string => {
   if (req.selectedServiceLabel) {
-    return req.selectedServiceLabel.endsWith('Requisition')
-      ? req.selectedServiceLabel
-      : `${req.selectedServiceLabel} Requisition`;
+    let label = req.selectedServiceLabel.replace(/\s*Requisition$/i, '').replace(/\s*Access$/i, '');
+    return `${label} Access`;
   }
 
   if (req.selectedServiceKey) {
-    if (req.selectedServiceKey === 'email') return 'Official WII Email Requisition';
-    if (req.selectedServiceKey === 'internet') return 'Campus Wi-Fi / Internet Requisition';
-    if (req.selectedServiceKey === 'hrms') return 'HRMS / PMS Portal Requisition';
-    if (req.selectedServiceKey === 'biometric') return 'Biometric Attendance Requisition';
+    if (req.selectedServiceKey === 'email') return 'Official WII Email Access';
+    if (req.selectedServiceKey === 'internet') return 'Campus Wi-Fi / Internet Access';
+    if (req.selectedServiceKey === 'hrms') return 'HRMS / PMS Portal Access';
+    if (req.selectedServiceKey === 'biometric') return 'Biometric Attendance Access';
     if (req.selectedServiceKey.startsWith('lab-')) {
       const labId = req.selectedServiceKey.replace('lab-', '');
       const lab = req.labAccessDetails?.find((l) => l.labId === labId);
-      if (lab) return `${lab.labName} Access Requisition`;
+      if (lab) return `${lab.labName} Access`;
     }
   }
 
   if (req.serviceName) {
-    return req.serviceName;
+    return req.serviceName.replace(/\s*Requisition$/i, ' Access');
   }
 
   if (req.type === 'LAB_FACILITY') {
     if (req.labAccessDetails && req.labAccessDetails.length > 0) {
       const selected = req.labAccessDetails.filter((l) => l.selected);
       if (selected.length === 1) {
-        return `${selected[0].labName} Access Requisition`;
+        return `${selected[0].labName} Access`;
       } else if (selected.length > 1) {
-        return `Research Lab Access Requisition`;
+        return `Research Lab Access`;
       }
     }
-    return 'Analytical Lab Access Requisition';
+    return 'Analytical Lab Access';
   }
 
   if (req.type === 'IT_HRMS') {
@@ -391,19 +390,121 @@ export const getRequisitionServiceName = (req: RequisitionRecord): string => {
       if (details.requestBiometric) services.push('Biometric Attendance');
 
       if (services.length === 1) {
-        return `${services[0]} Requisition`;
+        return `${services[0]} Access`;
       } else if (services.length > 1) {
-        return 'IT & HRMS Requisition';
+        return 'IT & HRMS Access';
       }
     }
-    return 'IT & HRMS Requisition';
+    return 'IT & HRMS Access';
   }
 
   if (req.type === 'COMBINED') {
-    return 'Integrated IT & Research Lab Services Requisition';
+    return 'Integrated IT & Research Lab Services Access';
   }
 
-  return 'WII Official Service Requisition';
+  return 'WII Official Service Access';
+};
+
+/**
+ * Workflow visibility helper: An access request is visible to an officer role
+ * ONLY IF it has been forwarded to their stage or beyond according to the workflow chain.
+ */
+export const isRequisitionVisibleForRole = (req: RequisitionRecord, role: UserRole): boolean => {
+  // Master Admin & Super Admin see all access requests
+  if (role === 'admin' || role === 'super_admin') {
+    return true;
+  }
+
+  // Applicant sees their own access requests
+  if (role === 'applicant') {
+    return true;
+  }
+
+  // Supervisor (PI): Sees requests submitted to PI or endorsed by PI (Stage 1 and beyond)
+  if (role === 'supervisor') {
+    return true;
+  }
+
+  // Lab Nodal / Associate Lab Nodal Officer:
+  // ONLY sees access requests that have ALREADY BEEN FORWARDED to Lab Review stage (in_lab_review) or beyond!
+  if (role === 'lab_nodal' || role === 'assoc_lab_nodal') {
+    if (req.status === 'submitted_pending_pi') {
+      return false; // Request has NOT been forwarded by PI to Lab Nodal yet!
+    }
+
+    const hasLab =
+      req.type === 'LAB_FACILITY' ||
+      (req.type === 'COMBINED' && Boolean(req.labAccessDetails && req.labAccessDetails.some((l) => l.selected)));
+
+    if (!hasLab) return false;
+
+    if (req.status === 'rejected' && !req.labAccessDetails?.some((l) => l.nodalApprovalStatus !== 'pending')) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // Section Head IT:
+  // ONLY sees access requests that have ALREADY BEEN FORWARDED to Section Head stage (pending_section_head) or beyond!
+  if (role === 'section_head') {
+    if (req.status === 'submitted_pending_pi' || req.status === 'in_lab_review') {
+      return false; // Request has NOT been forwarded to Section Head yet!
+    }
+
+    if (req.status === 'rejected' && !req.sectionHeadApproval) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // Technical IT Officer:
+  // ONLY sees access requests that have ALREADY BEEN FORWARDED to Technical Verification stage (in_tech_verification) or beyond!
+  if (role === 'it_officer') {
+    if (
+      req.status === 'submitted_pending_pi' ||
+      req.status === 'in_lab_review' ||
+      req.status === 'pending_section_head'
+    ) {
+      return false; // Request has NOT been forwarded to Technical Verification stage yet!
+    }
+
+    const hasIT = req.type === 'IT_HRMS' || req.type === 'COMBINED';
+    if (!hasIT) return false;
+
+    if (req.status === 'rejected' && !req.itCellVerification?.emailNetOfficer) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // HRMS Officer:
+  // ONLY sees access requests that have ALREADY BEEN FORWARDED to Technical Verification stage (in_tech_verification) or beyond!
+  if (role === 'hrms_officer') {
+    if (
+      req.status === 'submitted_pending_pi' ||
+      req.status === 'in_lab_review' ||
+      req.status === 'pending_section_head'
+    ) {
+      return false; // Request has NOT been forwarded to HRMS stage yet!
+    }
+
+    const hasHrms =
+      (req.type === 'IT_HRMS' || req.type === 'COMBINED') &&
+      Boolean(req.itHrmsDetails?.requestHrmsPms || req.itHrmsDetails?.requestBiometric);
+
+    if (!hasHrms) return false;
+
+    if (req.status === 'rejected' && !req.itCellVerification?.hrmsOfficer) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return true;
 };
 
 export const saveRequisitions = (records: RequisitionRecord[]): void => {

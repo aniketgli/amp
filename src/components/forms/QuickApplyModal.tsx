@@ -208,32 +208,32 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 min-w-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-600 text-white shadow-xs">
+        <div className="px-3.5 sm:px-6 py-3 sm:py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0 min-w-0 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="p-2 rounded-lg bg-blue-600 text-white shadow-xs shrink-0">
               {serviceScope === 'email' && <Mail className="w-5 h-5" />}
               {serviceScope === 'mac' && <Wifi className="w-5 h-5" />}
               {serviceScope === 'hrms' && <Fingerprint className="w-5 h-5" />}
               {serviceScope === 'lab' && <Building2 className="w-5 h-5" />}
               {serviceScope === 'combined' && <ShieldCheck className="w-5 h-5" />}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold text-white">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-xs sm:text-sm font-extrabold text-white leading-tight truncate">
                   {serviceScope === 'email' && 'Apply Official WII Email ID'}
                   {serviceScope === 'mac' && 'Register Campus Internet MAC'}
                   {serviceScope === 'hrms' && 'Apply HRMS & Biometric Access'}
                   {serviceScope === 'lab' && 'Research Laboratory Access Pass'}
-                  {serviceScope === 'combined' && 'Combined Requisition Application'}
+                  {serviceScope === 'combined' && 'Combined Access Application'}
                 </h3>
                 <span
-                  className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                  className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0 ${
                     mode === 'renewal'
                       ? 'bg-amber-400 text-slate-900'
                       : 'bg-emerald-400 text-slate-900'
@@ -242,44 +242,44 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                   {mode === 'renewal' ? 'Renewal / Extension' : 'Fresh Application'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300">Wildlife Institute of India • Requisition Form</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">Wildlife Institute of India • Access Application Form</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-3.5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0 min-w-0">
           {/* Applicant & PI Info Summary (Auto Filled) */}
-          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2 text-xs">
-            <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider">
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2 text-xs min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-1 font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider">
               <span className="flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Applicant Identity
+                <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" /> Applicant Identity
               </span>
               <span className="text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1">
-                <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Verified Profile
+                <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" /> Verified Profile
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-slate-700 dark:text-slate-300">
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 min-w-0">
                 <span className="text-slate-400 dark:text-slate-500 block text-[9px] font-bold uppercase tracking-wider">Name & Designation</span>
-                <span className="font-extrabold text-slate-900 dark:text-white block">{applicantProfile.applicantName}</span>
-                <span className="text-slate-600 dark:text-slate-400 block">{applicantProfile.designation}</span>
+                <span className="font-extrabold text-slate-900 dark:text-white block truncate">{applicantProfile.applicantName}</span>
+                <span className="text-slate-600 dark:text-slate-400 block truncate">{applicantProfile.designation}</span>
                 <div className="pt-1 mt-1 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center gap-1 text-[10px]">
                   <span className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[9px]">Valid Up To:</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200">{applicantProfile.validUpTo || '31-Jan-2028'}</span>
                 </div>
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 min-w-0">
                 <span className="text-slate-400 dark:text-slate-500 block text-[9px] font-bold uppercase tracking-wider">Project / Dept / Cell & Reporting Officer / PI</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200 block">{applicantProfile.departmentCellProject}</span>
-                <span className="font-extrabold text-blue-900 dark:text-blue-300 block">{applicantProfile.supervisingOfficerName}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">{applicantProfile.departmentCellProject}</span>
+                <span className="font-extrabold text-blue-900 dark:text-blue-300 block truncate">{applicantProfile.supervisingOfficerName}</span>
               </div>
             </div>
           </div>
@@ -441,11 +441,11 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                   <label className="block text-[11px] font-bold text-slate-800">
                     Do you already have a registered Biometric ID? *
                   </label>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <button
                       type="button"
                       onClick={() => setHasBiometricId('yes')}
-                      className={`p-2.5 rounded-lg border font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-lg border font-semibold flex items-center justify-start sm:justify-center gap-2 transition-all cursor-pointer ${
                         hasBiometricId === 'yes'
                           ? 'bg-blue-50 border-blue-500 text-blue-800 ring-1 ring-blue-500/30'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -456,15 +456,15 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                         name="biometric_check_modal"
                         checked={hasBiometricId === 'yes'}
                         onChange={() => setHasBiometricId('yes')}
-                        className="text-blue-600"
+                        className="text-blue-600 shrink-0"
                       />
-                      <span>Yes, I have Biometric ID</span>
+                      <span className="text-xs">Yes, I have Biometric ID</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setHasBiometricId('no')}
-                      className={`p-2.5 rounded-lg border font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-lg border font-semibold flex items-center justify-start sm:justify-center gap-2 transition-all cursor-pointer ${
                         hasBiometricId === 'no'
                           ? 'bg-amber-50 border-amber-500 text-amber-900 ring-1 ring-amber-500/30'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -475,9 +475,9 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                         name="biometric_check_modal"
                         checked={hasBiometricId === 'no'}
                         onChange={() => setHasBiometricId('no')}
-                        className="text-amber-600"
+                        className="text-amber-600 shrink-0"
                       />
-                      <span>No, Biometric ID not created</span>
+                      <span className="text-xs">No, Biometric ID not created</span>
                     </button>
                   </div>
 
@@ -553,7 +553,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Requested From Date *</label>
                     <input
@@ -624,20 +624,20 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Send className="w-4 h-4" />
-              Submit Requisition Now
+              <Send className="w-4 h-4 shrink-0" />
+              Submit Access Request Now
             </button>
           </div>
         </form>
