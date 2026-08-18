@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { testDatabaseConnection } from "./src/db/connection.js";
 
 dotenv.config();
 
@@ -36,6 +37,12 @@ app.get("/api/health", (req, res) => {
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     timestamp: new Date().toISOString(),
   });
+});
+
+// Database connection test endpoint
+app.get("/api/db/test", async (req, res) => {
+  const testResult = await testDatabaseConnection();
+  res.json(testResult);
 });
 
 // Helper for fuzzy string matching / similarity
