@@ -162,7 +162,7 @@ export default function App() {
           console.log("Calling activation API...");
 
           const response = await fetch(
-            `http://192.168.205.75:5000/api/activate/${encodeURIComponent(token)}`,
+            `/api/activate/${encodeURIComponent(token)}`,
             {
               method: "GET",
 
