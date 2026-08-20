@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { UserRole, ApplicantProfile } from '../../types/requisition';
-import { OFFICIAL_ROLES } from '../../data/initialData';
-import { WiiLogo } from '../common/WiiLogo';
-import {
-  registerUser,
-  authenticateRegisteredUser,
-  activateUserAccount,
-} from '../../utils/emailService';
-import { EmailInboxModal } from '../common/EmailInboxModal';
+import React, { useState, useEffect } from "react";
+import { UserRole, ApplicantProfile } from "../../types/requisition";
+import { OFFICIAL_ROLES } from "../../data/initialData";
+import { WiiLogo } from "../common/WiiLogo";
+
+import { EmailInboxModal } from "../common/EmailInboxModal";
 import {
   User,
   Lock,
@@ -27,20 +23,24 @@ import {
   Sparkles,
   ShieldCheck,
   Check,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface AuthPageProps {
   currentRole: UserRole;
-  initialMode?: 'login' | 'register';
+  initialMode?: "login" | "register";
   isAuthenticated?: boolean;
-  onLoginSuccess: (initialRole: UserRole, assignedRoles: UserRole[], userProfile?: Partial<ApplicantProfile>) => void;
+  onLoginSuccess: (
+    initialRole: UserRole,
+    assignedRoles: UserRole[],
+    userProfile?: Partial<ApplicantProfile>,
+  ) => void;
   onNavigateHome?: () => void;
 }
 
 // Generate random 6-character Captcha code
 const generateCaptchaCode = () => {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let result = '';
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let result = "";
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -48,17 +48,20 @@ const generateCaptchaCode = () => {
 };
 
 // Canvas-rendered Canvas Captcha Box with noise lines & distortion
-const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({ code, onRefresh }) => {
+const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({
+  code,
+  onRefresh,
+}) => {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     // Dark canvas background
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = "#0f172a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Random background grid/noise lines
@@ -75,13 +78,19 @@ const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({ code
     for (let i = 0; i < 45; i++) {
       ctx.fillStyle = `rgba(52, 211, 153, ${Math.random() * 0.5})`;
       ctx.beginPath();
-      ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 1.2, 0, Math.PI * 2);
+      ctx.arc(
+        Math.random() * canvas.width,
+        Math.random() * canvas.height,
+        1.2,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
 
     // Render rotated Captcha characters
-    ctx.font = 'bold 22px monospace';
-    ctx.textBaseline = 'middle';
+    ctx.font = "bold 22px monospace";
+    ctx.textBaseline = "middle";
 
     const charWidth = (canvas.width - 24) / code.length;
     for (let i = 0; i < code.length; i++) {
@@ -93,7 +102,7 @@ const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({ code
       ctx.translate(x, y);
       ctx.rotate(angle);
 
-      ctx.fillStyle = i % 2 === 0 ? '#34d399' : '#a7f3d0';
+      ctx.fillStyle = i % 2 === 0 ? "#34d399" : "#a7f3d0";
       ctx.fillText(code[i], 0, 0);
 
       ctx.restore();
@@ -134,98 +143,106 @@ const DEMO_ACCOUNTS: {
   badgeColor: string;
 }[] = [
   {
-    roleId: 'applicant',
-    assignedRoles: ['applicant'],
-    name: 'Dr. Ananya Sharma',
-    title: 'User',
-    email: 'ananya.sharma@gmail.com',
-    badge: 'User',
-    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200',
+    roleId: "applicant",
+    assignedRoles: ["applicant"],
+    name: "Dr. Ananya Sharma",
+    title: "User",
+    email: "ananya.sharma@gmail.com",
+    badge: "User",
+    badgeColor:
+      "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200",
   },
   {
-    roleId: 'supervisor',
-    assignedRoles: ['applicant', 'supervisor'],
-    name: 'Dr. R. K. Singh',
-    title: 'PI',
-    email: 'rk.singh@wii.gov.in',
-    badge: 'PI',
-    badgeColor: 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200',
+    roleId: "supervisor",
+    assignedRoles: ["applicant", "supervisor"],
+    name: "Dr. R. K. Singh",
+    title: "PI",
+    email: "rk.singh@wii.gov.in",
+    badge: "PI",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200",
   },
   {
-    roleId: 'lab_nodal',
-    assignedRoles: ['applicant', 'lab_nodal'],
-    name: 'Dr. S. K. Gupta',
-    title: 'Nodal Officer (Lab Name)',
-    email: 'genetics.lab@wii.gov.in',
-    badge: 'Nodal Officer',
-    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200',
+    roleId: "lab_nodal",
+    assignedRoles: ["applicant", "lab_nodal"],
+    name: "Dr. S. K. Gupta",
+    title: "Nodal Officer (Lab Name)",
+    email: "genetics.lab@wii.gov.in",
+    badge: "Nodal Officer",
+    badgeColor:
+      "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
   },
   {
-    roleId: 'assoc_lab_nodal',
-    assignedRoles: ['applicant', 'assoc_lab_nodal'],
-    name: 'Dr. Neha Verma',
-    title: 'Associate Nodal Officer (Lab Name)',
-    email: 'assoc.genetics@wii.gov.in',
-    badge: 'Assoc Nodal',
-    badgeColor: 'bg-amber-100 text-amber-900 border-amber-400 hover:bg-amber-200',
+    roleId: "assoc_lab_nodal",
+    assignedRoles: ["applicant", "assoc_lab_nodal"],
+    name: "Dr. Neha Verma",
+    title: "Associate Nodal Officer (Lab Name)",
+    email: "assoc.genetics@wii.gov.in",
+    badge: "Assoc Nodal",
+    badgeColor:
+      "bg-amber-100 text-amber-900 border-amber-400 hover:bg-amber-200",
   },
   {
-    roleId: 'section_head',
-    assignedRoles: ['applicant', 'section_head'],
-    name: 'Dr. Panna Lal',
-    title: 'Manager (Facility Name)',
-    email: 'facility.manager@wii.gov.in',
-    badge: 'Facility Manager',
-    badgeColor: 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200',
+    roleId: "section_head",
+    assignedRoles: ["applicant", "section_head"],
+    name: "Dr. Panna Lal",
+    title: "Manager (Facility Name)",
+    email: "facility.manager@wii.gov.in",
+    badge: "Facility Manager",
+    badgeColor: "bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200",
   },
   {
-    roleId: 'it_officer',
-    assignedRoles: ['applicant', 'it_officer'],
-    name: 'Er. Vikas Mehta',
-    title: 'IT Head',
-    email: 'it.admin@wii.gov.in',
-    badge: 'IT Head',
-    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200',
+    roleId: "it_officer",
+    assignedRoles: ["applicant", "it_officer"],
+    name: "Er. Vikas Mehta",
+    title: "IT Head",
+    email: "it.admin@wii.gov.in",
+    badge: "IT Head",
+    badgeColor:
+      "bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200",
   },
   {
-    roleId: 'admin',
-    assignedRoles: ['applicant', 'admin'],
-    name: 'Director General / Admin',
-    title: 'Admin',
-    email: 'director.general@wii.gov.in',
-    badge: 'Admin',
-    badgeColor: 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200',
+    roleId: "admin",
+    assignedRoles: ["applicant", "admin"],
+    name: "Director General / Admin",
+    title: "Admin",
+    email: "director.general@wii.gov.in",
+    badge: "Admin",
+    badgeColor:
+      "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200",
   },
 ];
 
 export const AuthPage: React.FC<AuthPageProps> = ({
   currentRole,
-  initialMode = 'login',
+  initialMode = "login",
   isAuthenticated = false,
   onLoginSuccess,
   onNavigateHome,
 }) => {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState('ananya.sharma@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('password123');
-  const [selectedLoginRole, setSelectedLoginRole] = useState<UserRole>(currentRole);
+  const [loginEmail, setLoginEmail] = useState("ananya.sharma@gmail.com");
+  const [loginPassword, setLoginPassword] = useState("password123");
+  const [selectedLoginRole, setSelectedLoginRole] =
+    useState<UserRole>(currentRole);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Registration form state
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
 
   // Captcha state
   const [captchaCode, setCaptchaCode] = useState(generateCaptchaCode());
-  const [userCaptchaInput, setUserCaptchaInput] = useState('');
+  const [userCaptchaInput, setUserCaptchaInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [regSuccessMessage, setRegSuccessMessage] = useState<string | null>(null);
+  const [regSuccessMessage, setRegSuccessMessage] = useState<string | null>(
+    null,
+  );
   const [isInactiveUserError, setIsInactiveUserError] = useState(false);
   const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
 
@@ -236,14 +253,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const refreshCaptcha = () => {
     const newCode = generateCaptchaCode();
     setCaptchaCode(newCode);
-    setUserCaptchaInput('');
+    setUserCaptchaInput("");
     setFormError(null);
     setIsInactiveUserError(false);
   };
 
-  const handleSelectDemoAccount = (acc: typeof DEMO_ACCOUNTS[0]) => {
+  const handleSelectDemoAccount = (acc: (typeof DEMO_ACCOUNTS)[0]) => {
     setLoginEmail(acc.email);
-    setLoginPassword('password123');
+    setLoginPassword("password123");
     setSelectedLoginRole(acc.roleId);
     const newCode = generateCaptchaCode();
     setCaptchaCode(newCode);
@@ -252,112 +269,240 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setIsInactiveUserError(false);
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setFormError(null);
     setIsInactiveUserError(false);
 
+    // -----------------------------------------
+    // BASIC VALIDATION
+    // -----------------------------------------
+
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      setFormError('Please enter both your Email ID and Password.');
+      setFormError("Please enter both your Email ID and Password.");
       return;
     }
 
-    // Verify Captcha Code
+    // -----------------------------------------
+    // CAPTCHA VALIDATION
+    // -----------------------------------------
+
     if (userCaptchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
-      setFormError('Invalid Security Verification (Captcha) Code. Please enter the correct code.');
+      setFormError(
+        "Invalid Security Verification (Captcha) Code. Please enter the correct code.",
+      );
+
       refreshCaptcha();
       return;
     }
 
-    // Find matched demo account by email
-    const matchedAcc = DEMO_ACCOUNTS.find((acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase());
+    try {
+      // -----------------------------------------
+      // CALL BACKEND LOGIN API
+      // -----------------------------------------
 
-    // Check registered user authentication & activation status
-    const authRes = authenticateRegisteredUser(loginEmail, loginPassword);
-    if (!matchedAcc && !authRes.success) {
-      if (authRes.isInactive) {
-        setIsInactiveUserError(true);
-        setFormError(authRes.message);
-      } else {
-        setFormError(authRes.message);
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      console.log("LOGIN API STATUS:", response.status);
+      console.log("LOGIN API RESPONSE:", data);
+
+      // -----------------------------------------
+      // LOGIN FAILED
+      // -----------------------------------------
+
+      if (!response.ok || !data.success) {
+        if (response.status === 403) {
+          setIsInactiveUserError(true);
+        }
+
+        setFormError(data.message || "Invalid email or password.");
+
+        return;
       }
-      return;
+
+      // -----------------------------------------
+      // SAVE JWT TOKEN
+      // -----------------------------------------
+
+      localStorage.setItem("wii_auth_token", data.token);
+
+      // -----------------------------------------
+      // SAVE USER DATA
+      // -----------------------------------------
+
+      localStorage.setItem("wii_user", JSON.stringify(data.user));
+
+      // -----------------------------------------
+      // CREATE PROFILE DATA
+      // -----------------------------------------
+
+      const updatedProfile: Partial<ApplicantProfile> = {
+        applicantName: data.user.fullName,
+        personalEmail: data.user.email,
+        mobileNo: data.user.phone,
+      };
+
+      // -----------------------------------------
+      // LOGIN SUCCESS
+      // -----------------------------------------
+
+      onLoginSuccess("applicant", ["applicant"], updatedProfile);
+    } catch (error) {
+      console.error("LOGIN FRONTEND ERROR:", error);
+
+      setFormError(
+        "Unable to connect to the server. Please make sure the WII Access Management Server is running.",
+      );
     }
-
-    const assignedRoles: UserRole[] = matchedAcc 
-      ? matchedAcc.assignedRoles 
-      : (selectedLoginRole && selectedLoginRole !== 'applicant' ? ['applicant', selectedLoginRole] : ['applicant']);
-
-    const userObj = authRes.user;
-    const updatedProfile: Partial<ApplicantProfile> = {
-      applicantName: matchedAcc ? matchedAcc.name : (userObj ? userObj.fullName : loginEmail.split('@')[0]),
-      personalEmail: loginEmail,
-      mobileNo: userObj ? userObj.phone : '+91 98765 12345',
-    };
-
-    onLoginSuccess('applicant', assignedRoles, updatedProfile);
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setFormError(null);
+    setRegSuccessMessage(null);
     setIsInactiveUserError(false);
 
-    if (!regName.trim() || !regEmail.trim() || !regPhone.trim() || !regPassword.trim()) {
-      setFormError('Please fill in all required fields.');
+    // -----------------------------------------
+    // BASIC VALIDATION
+    // -----------------------------------------
+
+    if (
+      !regName.trim() ||
+      !regEmail.trim() ||
+      !regPhone.trim() ||
+      !regPassword.trim()
+    ) {
+      setFormError("Please fill in all required fields.");
       return;
     }
 
-    // Phone validation (strictly 10 digits starting with 6, 7, 8, or 9)
-    const cleanPhone = regPhone.replace(/\D/g, '');
+    // -----------------------------------------
+    // PHONE VALIDATION
+    // -----------------------------------------
+
+    const cleanPhone = regPhone.replace(/\D/g, "");
+
     if (cleanPhone.length !== 10) {
-      setFormError('Please enter a valid 10-digit mobile number.');
+      setFormError("Please enter a valid 10-digit mobile number.");
       return;
     }
+
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      setFormError('Mobile number must be 10 digits starting with 6, 7, 8, or 9.');
+      setFormError(
+        "Mobile number must be 10 digits starting with 6, 7, 8, or 9.",
+      );
       return;
     }
+
+    // -----------------------------------------
+    // PASSWORD VALIDATION
+    // -----------------------------------------
 
     if (regPassword.length < 6) {
-      setFormError('Password must be at least 6 characters long.');
+      setFormError("Password must be at least 6 characters long.");
       return;
     }
 
     if (regPassword !== regConfirmPassword) {
-      setFormError('Passwords do not match.');
+      setFormError("Passwords do not match.");
       return;
     }
 
-    // Verify Captcha Code
+    // -----------------------------------------
+    // CAPTCHA
+    // -----------------------------------------
+
     if (userCaptchaInput.trim().toUpperCase() !== captchaCode.toUpperCase()) {
-      setFormError('Invalid captcha code. Please try again.');
+      setFormError("Invalid captcha code. Please try again.");
+
       refreshCaptcha();
       return;
     }
 
-    // Register user in storage and dispatch activation link email
-    const regRes = registerUser({
-      fullName: regName,
-      email: regEmail,
-      phone: cleanPhone,
-      password: regPassword,
-    });
+    try {
+      // -----------------------------------------
+      // CALL BACKEND REGISTRATION API
+      // -----------------------------------------
 
-    if (!regRes.success) {
-      setFormError(regRes.message);
-      return;
+      const response = await fetch("http://localhost:5000/api/register", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+
+        body: JSON.stringify({
+          fullName: regName.trim(),
+          email: regEmail.trim(),
+          phone: cleanPhone,
+          password: regPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      console.log("REGISTRATION API STATUS:", response.status);
+
+      console.log("REGISTRATION API RESPONSE:", data);
+
+      // -----------------------------------------
+      // REGISTRATION FAILED
+      // -----------------------------------------
+
+      if (!response.ok || !data.success) {
+        setFormError(data.message || "Unable to complete registration.");
+
+        return;
+      }
+
+      // -----------------------------------------
+      // REGISTRATION SUCCESS
+      // -----------------------------------------
+
+      setRegSuccessMessage(
+        `Registration successful. Activation link has been sent to ${regEmail.trim()}. Please check your email inbox.`,
+      );
+
+      // Clear form
+
+      setRegName("");
+      setRegEmail("");
+      setRegPhone("");
+      setRegPassword("");
+      setRegConfirmPassword("");
+
+      // Refresh captcha
+
+      refreshCaptcha();
+    } catch (error) {
+      console.error("REGISTRATION FRONTEND ERROR:", error);
+
+      setFormError(
+        "Unable to connect to the server. Please make sure the WII Access Management Server is running.",
+      );
     }
-
-    setRegSuccessMessage(
-      `Activation link sent to ${regEmail}. Please check your email inbox to activate your account.`
-    );
   };
 
   return (
     <div className="min-h-[85vh] bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        
         {/* Top Breadcrumb & Home Return Bar */}
         {isAuthenticated && onNavigateHome && (
           <div className="flex items-center justify-between">
@@ -373,11 +518,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
         {/* Main Card Container */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-          
           {/* Header Banner featuring Official WII Logo */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-8 relative border-b border-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
-              
               {/* Official WII Logo & Title */}
               <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl shadow-lg border border-slate-200 self-center sm:self-auto inline-block">
                 <WiiLogo size="md" />
@@ -385,7 +528,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
               <div className="text-right">
                 <h1 className="text-xl sm:text-2xl font-black text-white">
-                  {mode === 'login' ? 'Account Login' : 'New User Account Registration'}
+                  {mode === "login"
+                    ? "Account Login"
+                    : "New User Account Registration"}
                 </h1>
                 <p className="text-xs text-slate-300 mt-0.5">
                   Access Management Portal
@@ -398,13 +543,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setMode('login');
+                  setMode("login");
                   setFormError(null);
                 }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  mode === 'login'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  mode === "login"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`}
               >
                 <LogIn className="w-4 h-4" />
@@ -413,13 +558,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setMode('register');
+                  setMode("register");
                   setFormError(null);
                 }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  mode === 'register'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  mode === "register"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`}
               >
                 <UserPlus className="w-4 h-4" />
@@ -430,15 +575,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
           {/* Form Body Container */}
           <div className="p-6 sm:p-8">
-            
             {/* Feedback Notifications */}
             {regSuccessMessage && (
               <div className="max-w-2xl mx-auto mb-5 bg-emerald-50 border border-emerald-200 text-emerald-900 p-3.5 rounded-xl text-xs shadow-2xs">
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-xs text-emerald-950">Registration Successful</p>
-                    <p className="text-emerald-800 font-medium text-[11px] mt-0.5">{regSuccessMessage}</p>
+                    <p className="font-bold text-xs text-emerald-950">
+                      Registration Successful
+                    </p>
+                    <p className="text-emerald-800 font-medium text-[11px] mt-0.5">
+                      {regSuccessMessage}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -450,17 +598,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-xs text-rose-950">
-                      {isInactiveUserError ? 'Account Inactive' : 'Authentication Error'}
+                      {isInactiveUserError
+                        ? "Account Inactive"
+                        : "Authentication Error"}
                     </p>
-                    <p className="text-rose-800 font-medium text-[11px] mt-0.5">{formError}</p>
+                    <p className="text-rose-800 font-medium text-[11px] mt-0.5">
+                      {formError}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* LOGIN FORM */}
-            {mode === 'login' ? (
-              <form onSubmit={handleLoginSubmit} className="space-y-5 max-w-2xl mx-auto">
+            {mode === "login" ? (
+              <form
+                onSubmit={handleLoginSubmit}
+                className="space-y-5 max-w-2xl mx-auto"
+              >
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
                     Personal Email / WII Email ID *
@@ -485,7 +640,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
-                      type={showLoginPassword ? 'text' : 'password'}
+                      type={showLoginPassword ? "text" : "password"}
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
@@ -496,19 +651,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       onClick={() => setShowLoginPassword(!showLoginPassword)}
                       className="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
-                      {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showLoginPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
-
-
 
                 {/* Security Captcha Box for Login */}
                 <div className="pt-3 border-t border-slate-100 space-y-2">
                   <label className="block text-xs font-bold text-slate-800">
                     Security Verification (Captcha Code) *
                   </label>
-                  <CaptchaCanvas code={captchaCode} onRefresh={refreshCaptcha} />
+                  <CaptchaCanvas
+                    code={captchaCode}
+                    onRefresh={refreshCaptcha}
+                  />
                   <input
                     type="text"
                     required
@@ -529,8 +689,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </form>
             ) : (
               /* REGISTRATION FORM */
-              <form onSubmit={handleRegisterSubmit} className="space-y-4 max-w-2xl mx-auto">
-                
+              <form
+                onSubmit={handleRegisterSubmit}
+                className="space-y-4 max-w-2xl mx-auto"
+              >
                 {/* 1. Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
@@ -585,7 +747,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       maxLength={10}
                       pattern="[0-9]{10}"
                       value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) =>
+                        setRegPhone(
+                          e.target.value.replace(/\D/g, "").slice(0, 10),
+                        )
+                      }
                       placeholder="e.g. 9876512345"
                       className="w-full text-xs pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-slate-900"
                     />
@@ -604,7 +770,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
-                        type={showRegPassword ? 'text' : 'password'}
+                        type={showRegPassword ? "text" : "password"}
                         required
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
@@ -616,7 +782,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         onClick={() => setShowRegPassword(!showRegPassword)}
                         className="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                       >
-                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showRegPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -628,7 +798,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
-                        type={showRegPassword ? 'text' : 'password'}
+                        type={showRegPassword ? "text" : "password"}
                         required
                         value={regConfirmPassword}
                         onChange={(e) => setRegConfirmPassword(e.target.value)}
@@ -644,7 +814,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <label className="block text-xs font-bold text-slate-800">
                     Security Verification (Captcha Code) *
                   </label>
-                  <CaptchaCanvas code={captchaCode} onRefresh={refreshCaptcha} />
+                  <CaptchaCanvas
+                    code={captchaCode}
+                    onRefresh={refreshCaptcha}
+                  />
                   <input
                     type="text"
                     required
@@ -675,7 +848,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         onAccountActivated={(activatedEmail) => {
           setFormError(null);
           setIsInactiveUserError(false);
-          setRegSuccessMessage(`Account (${activatedEmail}) activated successfully! You can now log in.`);
+          setRegSuccessMessage(
+            `Account (${activatedEmail}) activated successfully! You can now log in.`,
+          );
         }}
       />
     </div>
