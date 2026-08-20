@@ -9,6 +9,7 @@ import {
 } from '../../utils/storage';
 import { recordSecurityAuditLog } from '../../utils/auditLogger';
 import { SecurityAuditTrailSection } from './SecurityAuditTrailSection';
+import { DatabaseSchemaSection } from './DatabaseSchemaSection';
 import {
   Shield,
   UserCheck,
@@ -109,6 +110,19 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   // Masters Edit States
   const [editingFacility, setEditingFacility] = useState<FacilityMasterItem | null>(null);
   const [editingService, setEditingService] = useState<ServiceMasterItem | null>(null);
+
+  // Role-filtered lists for Facility & Service Master dropdowns
+  const nodalOfficersList = managedUsers.filter((u) => u.role === 'lab_nodal');
+  const nodalOptions = nodalOfficersList.length > 0 ? nodalOfficersList : managedUsers;
+
+  const assocNodalOfficersList = managedUsers.filter((u) => u.role === 'assoc_lab_nodal');
+  const assocNodalOptions = assocNodalOfficersList.length > 0 ? assocNodalOfficersList : managedUsers;
+
+  const supervisorOfficersList = managedUsers.filter((u) => u.role === 'supervisor' || u.role === 'hrms_officer');
+  const supervisorOptions = supervisorOfficersList.length > 0 ? supervisorOfficersList : managedUsers;
+
+  const managerOfficersList = managedUsers.filter((u) => u.role === 'section_head' || u.role === 'it_officer' || u.role === 'admin');
+  const managerOptions = managerOfficersList.length > 0 ? managerOfficersList : managedUsers;
 
   // System Master Config State
   const [systemConfig, setSystemConfig] = useState({
@@ -630,6 +644,20 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <span className="sm:hidden">5. Audit Log</span>
             <span className="hidden sm:inline">5. Security Audit Trail</span>
           </button>
+
+          {/* 6. Database Schema (9 Tables) */}
+          <button
+            onClick={() => setActiveSubTab('database_schema')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeSubTab === 'database_schema'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="sm:hidden">6. Schema (9)</span>
+            <span className="hidden sm:inline">6. DB Schema (9 Tables)</span>
+          </button>
         </div>
       </div>
 
@@ -680,7 +708,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 assoc_lab_nodal: 'Associate Nodal Officer',
                 it_officer: 'IT Head',
                 section_head: 'Manager',
-                hrms_officer: 'HRMS Officer',
+                hrms_officer: 'Lab Supervisor',
                 admin: 'Admin',
               };
               const roleBadgeColorMap: Record<string, string> = {
@@ -820,7 +848,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             assoc_lab_nodal: 'Associate Nodal Officer',
                             it_officer: 'IT Head',
                             section_head: 'Manager',
-                            hrms_officer: 'HRMS Officer',
+                            hrms_officer: 'Lab Supervisor',
                             admin: 'Admin',
                           };
                           const roleBadgeColorMap: Record<string, string> = {
@@ -1210,6 +1238,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         <SecurityAuditTrailSection managedUsers={managedUsers} />
       )}
 
+      {/* ==================== SUB-TAB 6: DATABASE SCHEMA (9 TABLES) ==================== */}
+      {activeSubTab === 'database_schema' && (
+        <DatabaseSchemaSection
+          managedUsersCount={managedUsers.length}
+          facilitiesCount={facilitiesList.length}
+          servicesCount={servicesList.length}
+          requisitionsCount={requisitions.length}
+        />
+      )}
+
       {/* EDIT USER MODAL */}
       {editingUser && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
@@ -1247,7 +1285,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   <option value="assoc_lab_nodal">Associate Nodal Officer</option>
                   <option value="it_officer">IT Head</option>
                   <option value="section_head">Manager</option>
-                  <option value="hrms_officer">HRMS Officer</option>
+                  <option value="hrms_officer">Lab Supervisor</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -1346,7 +1384,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   <option value="assoc_lab_nodal">Associate Nodal Officer</option>
                   <option value="it_officer">IT Head</option>
                   <option value="section_head">Manager</option>
-                  <option value="hrms_officer">HRMS Officer</option>
+                  <option value="hrms_officer">Lab Supervisor</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -1434,12 +1472,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Nodal Officer --</option>
-                  {managedUsers.map((u) => (
+                  {nodalOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {newFacility.nodal && !managedUsers.some((u) => u.name === newFacility.nodal) && (
+                  {newFacility.nodal && !nodalOptions.some((u) => u.name === newFacility.nodal) && (
                     <option value={newFacility.nodal}>{newFacility.nodal}</option>
                   )}
                 </select>
@@ -1454,12 +1492,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Associate Nodal Officer --</option>
-                  {managedUsers.map((u) => (
+                  {assocNodalOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {newFacility.assocNodal && !managedUsers.some((u) => u.name === newFacility.assocNodal) && (
+                  {newFacility.assocNodal && !assocNodalOptions.some((u) => u.name === newFacility.assocNodal) && (
                     <option value={newFacility.assocNodal}>{newFacility.assocNodal}</option>
                   )}
                 </select>
@@ -1474,12 +1512,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Supervisor --</option>
-                  {managedUsers.map((u) => (
+                  {supervisorOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {newFacility.supervisor && !managedUsers.some((u) => u.name === newFacility.supervisor) && (
+                  {newFacility.supervisor && !supervisorOptions.some((u) => u.name === newFacility.supervisor) && (
                     <option value={newFacility.supervisor}>{newFacility.supervisor}</option>
                   )}
                 </select>
@@ -1565,12 +1603,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="">-- Select Manager --</option>
-                  {managedUsers.map((u) => (
+                  {managerOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {newService.manager && !managedUsers.some((u) => u.name === newService.manager) && (
+                  {newService.manager && !managerOptions.some((u) => u.name === newService.manager) && (
                     <option value={newService.manager}>{newService.manager}</option>
                   )}
                 </select>
@@ -1647,12 +1685,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Nodal Officer --</option>
-                  {managedUsers.map((u) => (
+                  {nodalOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {editingFacility.nodal && !managedUsers.some((u) => u.name === editingFacility.nodal) && (
+                  {editingFacility.nodal && !nodalOptions.some((u) => u.name === editingFacility.nodal) && (
                     <option value={editingFacility.nodal}>{editingFacility.nodal}</option>
                   )}
                 </select>
@@ -1667,12 +1705,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Associate Nodal Officer --</option>
-                  {managedUsers.map((u) => (
+                  {assocNodalOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {editingFacility.assocNodal && !managedUsers.some((u) => u.name === editingFacility.assocNodal) && (
+                  {editingFacility.assocNodal && !assocNodalOptions.some((u) => u.name === editingFacility.assocNodal) && (
                     <option value={editingFacility.assocNodal}>{editingFacility.assocNodal}</option>
                   )}
                 </select>
@@ -1687,12 +1725,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                 >
                   <option value="">-- Select Supervisor --</option>
-                  {managedUsers.map((u) => (
+                  {supervisorOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {editingFacility.supervisor && !managedUsers.some((u) => u.name === editingFacility.supervisor) && (
+                  {editingFacility.supervisor && !supervisorOptions.some((u) => u.name === editingFacility.supervisor) && (
                     <option value={editingFacility.supervisor}>{editingFacility.supervisor}</option>
                   )}
                 </select>
@@ -1770,12 +1808,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="">-- Select Manager --</option>
-                  {managedUsers.map((u) => (
+                  {managerOptions.map((u) => (
                     <option key={u.id} value={u.name}>
                       {u.name} ({u.designation || u.email})
                     </option>
                   ))}
-                  {editingService.manager && !managedUsers.some((u) => u.name === editingService.manager) && (
+                  {editingService.manager && !managerOptions.some((u) => u.name === editingService.manager) && (
                     <option value={editingService.manager}>{editingService.manager}</option>
                   )}
                 </select>

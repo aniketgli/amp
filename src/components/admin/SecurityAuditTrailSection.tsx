@@ -265,7 +265,7 @@ export const SecurityAuditTrailSection: React.FC<SecurityAuditTrailSectionProps>
                 <option value="applicant">User / Applicant</option>
                 <option value="supervisor">Reporting Manager / Supervisor (PI)</option>
                 <option value="it_officer">Senior Technical Officer (IT Head)</option>
-                <option value="hrms_officer">HRMS & Biometric Officer</option>
+                <option value="hrms_officer">Lab Supervisor</option>
                 <option value="lab_nodal">Lab Nodal Officer</option>
                 <option value="assoc_lab_nodal">Associate Lab Nodal Officer</option>
                 <option value="section_head">Manager / Section Head</option>
