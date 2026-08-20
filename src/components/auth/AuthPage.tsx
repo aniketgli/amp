@@ -302,7 +302,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       // CALL BACKEND LOGIN API
       // -----------------------------------------
 
-      const response = await fetch("http://localhost:5000/api/login", {
+      const response = await fetch("http://192.168.205.75:5000/api/login", {
         method: "POST",
 
         headers: {
@@ -440,7 +440,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       // CALL BACKEND REGISTRATION API
       // -----------------------------------------
 
-      const response = await fetch("http://localhost:5000/api/register", {
+      const response = await fetch("http://192.168.205.75:5000/api/register", {
         method: "POST",
 
         headers: {
