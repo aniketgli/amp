@@ -43,8 +43,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState('ananya.sharma@wii.gov.in');
-  const [loginPassword, setLoginPassword] = useState('••••••••');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [selectedLoginRole, setSelectedLoginRole] = useState<UserRole>(currentRole);
 
   // Registration form state
@@ -213,6 +213,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
+                    placeholder="Enter your password"
                     className="w-full text-xs pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono"
                   />
                 </div>
@@ -277,7 +278,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
-                    placeholder="e.g. Dr. Ananya Sharma"
+                    placeholder="e.g. Full Name"
                     className="w-full text-xs pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
@@ -295,7 +296,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="ananya.sharma@gmail.com"
+                    placeholder="user@example.com"
                     className="w-full text-xs pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>

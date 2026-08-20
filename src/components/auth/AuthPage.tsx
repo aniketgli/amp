@@ -222,8 +222,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [mode, setMode] = useState<"login" | "register">(initialMode);
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState("ananya.sharma@gmail.com");
-  const [loginPassword, setLoginPassword] = useState("password123");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [selectedLoginRole, setSelectedLoginRole] =
     useState<UserRole>(currentRole);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -517,7 +517,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         )}
 
         {/* Main Card Container */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
           {/* Header Banner featuring Official WII Logo */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-8 relative border-b border-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
@@ -628,7 +628,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       onChange={(e) => setLoginEmail(e.target.value)}
                       required
                       className="w-full text-xs pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
-                      placeholder="e.g. ananya.sharma@gmail.com or user@wii.gov.in"
+                      placeholder="e.g. user@example.com or user@wii.gov.in"
                     />
                   </div>
                 </div>
@@ -644,6 +644,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
+                      placeholder="Enter your password"
                       className="w-full text-xs pl-10 pr-10 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-slate-900"
                     />
                     <button
@@ -705,7 +706,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       required
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
-                      placeholder="e.g. Dr. Ananya Sharma"
+                      placeholder="e.g. Full Name"
                       className="w-full text-xs pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
                     />
                   </div>
@@ -723,7 +724,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       required
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="ananya.sharma@gmail.com"
+                      placeholder="user@example.com"
                       className="w-full text-xs pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
                     />
                   </div>

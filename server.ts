@@ -144,7 +144,7 @@ const db = mysql.createPool({
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "recruitment_portal",
+  database: process.env.DB_NAME || "wii_access_portal",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -164,6 +164,49 @@ async function testDatabaseConnection() {
     isDbConnected = false;
     console.warn("MySQL Database connection unavailable. Using in-memory store for fallback operations.");
   }
+}
+
+/* =========================================================
+   PASSWORD VERIFICATION UTILITY
+========================================================= */
+
+async function verifyPassword(providedPassword: string, storedHash: string): Promise<boolean> {
+  if (!storedHash || !providedPassword) return false;
+
+  // 1. Direct match (plain text credentials e.g. seeded records)
+  if (storedHash === providedPassword) {
+    return true;
+  }
+
+  // 2. Bcrypt hash check (starts with $2)
+  if (storedHash.startsWith("$2")) {
+    try {
+      const match = await bcrypt.compare(providedPassword, storedHash);
+      if (match) return true;
+    } catch (e) {
+      // Ignore bcrypt comparison error
+    }
+  }
+
+  // 3. SHA-256 with WII portal salt
+  const sha256Salted = crypto
+    .createHash("sha256")
+    .update(providedPassword + "wii_portal_salt_2026")
+    .digest("hex");
+  if (sha256Salted.toLowerCase() === storedHash.toLowerCase()) {
+    return true;
+  }
+
+  // 4. SHA-256 without salt
+  const sha256Plain = crypto
+    .createHash("sha256")
+    .update(providedPassword)
+    .digest("hex");
+  if (sha256Plain.toLowerCase() === storedHash.toLowerCase()) {
+    return true;
+  }
+
+  return false;
 }
 
 /* =========================================================
@@ -215,7 +258,7 @@ app.get("/api/health", (req, res) => {
    DATABASE TEST API
 ========================================================= */
 
-app.get("/api/db-test", async (req, res) => {
+app.get(["/api/db-test", "/api/db/test"], async (req, res) => {
   try {
     const [rows] = await db.query("SELECT 1 AS connected, DATABASE() AS database_name");
     res.json({
@@ -522,13 +565,8 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // Password verification (supports demo password or bcrypt compare)
-    let passwordMatch = false;
-    if (password === "password123") {
-      passwordMatch = true;
-    } else {
-      passwordMatch = await bcrypt.compare(password, user.password_hash);
-    }
+    // Password verification against stored user credentials (bcrypt, SHA256, or plaintext)
+    const passwordMatch = await verifyPassword(password, user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({
