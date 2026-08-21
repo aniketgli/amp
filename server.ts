@@ -877,12 +877,21 @@ app.get("/api/activate/:token", async (req, res) => {
 
 /* =========================================================
    LOGIN API
+   ---------------------------------------------------------
+   RULE:
+   1. User authenticate hoga.
+   2. User ki saari assigned roles DB se milengi.
+   3. Login ke time ALWAYS "user" role currentRole hoga.
+   4. Baaki roles roles[] me available rahengi.
 ========================================================= */
 
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // -----------------------------------------------------
+    // 1. Basic validation
+    // -----------------------------------------------------
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -894,107 +903,73 @@ app.post("/api/login", async (req, res) => {
 
     let user: any = null;
 
-    /* =====================================================
-       GET USER
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 2. Find user from database
+    // -----------------------------------------------------
     if (isDbConnected) {
       try {
         const [users]: any = await db.query(
-          `SELECT
-             id,
-             full_name,
-             email,
-             phone,
-             password_hash,
-             is_activated,
-             intercom_extension,
-             status,
-             role
-           FROM users
-           WHERE LOWER(email) = ?
-           LIMIT 1`,
+          `
+          SELECT
+            id,
+            employee_id,
+            full_name,
+            email,
+            phone,
+            password_hash,
+            is_activated,
+            intercom_extension,
+            status
+          FROM users
+          WHERE LOWER(email) = ?
+          LIMIT 1
+          `,
           [cleanEmail],
         );
 
         if (users.length > 0) {
           user = users[0];
         }
-      } catch (e) {
-        console.warn("Database user lookup failed.", e);
+      } catch (error) {
+        console.error("USER FETCH ERROR:", error);
       }
     }
 
-    /* =====================================================
-       FALLBACK - IN MEMORY USER & AUTO-PROVISION
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 3. Fallback to in-memory users
+    // -----------------------------------------------------
     if (!user) {
       user = inMemoryUsers.find((u) => u.email.toLowerCase() === cleanEmail);
     }
 
-    /* =====================================================
-       AUTO-PROVISION IF NOT FOUND (Seamless Access)
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 4. User not found
+    // -----------------------------------------------------
     if (!user) {
-      const generatedName = cleanEmail
-        .split("@")[0]
-        .replace(/[._]/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-      const userRole =
-        cleanEmail.includes("admin") ||
-        cleanEmail === "aniketkarangli@gmail.com" ||
-        cleanEmail.includes("virendra")
-          ? "admin"
-          : "applicant";
-
-      user = {
-        id: Date.now(),
-        employee_id: `WII-EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-        full_name: generatedName,
-        email: cleanEmail,
-        phone: "+91 98765 00000",
-        password_hash: bcrypt.hashSync(password, 10),
-        is_activated: 1,
-        activation_token: null,
-        role: userRole,
-        status: "active",
-        intercom_extension: "100",
-        last_active_at: new Date().toISOString(),
-      };
-
-      inMemoryUsers.push(user);
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
     }
 
-    /* =====================================================
-       ACCOUNT ACTIVATION CHECK (Ensure Activated)
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 5. Account activation/status check
+    // -----------------------------------------------------
     if (
       Number(user.is_activated) !== 1 ||
       String(user.status).toLowerCase() !== "active"
     ) {
-      user.is_activated = 1;
-      user.status = "active";
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your account is not activated. Please activate your account first.",
+      });
     }
 
-    /* =====================================================
-       PASSWORD VERIFICATION
-    ===================================================== */
-
-    let passwordMatch = await verifyPassword(password, user.password_hash);
-
-    // Fallback: accept password123 or update to provided password
-    if (!passwordMatch) {
-      if (
-        password === "password123" ||
-        (typeof password === "string" && password.trim().length >= 4)
-      ) {
-        user.password_hash = bcrypt.hashSync(password, 10);
-        passwordMatch = true;
-      }
-    }
+    // -----------------------------------------------------
+    // 6. Password verification
+    // -----------------------------------------------------
+    const passwordMatch = await verifyPassword(password, user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({
@@ -1003,102 +978,77 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    /* =====================================================
-       GET ALL ASSIGNED ROLES
-    ===================================================== */
+    // =====================================================
+    // 7. FETCH ALL ASSIGNED ROLES
+    // =====================================================
 
     let roles: any[] = [];
 
     if (isDbConnected) {
       try {
-        const [userRoles]: any = await db.query(
-          `SELECT
-             r.id,
-             r.role_code,
-             r.role_name,
-             r.description
-           FROM user_roles ur
-           INNER JOIN roles r
-             ON r.id = ur.role_id
-           WHERE ur.user_id = ?
-             AND (r.is_active = 1 OR r.is_active IS NULL)
-           ORDER BY r.id`,
+        const [roleRows]: any = await db.query(
+          `
+          SELECT
+            r.id,
+            r.role_code,
+            r.role_name
+          FROM user_roles ur
+          INNER JOIN roles r
+            ON r.id = ur.role_id
+          WHERE ur.user_id = ?
+            AND r.is_active = 1
+          ORDER BY r.id
+          `,
           [user.id],
         );
 
-        if (Array.isArray(userRoles) && userRoles.length > 0) {
-          roles = userRoles;
-        }
-      } catch (e) {
-        console.warn("user_roles table lookup failed, checking user.role column...");
-      }
-
-      // Fallback: Check if user has a direct 'role' column in MySQL users table
-      if (roles.length === 0 && user.role) {
-        const roleNameMap: Record<string, string> = {
-          applicant: "Applicant",
-          user: "User",
-          supervisor: "Reporting Manager / Supervisor (PI)",
-          lab_nodal: "Nodal Officer",
-          assoc_lab_nodal: "Associate Nodal Officer",
-          it_officer: "IT Head",
-          section_head: "Manager",
-          hrms_officer: "Supervisor",
-          admin: "Administrator",
-        };
-        roles = [
-          {
-            id: 1,
-            role_code: user.role,
-            role_name: roleNameMap[user.role] || user.role,
-            description: "Default user role",
-          },
-        ];
+        roles = roleRows.map((role: any) => ({
+          id: role.id,
+          code: role.role_code,
+          name: role.role_name,
+        }));
+      } catch (error) {
+        console.error("ROLE FETCH ERROR:", error);
       }
     }
 
-    /* =====================================================
-       FALLBACK FOR IN-MEMORY USER
-    ===================================================== */
+    // -----------------------------------------------------
+    // 8. SAFETY:
+    // Every registered user MUST have "user" role.
+    // -----------------------------------------------------
+    const userRole = roles.find((role) => role.code === "user");
 
-    if (roles.length === 0) {
-      const userRoleCode = user.role || "applicant";
-      const roleNameMap: Record<string, string> = {
-        applicant: "Applicant",
-        user: "User",
-        supervisor: "Reporting Manager / Supervisor (PI)",
-        lab_nodal: "Nodal Officer",
-        assoc_lab_nodal: "Associate Nodal Officer",
-        it_officer: "IT Head",
-        section_head: "Manager",
-        hrms_officer: "Supervisor",
-        admin: "Administrator",
-      };
-      roles = [
-        {
-          id: 1,
-          role_code: userRoleCode,
-          role_name: roleNameMap[userRoleCode] || "User",
-          description: "Registered Access Portal User",
-        },
-      ];
+    if (!userRole) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "User role is not assigned to this account. Please contact administrator.",
+      });
     }
 
-    /* =====================================================
-       ROLE CODES
-    ===================================================== */
+    // =====================================================
+    // 9. IMPORTANT:
+    // LOGIN ALWAYS STARTS WITH "USER" ROLE
+    // =====================================================
 
-    const roleCodes = roles.map((role) => role.role_code);
+    const currentRole = userRole;
 
-    /* =====================================================
-       JWT TOKEN
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 10. Generate JWT
+    //
+    // IMPORTANT:
+    // Token contains currentRole, NOT all roles.
+    // All roles are returned separately to frontend.
+    // -----------------------------------------------------
     const token = jwt.sign(
       {
         userId: user.id,
         email: user.email,
-        roles: roleCodes,
+
+        // Always "user" immediately after login
+        role: currentRole.code,
+
+        roleId: currentRole.id,
       },
       JWT_SECRET,
       {
@@ -1106,36 +1056,31 @@ app.post("/api/login", async (req, res) => {
       },
     );
 
-    /* =====================================================
-       LOGIN RESPONSE
-    ===================================================== */
-
+    // -----------------------------------------------------
+    // 11. Login response
+    // -----------------------------------------------------
     return res.status(200).json({
       success: true,
+
       message: "Login successful.",
 
       token,
 
+      // Current active role after login
+      currentRole,
+
       user: {
         id: user.id,
+        employeeId: user.employee_id,
         fullName: user.full_name,
         email: user.email,
         phone: user.phone,
+        intercomExtension: user.intercom_extension,
+        status: user.status,
+        isActivated: Boolean(user.is_activated),
 
-        roles: roles.map((role) => ({
-          id: role.id,
-          code: role.role_code,
-          name: role.role_name,
-        })),
-
-        intercomExtension: user.intercom_extension || null,
-      },
-
-      /* Current/default role */
-      currentRole: {
-        id: roles[0].id,
-        code: roles[0].role_code,
-        name: roles[0].role_name,
+        // All roles assigned to this user
+        roles,
       },
     });
   } catch (error: any) {
@@ -1182,75 +1127,6 @@ function authenticateToken(req: any, res: any, next: any) {
     });
   }
 }
-
-/* =========================================================
-   GET ALL USERS API (Master Directory)
-========================================================= */
-
-app.get("/api/users", async (req, res) => {
-  try {
-    let dbUsers: any[] = [];
-    if (isDbConnected) {
-      try {
-        const [rows]: any = await db.query(
-          "SELECT id, employee_id, full_name, email, phone, role, intercom_extension, is_activated, status, last_active_at FROM users ORDER BY id ASC"
-        );
-        if (Array.isArray(rows) && rows.length > 0) {
-          dbUsers = rows;
-        }
-      } catch (e) {
-        console.warn("Error fetching users from DB:", e);
-      }
-    }
-
-    // Merge DB users with in-memory users ensuring no duplicates by email
-    const allUsersMap = new Map<string, any>();
-
-    // First add in-memory
-    inMemoryUsers.forEach((u) => {
-      allUsersMap.set(u.email.toLowerCase(), {
-        id: String(u.id),
-        name: u.full_name,
-        email: u.email,
-        phone: u.phone || "",
-        designation: u.role === "admin" ? "Director General & System Admin" : "Officer / Researcher",
-        department: "Wildlife Institute of India",
-        role: u.role || "applicant",
-        intercom: u.intercom_extension || "",
-        status: u.status || "active",
-        lastActive: u.last_active_at ? new Date(u.last_active_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active",
-      });
-    });
-
-    // Then add/override from DB
-    dbUsers.forEach((u) => {
-      allUsersMap.set(u.email.toLowerCase(), {
-        id: String(u.id),
-        name: u.full_name,
-        email: u.email,
-        phone: u.phone || "",
-        designation: u.designation || (u.role === "admin" ? "Director General & System Admin" : "Researcher / Officer"),
-        department: u.department || "Wildlife Institute of India",
-        role: u.role || "applicant",
-        intercom: u.intercom_extension || "",
-        status: u.status || (u.is_activated ? "active" : "inactive"),
-        lastActive: u.last_active_at ? new Date(u.last_active_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active",
-      });
-    });
-
-    return res.json({
-      success: true,
-      users: Array.from(allUsersMap.values()),
-    });
-  } catch (error: any) {
-    console.error("GET /api/users error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch users",
-      error: error?.message,
-    });
-  }
-});
 
 /* =========================================================
    CURRENT LOGGED-IN USER API
@@ -1307,6 +1183,231 @@ app.get("/api/me", authenticateToken, async (req: any, res) => {
       success: false,
       message: "Unable to fetch user information.",
     });
+  }
+});
+
+/* =========================================================
+   GET ALL USERS
+   ---------------------------------------------------------
+   Purpose:
+   - Admin panel ke liye users DB se fetch karna
+   - Koi hardcoded user use nahi hoga
+   - Roles user_roles + roles se fetch honge
+========================================================= */
+
+app.get("/api/users", async (req, res) => {
+  try {
+    if (!isDbConnected) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not connected.",
+      });
+    }
+
+    const [users]: any = await db.query(`
+      SELECT
+        u.id,
+        u.employee_id,
+        u.full_name,
+        u.email,
+        u.phone,
+        u.intercom_extension,
+        u.status,
+        u.is_activated,
+        u.created_at,
+
+        GROUP_CONCAT(
+          DISTINCT JSON_OBJECT(
+            'id', r.id,
+            'code', r.role_code,
+            'name', r.role_name
+          )
+          ORDER BY r.id
+          SEPARATOR '|||'
+        ) AS role_data
+
+      FROM users u
+
+      LEFT JOIN user_roles ur
+        ON ur.user_id = u.id
+
+      LEFT JOIN roles r
+        ON r.id = ur.role_id
+
+      GROUP BY
+        u.id,
+        u.employee_id,
+        u.full_name,
+        u.email,
+        u.phone,
+        u.intercom_extension,
+        u.status,
+        u.is_activated,
+        u.created_at
+
+      ORDER BY u.id ASC
+    `);
+
+    const formattedUsers = users.map((user: any) => {
+      let roles: any[] = [];
+
+      if (user.role_data) {
+        roles = user.role_data
+          .split("|||")
+          .map((item: string) => {
+            try {
+              return JSON.parse(item);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+      }
+
+      return {
+        id: user.id,
+        employeeId: user.employee_id,
+        fullName: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        intercomExtension: user.intercom_extension,
+        status: user.status,
+        isActivated: Boolean(user.is_activated),
+        roles,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: formattedUsers.length,
+      users: formattedUsers,
+    });
+  } catch (error: any) {
+    console.error("GET USERS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch users.",
+      error: error?.message,
+    });
+  }
+});
+
+/* =========================================================
+   UPDATE USER ROLES
+   Admin assigns/replaces multiple roles for a user.
+========================================================= */
+
+app.put("/api/users/:userId/roles", async (req, res) => {
+  const connection = await db.getConnection();
+
+  try {
+    const userId = Number(req.params.userId);
+    const { roleIds } = req.body;
+
+    // -----------------------------------------
+    // BASIC VALIDATION
+    // -----------------------------------------
+
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID.",
+      });
+    }
+
+    if (!Array.isArray(roleIds) || roleIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one role must be assigned.",
+      });
+    }
+
+    // Convert to numbers and remove duplicates
+    const cleanRoleIds = [
+      ...new Set(roleIds.map(Number).filter((id) => Number.isInteger(id))),
+    ];
+
+    // -----------------------------------------
+    // VERIFY USER EXISTS
+    // -----------------------------------------
+
+    const [users]: any = await db.query(
+      "SELECT id FROM users WHERE id = ? LIMIT 1",
+      [userId],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    // -----------------------------------------
+    // VERIFY ALL ROLES EXIST
+    // -----------------------------------------
+
+    const placeholders = cleanRoleIds.map(() => "?").join(",");
+
+    const [roles]: any = await db.query(
+      `SELECT id FROM roles
+       WHERE id IN (${placeholders})
+       AND is_active = 1`,
+      cleanRoleIds,
+    );
+
+    if (roles.length !== cleanRoleIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more selected roles are invalid.",
+      });
+    }
+
+    // -----------------------------------------
+    // TRANSACTION
+    // -----------------------------------------
+
+    await connection.beginTransaction();
+
+    // Remove previous assignments
+    await connection.query("DELETE FROM user_roles WHERE user_id = ?", [
+      userId,
+    ]);
+
+    // Insert new assignments
+    for (const roleId of cleanRoleIds) {
+      await connection.query(
+        `INSERT INTO user_roles
+         (user_id, role_id)
+         VALUES (?, ?)`,
+        [userId, roleId],
+      );
+    }
+
+    await connection.commit();
+
+    // -----------------------------------------
+    // RETURN UPDATED USER
+    // -----------------------------------------
+
+    return res.json({
+      success: true,
+      message: "User roles updated successfully.",
+      userId,
+      roleIds: cleanRoleIds,
+    });
+  } catch (error: any) {
+    await connection.rollback();
+
+    console.error("UPDATE USER ROLES ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update user roles.",
+    });
+  } finally {
+    connection.release();
   }
 });
 

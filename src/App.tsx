@@ -44,8 +44,8 @@ const ROLE_META: Record<string, AssignedRoleInfo> = {
   user: { id: 1, code: "applicant", name: "User" },
   reporting_manager: {
     id: 2,
-    code: "supervisor",
-    name: "Reporting Manager / Supervisor (PI)",
+    code: "reporting_manager",
+    name: "Reporting Manager / Supervisor (P)",
   },
   nodal_officer: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
   lab_nodal: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
@@ -525,18 +525,18 @@ export default function App() {
       <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900 transition-colors">
         <div className="flex-1">
           <AuthPage
-            currentRole={currentRole}
             initialMode="login"
             isAuthenticated={isAuthenticated}
             onNavigateHome={
               isAuthenticated ? () => setActiveTab("dashboard") : undefined
             }
             onLoginSuccess={(
-              initialRole,
+              _initialRole,
               newAssignedRoles,
               updatedProfileData,
             ) => {
               // Login successful: hydrate the complete frontend session.
+              // The backend tells us all assigned roles; the first active persona is always User.
               setIsAuthenticated(true);
 
               // Keep the normal User role (`applicant`) on every account.
@@ -549,15 +549,13 @@ export default function App() {
 
               setAssignedRoles(normalizedRoles);
 
-              // Use AuthPage's selected role when it is actually assigned.
-              const normalizedInitialRole = normalizedRoles.includes(
-                initialRole,
-              )
-                ? initialRole
-                : "applicant";
+              // IMPORTANT: A successful LOGIN always starts in User persona.
+              // Do NOT use a previously selected Admin role as the login role.
+              // Admin/other roles remain available in the Navbar role switcher.
+              const loginRole: UserRole = "applicant";
 
-              setCurrentRole(normalizedInitialRole);
-              localStorage.setItem("wii_current_role", normalizedInitialRole);
+              setCurrentRole(loginRole);
+              localStorage.setItem("wii_current_role", loginRole);
 
               // AuthPage stores the raw API user in localStorage.
               // Read it so Navbar can display the person's real name/email.

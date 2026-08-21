@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { ApplicantProfile } from "../types/requisition";
 import { WiiLogo } from "./common/WiiLogo";
+
 import {
   FileText,
-  Clock,
   HelpCircle,
   UserCheck,
   ChevronDown,
@@ -20,10 +20,23 @@ import {
 } from "lucide-react";
 
 /* =========================================================
-   USER ROLE TYPE
+   ASSIGNED ROLE TYPE
    ---------------------------------------------------------
-   Ye roles database ke roles table ke role_code se match
-   karte hain.
+   Ye structure backend ke /api/login ya /api/users response
+   se aane wale role object ke saath match karta hai.
+
+   Example:
+   {
+     id: 1,
+     code: "user",
+     name: "User"
+   }
+
+   {
+     id: 8,
+     code: "administrator",
+     name: "Administrator"
+   }
 ========================================================= */
 
 export interface UserAssignedRole {
@@ -37,19 +50,19 @@ export interface UserAssignedRole {
 ========================================================= */
 
 interface NavbarProps {
-  /* Currently selected / active role */
+  /* Current active role */
   currentRole: string;
 
-  /* Login ke baad backend se milne wale assigned roles */
+  /* Login user ke assigned roles */
   assignedRoles?: UserAssignedRole[];
 
   /* Role switch callback */
   onRoleChange: (role: string) => void;
 
-  /* Existing profile data */
+  /* Logged-in user's profile */
   userProfile?: ApplicantProfile;
 
-  /* Current page/tab */
+  /* Current application tab */
   activeTab:
     | "dashboard"
     | "profile"
@@ -60,7 +73,7 @@ interface NavbarProps {
     | "super_admin_panel"
     | "auth";
 
-  /* Page change callback */
+  /* Tab change callback */
   onTabChange: (
     tab:
       | "dashboard"
@@ -73,70 +86,70 @@ interface NavbarProps {
       | "auth",
   ) => void;
 
+  /* Pending request count */
   pendingApprovalsCount: number;
 
+  /* Reset sample data */
   onResetData: () => void;
 
+  /* Global search */
   onSearch: (query: string) => void;
 
+  /* Auth page callback */
   onOpenAuth: () => void;
 
+  /* Logout callback */
   onLogout?: () => void;
 }
 
 /* =========================================================
    ROLE DISPLAY NAMES
    ---------------------------------------------------------
-   Agar backend sirf role_code bheje to bhi UI proper name
-   show karega.
+   Database ke role_code ko readable name me convert karne
+   ke liye fallback mapping.
 ========================================================= */
 
 const ROLE_NAMES: Record<string, string> = {
+  // Frontend canonical codes
   applicant: "User",
-  user: "User",
-  reporting_manager: "Reporting Manager / Supervisor (PI)",
-  supervisor: "Reporting Manager / Supervisor (PI)",
-  nodal_officer: "Nodal Officer",
-  lab_nodal: "Nodal Officer",
-  associate_nodal_officer: "Associate Nodal Officer",
-  assoc_lab_nodal: "Associate Nodal Officer",
-  it_head: "IT Head",
-  it_officer: "IT Head",
-  manager: "Manager",
-  section_head: "Manager",
-  hrms_officer: "Supervisor",
-  administrator: "Administrator",
   admin: "Administrator",
+
+  // Backend aliases (kept for compatibility)
+  user: "User",
+  reporting_manager: "Reporting Manager / Supervisor (P)",
+  nodal_officer: "Nodal Officer",
+  associate_nodal_officer: "Associate Nodal Officer",
+  it_head: "IT Head",
+  manager: "Manager",
+  supervisor: "Supervisor",
+  administrator: "Administrator",
 };
 
 /* =========================================================
-   DASHBOARD LABELS
+   DASHBOARD NAMES
 ========================================================= */
 
 const DASHBOARD_NAMES: Record<string, string> = {
   applicant: "Dashboard",
+  admin: "Dashboard",
   user: "Dashboard",
   reporting_manager: "Dashboard",
-  supervisor: "Dashboard",
   nodal_officer: "Dashboard",
-  lab_nodal: "Dashboard",
   associate_nodal_officer: "Dashboard",
-  assoc_lab_nodal: "Dashboard",
   it_head: "Dashboard",
-  it_officer: "Dashboard",
   manager: "Dashboard",
-  section_head: "Dashboard",
-  hrms_officer: "Dashboard",
+  supervisor: "Dashboard",
   administrator: "Dashboard",
-  admin: "Dashboard",
 };
 
 /* =========================================================
    ROLE CAPABILITIES
    ---------------------------------------------------------
-   Navbar tabs role ke hisab se dynamically render hote hain:
-   - Admin role: Dashboard, Profile, Access, Requests, Master, Helpdesk (6 tabs)
-   - Other sabhi roles: Dashboard, Profile, Access, Requests, Helpdesk (5 tabs)
+   Yahan decide hota hai ki kaunsa role kaunsi navbar
+   functionality dekh sakta hai.
+
+   Future me permissions expand karni ho to yahi section
+   modify karna hoga.
 ========================================================= */
 
 const ROLE_CAPABILITIES: Record<
@@ -152,18 +165,8 @@ const ROLE_CAPABILITIES: Record<
     requests: true,
     master: false,
   },
-  user: {
-    access: true,
-    requests: true,
-    master: false,
-  },
 
   reporting_manager: {
-    access: true,
-    requests: true,
-    master: false,
-  },
-  supervisor: {
     access: true,
     requests: true,
     master: false,
@@ -174,18 +177,8 @@ const ROLE_CAPABILITIES: Record<
     requests: true,
     master: false,
   },
-  lab_nodal: {
-    access: true,
-    requests: true,
-    master: false,
-  },
 
   associate_nodal_officer: {
-    access: true,
-    requests: true,
-    master: false,
-  },
-  assoc_lab_nodal: {
     access: true,
     requests: true,
     master: false,
@@ -196,35 +189,28 @@ const ROLE_CAPABILITIES: Record<
     requests: true,
     master: false,
   },
-  it_officer: {
-    access: true,
-    requests: true,
-    master: false,
-  },
 
   manager: {
     access: true,
     requests: true,
     master: false,
   },
-  section_head: {
+
+  supervisor: {
     access: true,
     requests: true,
     master: false,
   },
 
-  hrms_officer: {
-    access: true,
-    requests: true,
-    master: false,
-  },
-
-  administrator: {
+  // Frontend canonical Administrator role.
+  admin: {
     access: true,
     requests: true,
     master: true,
   },
-  admin: {
+
+  // Backend alias kept for compatibility.
+  administrator: {
     access: true,
     requests: true,
     master: true,
@@ -245,15 +231,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   pendingApprovalsCount,
   onResetData,
   onSearch,
-  onOpenAuth,
   onLogout,
 }) => {
   /* =======================================================
      LOCAL UI STATES
   ======================================================= */
 
+  /* User dropdown open / close */
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
 
+  /* Change password modal */
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   /* Password form */
@@ -268,41 +255,45 @@ export const Navbar: React.FC<NavbarProps> = ({
   /* =======================================================
      ASSIGNED ROLES
      -------------------------------------------------------
-     Backend se roles directly aa rahe hain.
+     IMPORTANT:
+     Yahan koi hardcoded role add nahi kiya gaya.
 
-     Example:
-     [
-       { id: 1, code: "user", name: "User" },
-       { id: 8, code: "administrator", name: "Administrator" }
-     ]
+     Jo roles backend se aayenge wahi UI me show honge.
   ======================================================= */
 
   const rolesToDisplay = assignedRoles;
 
-  /* =======================================================
-     ACTIVE ROLE INFORMATION
-  ======================================================= */
+  /* =========================================================
+   ACTIVE ROLE INFORMATION
+   ---------------------------------------------------------
+   Current role ko backend se aaye assigned roles me search
+   karte hain.
+
+   Agar exact role object na mile to safe fallback use hoga.
+========================================================= */
 
   const activeRoleInfo = rolesToDisplay.find(
     (role) => role.code === currentRole,
   ) || {
     id: 0,
     code: currentRole,
-    name: ROLE_NAMES[currentRole] || currentRole || "User",
+    name:
+      ROLE_NAMES[currentRole] ||
+      (currentRole === "applicant" ? "User" : currentRole) ||
+      "User",
   };
 
   /* =======================================================
-     USER NAME / EMAIL
+     USER INFORMATION
      -------------------------------------------------------
-     Profile available ho to usse use karega.
+     Name DB/profile se aayega.
   ======================================================= */
 
   const displayName = userProfile?.fullName || "User";
 
+  /* Email display ke liye profile fields */
   const displayEmail =
-    userProfile?.personalEmail ||
-    userProfile?.wiiOfficialEmail ||
-    "user@wii.gov.in";
+    userProfile?.personalEmail || userProfile?.wiiOfficialEmail || "";
 
   /* =======================================================
      CURRENT ROLE CAPABILITIES
@@ -311,18 +302,65 @@ export const Navbar: React.FC<NavbarProps> = ({
   const capabilities = ROLE_CAPABILITIES[currentRole] || {
     access: true,
     requests: true,
-    master: currentRole === "admin" || currentRole === "administrator",
+    master: false,
   };
 
   /* =======================================================
      DASHBOARD NAME
   ======================================================= */
 
-  const dashboardName =
-    DASHBOARD_NAMES[currentRole] || activeRoleInfo.name || "Dashboard";
+  const dashboardName = DASHBOARD_NAMES[currentRole] || "Dashboard";
 
   /* =======================================================
-     PASSWORD CHANGE
+     ROLE SWITCH
+     -------------------------------------------------------
+     User ke assigned roles me se hi role select hoga.
+
+     Example:
+       User
+       Administrator
+
+     User click karega Administrator par:
+       currentRole = administrator
+       dashboard open
+  ======================================================= */
+
+  const handleRoleSwitch = (roleCode: string) => {
+    // Security/UI guard: only a role received from the backend may be selected.
+    const isAssigned = rolesToDisplay.some((role) => role.code === roleCode);
+
+    if (!isAssigned) {
+      console.warn("Blocked unassigned role switch:", roleCode);
+      setIsRoleDropdownOpen(false);
+      return;
+    }
+
+    /* Same role par click hua to sirf dropdown close */
+    if (roleCode === currentRole) {
+      setIsRoleDropdownOpen(false);
+      return;
+    }
+
+    /* Parent/App ko new role batao */
+    onRoleChange(roleCode);
+
+    /* Role change ke baad dashboard par redirect */
+    onTabChange("dashboard");
+
+    /* Dropdown close */
+    setIsRoleDropdownOpen(false);
+  };
+
+  /* =======================================================
+     CHANGE PASSWORD
+     -------------------------------------------------------
+     NOTE:
+     Abhi ye UI validation hai.
+
+     Actual backend API:
+       POST /api/change-password
+
+     baad me connect ki ja sakti hai.
   ======================================================= */
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -331,29 +369,29 @@ export const Navbar: React.FC<NavbarProps> = ({
     setPasswordError(null);
     setPasswordSuccess(null);
 
+    /* Current password validation */
     if (!oldPassword.trim()) {
       setPasswordError("Please enter your current password.");
       return;
     }
 
+    /* New password validation */
     if (newPassword.length < 6) {
       setPasswordError("New password must be at least 6 characters long.");
       return;
     }
 
+    /* Confirm password validation */
     if (newPassword !== confirmPassword) {
       setPasswordError("New password and confirm password do not match.");
       return;
     }
 
     /*
-      IMPORTANT:
-      Abhi ye sirf UI success hai.
+      Temporary UI success.
 
-      Actual password update ke liye baad mein:
+      Future:
       POST /api/change-password
-
-      API connect karenge.
     */
 
     setPasswordSuccess("Password updated successfully!");
@@ -362,69 +400,57 @@ export const Navbar: React.FC<NavbarProps> = ({
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
+
       setPasswordSuccess(null);
       setIsPasswordModalOpen(false);
     }, 1500);
   };
 
-  /* =======================================================
-     ROLE SWITCH HANDLER
-     -------------------------------------------------------
-     User kisi assigned role par click karega:
-       1. active role change
-       2. dashboard open
-       3. dropdown close
-  ======================================================= */
-
-  const handleRoleSwitch = (roleCode: string) => {
-    if (roleCode === currentRole) {
-      setIsRoleDropdownOpen(false);
-      return;
-    }
-
-    onRoleChange(roleCode);
-
-    /* Role switch ke baad dashboard */
-    onTabChange("dashboard");
-
-    setIsRoleDropdownOpen(false);
-  };
-
-  /* =======================================================
+  /* =========================================================
      RENDER
-  ======================================================= */
+  ========================================================= */
 
   return (
     <>
+      {/* =====================================================
+          MAIN HEADER
+      ===================================================== */}
+
       <header
         className="
           bg-white dark:bg-slate-900
-          border-b border-slate-200 dark:border-slate-800
-          shadow-xs sticky top-0 z-40
+          border-b border-slate-200
+          dark:border-slate-800
+          shadow-sm
+          sticky top-0
+          z-40
         "
       >
-        {/* =================================================
+        {/* ===================================================
             TOP HEADER
-        ================================================= */}
+        =================================================== */}
 
         <div
           className="
             max-w-7xl mx-auto
             px-2.5 sm:px-6 lg:px-8
             py-2
-            flex items-center justify-between
+            flex items-center
+            justify-between
             gap-2
           "
         >
-          {/* ===============================================
+          {/* =================================================
               WII LOGO + PORTAL NAME
-          =============================================== */}
+          ================================================= */}
 
           <div
             className="
-              flex items-center gap-2 sm:gap-3
+              flex items-center
+              gap-2 sm:gap-3
               cursor-pointer
-              min-w-0 shrink
+              min-w-0
+              shrink
             "
             onClick={() => onTabChange("dashboard")}
           >
@@ -433,14 +459,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div
               className="
                 hidden sm:block
-                border-l border-slate-200
+                border-l
+                border-slate-200
                 dark:border-slate-800
                 pl-3
               "
             >
               <h1
                 className="
-                  text-base font-extrabold
+                  text-base
+                  font-extrabold
                   text-slate-900
                   dark:text-slate-100
                 "
@@ -450,20 +478,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* ===============================================
+          {/* =================================================
               SEARCH
-          =============================================== */}
+          ================================================= */}
 
           <div
             className="
-              relative flex-1
-              max-w-xs hidden lg:block
+              relative
+              flex-1
+              max-w-xs
+              hidden lg:block
             "
           >
             <Search
               className="
                 w-4 h-4
-                absolute left-3 top-2.5
+                absolute
+                left-3 top-2.5
                 text-slate-400
               "
             />
@@ -474,10 +505,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               onChange={(e) => onSearch(e.target.value)}
               className="
                 w-full
-                pl-9 pr-3 py-1.5
+                pl-9 pr-3
+                py-1.5
                 text-xs
-                bg-slate-50 dark:bg-slate-800
-                border border-slate-300
+                bg-slate-50
+                dark:bg-slate-800
+                border
+                border-slate-300
                 dark:border-slate-700
                 rounded-lg
                 focus:outline-none
@@ -489,12 +523,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
           </div>
 
-          {/* ===============================================
+          {/* =================================================
               USER PROFILE BUTTON
-          =============================================== */}
+          ================================================= */}
 
           <div className="relative shrink-0">
             <button
+              type="button"
               onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
               className="
                 flex items-center
@@ -502,7 +537,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 px-2 sm:px-3
                 py-1.5
                 rounded-xl
-                border border-slate-300
+                border
+                border-slate-300
                 dark:border-slate-700
                 bg-slate-50
                 dark:bg-slate-800
@@ -514,13 +550,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <div
                 className="
-                  w-7 h-7 sm:w-8 sm:h-8
+                  w-7 h-7
+                  sm:w-8 sm:h-8
                   rounded-full
                   bg-emerald-100
                   dark:bg-emerald-950
-                  border border-emerald-300
+                  border
+                  border-emerald-300
                   dark:border-emerald-700
-                  flex items-center justify-center
+                  flex items-center
+                  justify-center
+                  shrink-0
                 "
               >
                 <User
@@ -532,24 +572,50 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               </div>
 
-              {/* =====================================================
-                  USER NAME + ACTIVE ROLE
-              ===================================================== */}
+              {/* User name + active role */}
+
               <div className="min-w-0 text-left">
                 {/* User Name */}
-                <div className="text-[11px] sm:text-xs font-extrabold text-slate-900 dark:text-slate-100 truncate leading-tight">
+
+                <div
+                  className="
+                    text-[11px]
+                    sm:text-xs
+                    font-extrabold
+                    text-slate-900
+                    dark:text-slate-100
+                    truncate
+                    leading-tight
+                  "
+                >
                   {displayName}
                 </div>
 
-                {/* Active Role (Themed badge) */}
-                <div className="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate leading-tight mt-0.5">
-                  {activeRoleInfo?.name || ROLE_NAMES[currentRole] || "User"}
+                {/* Active Role */}
+
+                <div
+                  className="
+                    text-[9px]
+                    sm:text-[10px]
+                    font-bold
+                    text-emerald-700
+                    dark:text-emerald-400
+                    uppercase
+                    tracking-wider
+                    truncate
+                    leading-tight
+                    mt-0.5
+                  "
+                >
+                  {activeRoleInfo.name}
                 </div>
               </div>
+
               <ChevronDown
                 className="
                   w-4 h-4
                   text-slate-400
+                  shrink-0
                 "
               />
             </button>
@@ -561,7 +627,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isRoleDropdownOpen && (
               <div
                 className="
-                  absolute right-0 mt-2
+                  absolute
+                  right-0
+                  mt-2
                   w-80
                   max-w-[calc(100vw-1rem)]
                   bg-white
@@ -575,9 +643,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   overflow-hidden
                 "
               >
-                {/* =========================================
-                    USER INFORMATION
-                ========================================= */}
+                {/* =============================================
+                    USER INFORMATION HEADER
+                ============================================= */}
 
                 <div
                   className="
@@ -587,6 +655,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     text-white
                     flex items-center
                     justify-between
+                    gap-3
                   "
                 >
                   <div className="min-w-0">
@@ -600,35 +669,41 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {displayName}
                     </div>
 
-                    <div
-                      className="
-                        text-[10px]
-                        text-slate-300
-                        truncate
-                      "
-                    >
-                      {displayEmail}
-                    </div>
+                    {displayEmail && (
+                      <div
+                        className="
+                          text-[10px]
+                          text-slate-300
+                          truncate
+                        "
+                      >
+                        {displayEmail}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Current role badge */}
 
                   <span
                     className="
-                      px-2 py-0.5
+                      px-2
+                      py-0.5
                       text-[9px]
                       font-bold
                       bg-emerald-500
                       text-slate-950
                       rounded-md
                       uppercase
+                      shrink-0
                     "
                   >
                     {activeRoleInfo.name}
                   </span>
                 </div>
 
-                {/* =========================================
-                    ROLE SWITCH
-                ========================================= */}
+                {/* =============================================
+                    SWITCH ROLE PERSONA
+                ============================================= */}
 
                 <div className="p-2.5">
                   <div
@@ -657,9 +732,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                       />
                       SWITCH ROLE PERSONA
                     </span>
+
+                    <span
+                      className="
+                        text-[9px]
+                        text-emerald-600
+                        font-semibold
+                      "
+                    >
+                      Redirects to Dashboard
+                    </span>
                   </div>
 
-                  {/* Assigned roles */}
+                  {/* =========================================
+                      ONLY DATABASE ASSIGNED ROLES
+                  ========================================= */}
 
                   <div className="space-y-1">
                     {rolesToDisplay.length === 0 ? (
@@ -678,6 +765,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                         return (
                           <button
+                            type="button"
                             key={role.id}
                             onClick={() => handleRoleSwitch(role.code)}
                             className={`
@@ -689,7 +777,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                               text-xs
                               transition-all
                               cursor-pointer
-
                               ${
                                 isActive
                                   ? `
@@ -719,14 +806,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 className={`
                                   w-2 h-2
                                   rounded-full
-
                                   ${
                                     isActive ? "bg-emerald-600" : "bg-slate-400"
                                   }
                                 `}
                               />
 
-                              {/* Role name */}
+                              {/* Role Name */}
 
                               <span className="font-semibold">
                                 {role.name ||
@@ -740,7 +826,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                             {isActive && (
                               <span
                                 className="
-                                  px-1.5 py-0.5
+                                  px-1.5
+                                  py-0.5
                                   text-[9px]
                                   font-black
                                   rounded-full
@@ -758,9 +845,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                {/* =========================================
+                {/* =============================================
                     ACCOUNT OPTIONS
-                ========================================= */}
+                ============================================= */}
 
                 <div
                   className="
@@ -773,6 +860,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {/* Change Password */}
 
                   <button
+                    type="button"
                     onClick={() => {
                       setIsRoleDropdownOpen(false);
                       setIsPasswordModalOpen(true);
@@ -799,9 +887,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     Change Password
                   </button>
 
-                  {/* Reset */}
+                  {/* Reset Sample Data */}
 
                   <button
+                    type="button"
                     onClick={() => {
                       onResetData();
                       setIsRoleDropdownOpen(false);
@@ -832,6 +921,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {onLogout && (
                     <button
+                      type="button"
                       onClick={() => {
                         setIsRoleDropdownOpen(false);
                         onLogout();
@@ -849,11 +939,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         hover:bg-rose-100
                       "
                     >
-                      <LogOut
-                        className="
-                          w-4 h-4
-                        "
-                      />
+                      <LogOut className="w-4 h-4" />
                       Sign Out / Logout
                     </button>
                   )}
@@ -863,9 +949,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* =================================================
+        {/* =====================================================
             MAIN NAVIGATION
-        ================================================= */}
+        ===================================================== */}
 
         <div
           className="
@@ -892,6 +978,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ================================================= */}
 
             <button
+              type="button"
               onClick={() => onTabChange("dashboard")}
               className={`
                 nav-button
@@ -902,18 +989,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }
               `}
             >
-              <Clock className="w-4 h-4" />
+              <UserCheck className="w-4 h-4" />
 
               {dashboardName}
             </button>
 
             {/* =================================================
                 PROFILE
-                -------------------------------------------------
-                Har role ke liye available
             ================================================= */}
 
             <button
+              type="button"
               onClick={() => onTabChange("profile")}
               className={`
                 nav-button
@@ -930,12 +1016,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* =================================================
                 ACCESS
-                -------------------------------------------------
-                Sirf USER role
             ================================================= */}
 
             {capabilities.access && (
               <button
+                type="button"
                 onClick={() => onTabChange("new_request")}
                 className={`
                   nav-button
@@ -957,6 +1042,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {capabilities.requests && (
               <button
+                type="button"
                 onClick={() => onTabChange("my_requests")}
                 className={`
                   nav-button relative
@@ -970,6 +1056,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <FileText className="w-4 h-4" />
                 Requests
+                {/* Pending count */}
                 {pendingApprovalsCount > 0 && (
                   <span
                     className="
@@ -991,11 +1078,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* =================================================
                 MASTER
                 -------------------------------------------------
-                Sirf ADMINISTRATOR role ke liye
+                Sirf Administrator role.
             ================================================= */}
 
             {capabilities.master && (
               <button
+                type="button"
                 onClick={() => onTabChange("super_admin_panel")}
                 className={`
                   nav-button
@@ -1013,11 +1101,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* =================================================
                 HELPDESK
-                -------------------------------------------------
-                Sabhi roles ke liye
             ================================================= */}
 
             <button
+              type="button"
               onClick={() => onTabChange("helpdesk")}
               className={`
                 nav-button
@@ -1036,7 +1123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       {/* =====================================================
-          PASSWORD MODAL
+          CHANGE PASSWORD MODAL
       ===================================================== */}
 
       {isPasswordModalOpen && (
@@ -1044,7 +1131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="
             fixed inset-0
             bg-slate-950/70
-            backdrop-blur-xs
+            backdrop-blur-sm
             z-50
             flex items-center
             justify-center
@@ -1062,7 +1149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               overflow-hidden
             "
           >
-            {/* Modal header */}
+            {/* Modal Header */}
 
             <div
               className="
@@ -1074,22 +1161,37 @@ export const Navbar: React.FC<NavbarProps> = ({
                 justify-between
               "
             >
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-400" />
+              <div
+                className="
+                  flex items-center
+                  gap-2
+                "
+              >
+                <Lock
+                  className="
+                    w-4 h-4
+                    text-emerald-400
+                  "
+                />
 
                 <span className="font-bold text-sm">
                   Change Account Password
                 </span>
               </div>
 
-              <button onClick={() => setIsPasswordModalOpen(false)}>
+              <button
+                type="button"
+                onClick={() => setIsPasswordModalOpen(false)}
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Password form */}
+            {/* Password Form */}
 
             <form onSubmit={handlePasswordSubmit} className="p-5 space-y-4">
+              {/* Error */}
+
               {passwordError && (
                 <div
                   className="
@@ -1106,6 +1208,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               )}
 
+              {/* Success */}
+
               {passwordSuccess && (
                 <div
                   className="
@@ -1116,7 +1220,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     text-emerald-800
                     text-xs
                     font-bold
-                    flex items-center gap-2
+                    flex items-center
+                    gap-2
                   "
                 >
                   <Check className="w-4 h-4" />
@@ -1124,6 +1229,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {passwordSuccess}
                 </div>
               )}
+
+              {/* Current Password */}
 
               <div>
                 <label className="block text-xs font-bold mb-1">
@@ -1145,6 +1252,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               </div>
 
+              {/* New Password */}
+
               <div>
                 <label className="block text-xs font-bold mb-1">
                   New Password *
@@ -1165,6 +1274,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               </div>
 
+              {/* Confirm Password */}
+
               <div>
                 <label className="block text-xs font-bold mb-1">
                   Confirm New Password *
@@ -1184,6 +1295,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   "
                 />
               </div>
+
+              {/* Modal Buttons */}
 
               <div
                 className="
@@ -1226,9 +1339,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* =====================================================
-          NAV BUTTON COMMON STYLE
-          -----------------------------------------------------
-          Isko CSS/Tailwind utility ke through use kar rahe hain.
+          COMMON NAV BUTTON CSS
       ===================================================== */}
 
       <style>

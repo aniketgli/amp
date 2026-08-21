@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { UserRole, ApplicantProfile } from "../../types/requisition";
-import { OFFICIAL_ROLES } from "../../data/initialData";
 import { WiiLogo } from "../common/WiiLogo";
 
 import { EmailInboxModal } from "../common/EmailInboxModal";
@@ -26,7 +25,6 @@ import {
 } from "lucide-react";
 
 interface AuthPageProps {
-  currentRole: UserRole;
   initialMode?: "login" | "register";
   isAuthenticated?: boolean;
   onLoginSuccess: (
@@ -132,88 +130,7 @@ const CaptchaCanvas: React.FC<{ code: string; onRefresh: () => void }> = ({
   );
 };
 
-// Demo accounts array for quick login testing
-const DEMO_ACCOUNTS: {
-  roleId: UserRole;
-  assignedRoles: UserRole[];
-  name: string;
-  title: string;
-  email: string;
-  badge: string;
-  badgeColor: string;
-}[] = [
-  {
-    roleId: "applicant",
-    assignedRoles: ["applicant"],
-    name: "Dr. Ananya Sharma",
-    title: "User",
-    email: "ananya.sharma@gmail.com",
-    badge: "User",
-    badgeColor:
-      "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200",
-  },
-  {
-    roleId: "supervisor",
-    assignedRoles: ["applicant", "supervisor"],
-    name: "Dr. R. K. Singh",
-    title: "PI",
-    email: "rk.singh@wii.gov.in",
-    badge: "PI",
-    badgeColor: "bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200",
-  },
-  {
-    roleId: "lab_nodal",
-    assignedRoles: ["applicant", "lab_nodal"],
-    name: "Dr. S. K. Gupta",
-    title: "Nodal Officer (Lab Name)",
-    email: "genetics.lab@wii.gov.in",
-    badge: "Nodal Officer",
-    badgeColor:
-      "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
-  },
-  {
-    roleId: "assoc_lab_nodal",
-    assignedRoles: ["applicant", "assoc_lab_nodal"],
-    name: "Dr. Neha Verma",
-    title: "Associate Nodal Officer (Lab Name)",
-    email: "assoc.genetics@wii.gov.in",
-    badge: "Assoc Nodal",
-    badgeColor:
-      "bg-amber-100 text-amber-900 border-amber-400 hover:bg-amber-200",
-  },
-  {
-    roleId: "section_head",
-    assignedRoles: ["applicant", "section_head"],
-    name: "Dr. Panna Lal",
-    title: "Manager (Facility Name)",
-    email: "facility.manager@wii.gov.in",
-    badge: "Facility Manager",
-    badgeColor: "bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200",
-  },
-  {
-    roleId: "it_officer",
-    assignedRoles: ["applicant", "it_officer"],
-    name: "Er. Vikas Mehta",
-    title: "IT Head",
-    email: "it.admin@wii.gov.in",
-    badge: "IT Head",
-    badgeColor:
-      "bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200",
-  },
-  {
-    roleId: "admin",
-    assignedRoles: ["applicant", "admin"],
-    name: "Director General / Admin",
-    title: "Admin",
-    email: "director.general@wii.gov.in",
-    badge: "Admin",
-    badgeColor:
-      "bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200",
-  },
-];
-
 export const AuthPage: React.FC<AuthPageProps> = ({
-  currentRole,
   initialMode = "login",
   isAuthenticated = false,
   onLoginSuccess,
@@ -224,8 +141,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [selectedLoginRole, setSelectedLoginRole] =
-    useState<UserRole>(currentRole);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Registration form state
@@ -254,17 +169,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     const newCode = generateCaptchaCode();
     setCaptchaCode(newCode);
     setUserCaptchaInput("");
-    setFormError(null);
-    setIsInactiveUserError(false);
-  };
-
-  const handleSelectDemoAccount = (acc: (typeof DEMO_ACCOUNTS)[0]) => {
-    setLoginEmail(acc.email);
-    setLoginPassword("password123");
-    setSelectedLoginRole(acc.roleId);
-    const newCode = generateCaptchaCode();
-    setCaptchaCode(newCode);
-    setUserCaptchaInput(newCode); // Auto-fill verified captcha for smooth demo testing
     setFormError(null);
     setIsInactiveUserError(false);
   };
@@ -347,6 +251,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
       localStorage.setItem("wii_user", JSON.stringify(data.user));
 
+      // IMPORTANT: Every fresh login starts in the normal User persona.
+      // Any previous Admin/other persona stored by an earlier session is cleared.
+      localStorage.setItem("wii_current_role", "applicant");
+
       // -----------------------------------------
       // CREATE PROFILE DATA
       // -----------------------------------------
@@ -379,21 +287,102 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         hrms_officer: "hrms_officer",
       };
 
+      /* =========================================================
+   BUILD ASSIGNED ROLES
+   ---------------------------------------------------------
+   Backend se jo roles milenge unko frontend roles me map
+   kiya ja raha hai.
+
+   IMPORTANT:
+   - User role har account ka default role hai.
+   - Agar Administrator assigned hai to wo dropdown me rahega.
+   - Lekin login ke time Administrator automatically active
+     NAHI hoga.
+========================================================= */
+
       const assignedRoles: UserRole[] = (data.user.roles || [])
-        .map((role: any) => roleCodeMap[role.code] || roleCodeMap[role.name?.toLowerCase()] || (role.code as UserRole))
+        .map((role: any) => {
+          const code = String(role?.code || "").toLowerCase();
+
+          const roleCodeMap: Record<string, UserRole> = {
+            user: "applicant",
+            applicant: "applicant",
+
+            administrator: "admin",
+            admin: "admin",
+
+            reporting_manager: "reporting_manager",
+            supervisor: "supervisor",
+
+            nodal_officer: "lab_nodal",
+            lab_nodal: "lab_nodal",
+
+            associate_nodal_officer: "assoc_lab_nodal",
+            assoc_lab_nodal: "assoc_lab_nodal",
+
+            it_head: "it_officer",
+            it_officer: "it_officer",
+
+            manager: "section_head",
+            section_head: "section_head",
+
+            hrms_officer: "hrms_officer",
+          };
+
+          return roleCodeMap[code];
+        })
         .filter(Boolean);
 
-      const uniqueRoles = [
-        ...new Set<UserRole>(assignedRoles.length > 0 ? assignedRoles : ["applicant"]),
+      /* =========================================================
+   ENSURE USER ROLE EXISTS
+   ---------------------------------------------------------
+   Every registered/login account must have User persona.
+
+   IMPORTANT:
+   "applicant" is only the INTERNAL frontend code.
+   UI me iska naam "User" rahega.
+========================================================= */
+
+      const uniqueRoles: UserRole[] = [
+        ...new Set<UserRole>(["applicant", ...assignedRoles]),
       ];
 
-      const activeRole: UserRole = uniqueRoles.includes("admin")
-        ? "admin"
-        : uniqueRoles[0] || "applicant";
+      /* =========================================================
+   DEFAULT LOGIN ROLE
+   ---------------------------------------------------------
+   VERY IMPORTANT:
 
-      console.log("Mapped Assigned Roles:", uniqueRoles);
-      console.log("Initial Active Role:", activeRole);
+   Login ke baad hamesha User role active hoga.
 
+   Even if user has:
+      User
+      Administrator
+
+   Login ke baad:
+      ACTIVE = User
+
+   Administrator dropdown me available rahega.
+========================================================= */
+
+      // Fresh login ALWAYS starts as User.
+      // Administrator remains assigned and can be selected from Navbar later.
+      const activeRole: UserRole = "applicant";
+
+      /* =========================================================
+   DEBUG LOG
+========================================================= */
+
+      console.log("========================================");
+      console.log("LOGIN USER:", data.user.fullName);
+      console.log("ASSIGNED ROLES:", uniqueRoles);
+      console.log("DEFAULT ACTIVE ROLE:", activeRole);
+      console.log("========================================");
+
+      /* =========================================================
+   SEND LOGIN SUCCESS TO APP
+========================================================= */
+
+      // IMPORTANT: Call the App callback exactly once.
       onLoginSuccess(activeRole, uniqueRoles, updatedProfile);
     } catch (error) {
       console.error("LOGIN FRONTEND ERROR:", error);
