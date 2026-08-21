@@ -361,7 +361,34 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       // LOGIN SUCCESS
       // -----------------------------------------
 
-      onLoginSuccess("applicant", ["applicant"], updatedProfile);
+      const roleCodeMap: Record<string, UserRole> = {
+        user: "applicant",
+        administrator: "admin",
+
+        reporting_manager: "reporting_manager",
+        nodal_officer: "lab_nodal",
+        associate_nodal_officer: "assoc_lab_nodal",
+        it_head: "it_officer",
+        manager: "section_head",
+        supervisor: "supervisor",
+      };
+
+      const assignedRoles: UserRole[] = (data.user.roles || [])
+        .map((role: any) => roleCodeMap[role.code])
+        .filter(Boolean);
+
+      const uniqueRoles = [
+        ...new Set<UserRole>(["applicant", ...assignedRoles]),
+      ];
+
+      const activeRole: UserRole = uniqueRoles.includes("admin")
+        ? "admin"
+        : "applicant";
+
+      console.log("Mapped Assigned Roles:", uniqueRoles);
+      console.log("Initial Active Role:", activeRole);
+
+      onLoginSuccess(activeRole, uniqueRoles, updatedProfile);
     } catch (error) {
       console.error("LOGIN FRONTEND ERROR:", error);
 

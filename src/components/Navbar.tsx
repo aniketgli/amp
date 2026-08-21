@@ -1,24 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { UserRole, RoleInfo, ApplicantProfile } from '../types/requisition';
-import { OFFICIAL_ROLES } from '../data/initialData';
-import { WiiLogo } from './common/WiiLogo';
-import { getDispatchedEmails, DispatchedEmail } from '../utils/emailService';
-import { EmailInboxModal } from './common/EmailInboxModal';
+import React, { useState, useEffect } from "react";
+import { ApplicantProfile } from "../types/requisition";
+import { WiiLogo } from "./common/WiiLogo";
 import {
   FileText,
-  PlusCircle,
-  CheckCircle2,
   Clock,
   HelpCircle,
   UserCheck,
-  ShieldAlert,
   ChevronDown,
-  ExternalLink,
   Search,
-  Building2,
   RefreshCw,
   KeyRound,
-  Sparkles,
   Shield,
   UserCog,
   LogOut,
@@ -26,26 +17,188 @@ import {
   Lock,
   Check,
   X,
-  Mail,
-} from 'lucide-react';
+} from "lucide-react";
+
+/* =========================================================
+   USER ROLE TYPE
+   ---------------------------------------------------------
+   Ye roles database ke roles table ke role_code se match
+   karte hain.
+========================================================= */
+
+export interface UserAssignedRole {
+  id: number;
+  code: string;
+  name: string;
+}
+
+/* =========================================================
+   NAVBAR PROPS
+========================================================= */
 
 interface NavbarProps {
-  currentRole: UserRole;
-  assignedRoles?: UserRole[];
-  onRoleChange: (role: UserRole) => void;
+  /* Currently selected / active role */
+  currentRole: string;
+
+  /* Login ke baad backend se milne wale assigned roles */
+  assignedRoles?: UserAssignedRole[];
+
+  /* Role switch callback */
+  onRoleChange: (role: string) => void;
+
+  /* Existing profile data */
   userProfile?: ApplicantProfile;
-  activeTab: 'dashboard' | 'profile' | 'my_requests' | 'new_request' | 'approval_queue' | 'helpdesk' | 'super_admin_panel' | 'auth';
-  onTabChange: (tab: 'dashboard' | 'profile' | 'my_requests' | 'new_request' | 'approval_queue' | 'helpdesk' | 'super_admin_panel' | 'auth') => void;
+
+  /* Current page/tab */
+  activeTab:
+    | "dashboard"
+    | "profile"
+    | "my_requests"
+    | "new_request"
+    | "approval_queue"
+    | "helpdesk"
+    | "super_admin_panel"
+    | "auth";
+
+  /* Page change callback */
+  onTabChange: (
+    tab:
+      | "dashboard"
+      | "profile"
+      | "my_requests"
+      | "new_request"
+      | "approval_queue"
+      | "helpdesk"
+      | "super_admin_panel"
+      | "auth",
+  ) => void;
+
   pendingApprovalsCount: number;
+
   onResetData: () => void;
+
   onSearch: (query: string) => void;
+
   onOpenAuth: () => void;
+
   onLogout?: () => void;
 }
 
+/* =========================================================
+   ROLE DISPLAY NAMES
+   ---------------------------------------------------------
+   Agar backend sirf role_code bheje to bhi UI proper name
+   show karega.
+========================================================= */
+
+const ROLE_NAMES: Record<string, string> = {
+  user: "User",
+  reporting_manager: "Reporting Manager / Supervisor (P)",
+  nodal_officer: "Nodal Officer",
+  associate_nodal_officer: "Associate Nodal Officer",
+  it_head: "IT Head",
+  manager: "Manager",
+  supervisor: "Supervisor",
+  administrator: "Administrator",
+};
+
+/* =========================================================
+   DASHBOARD LABELS
+========================================================= */
+
+const DASHBOARD_NAMES: Record<string, string> = {
+  user: "User Portal",
+  reporting_manager: "Reporting Manager Desk",
+  nodal_officer: "Nodal Officer Desk",
+  associate_nodal_officer: "Associate Nodal Desk",
+  it_head: "IT Head Desk",
+  manager: "Manager Desk",
+  supervisor: "Supervisor Desk",
+  administrator: "Admin Desk",
+};
+
+/* =========================================================
+   ROLE CAPABILITIES
+   ---------------------------------------------------------
+   Yahan decide hota hai ki kaunsa role kya dekh sakta hai.
+
+   Baad mein permissions change karni ho to mainly isi
+   section ko modify karna hoga.
+========================================================= */
+
+const ROLE_CAPABILITIES: Record<
+  string,
+  {
+    access: boolean;
+    requests: boolean;
+    approvals: boolean;
+    master: boolean;
+  }
+> = {
+  user: {
+    access: true,
+    requests: true,
+    approvals: false,
+    master: false,
+  },
+
+  reporting_manager: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  nodal_officer: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  associate_nodal_officer: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  it_head: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  manager: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  supervisor: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+
+  administrator: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: true,
+  },
+};
+
+/* =========================================================
+   NAVBAR COMPONENT
+========================================================= */
+
 export const Navbar: React.FC<NavbarProps> = ({
   currentRole,
-  assignedRoles,
+  assignedRoles = [],
   onRoleChange,
   userProfile,
   activeTab,
@@ -56,411 +209,1004 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onLogout,
 }) => {
+  /* =======================================================
+     LOCAL UI STATES
+  ======================================================= */
+
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [isEmailInboxOpen, setIsEmailInboxOpen] = useState(false);
-  const [dispatchedEmails, setDispatchedEmails] = useState<DispatchedEmail[]>([]);
 
-  useEffect(() => {
-    setDispatchedEmails(getDispatchedEmails());
-    const handleEvent = () => setDispatchedEmails(getDispatchedEmails());
-    window.addEventListener('wii_email_dispatched', handleEvent);
-    return () => window.removeEventListener('wii_email_dispatched', handleEvent);
-  }, []);
+  /* Password form */
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Filter roles to display only assigned roles
-  const rolesToDisplay = OFFICIAL_ROLES.filter((role) => {
-    if (assignedRoles && assignedRoles.length > 0) {
-      return assignedRoles.includes(role.id);
-    }
-    return role.id === 'applicant' || role.id === currentRole;
-  });
-  
-  // Password change form state
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
 
-  const activeRoleInfo = OFFICIAL_ROLES.find((r) => r.id === currentRole) || OFFICIAL_ROLES[0];
+  /* =======================================================
+     ASSIGNED ROLES
+     -------------------------------------------------------
+     Backend se roles directly aa rahe hain.
 
-  const displayName = userProfile?.fullName || activeRoleInfo.name || 'User';
-  const displayEmail = userProfile?.personalEmail || userProfile?.wiiOfficialEmail || 'user@wii.gov.in';
+     Example:
+     [
+       { id: 1, code: "user", name: "User" },
+       { id: 8, code: "administrator", name: "Administrator" }
+     ]
+  ======================================================= */
+
+  const rolesToDisplay = assignedRoles;
+
+  /* =======================================================
+     ACTIVE ROLE INFORMATION
+  ======================================================= */
+
+  const activeRoleInfo = rolesToDisplay.find(
+    (role) => role.code === currentRole,
+  ) || {
+    id: 0,
+    code: currentRole,
+    name: ROLE_NAMES[currentRole] || currentRole || "User",
+  };
+
+  /* =======================================================
+     USER NAME / EMAIL
+     -------------------------------------------------------
+     Profile available ho to usse use karega.
+  ======================================================= */
+
+  const displayName = userProfile?.fullName || "User";
+
+  const displayEmail =
+    userProfile?.personalEmail ||
+    userProfile?.wiiOfficialEmail ||
+    "user@wii.gov.in";
+
+  /* =======================================================
+     CURRENT ROLE CAPABILITIES
+  ======================================================= */
+
+  const capabilities = ROLE_CAPABILITIES[currentRole] || {
+    access: false,
+    requests: true,
+    approvals: false,
+    master: false,
+  };
+
+  /* =======================================================
+     DASHBOARD NAME
+  ======================================================= */
+
+  const dashboardName =
+    DASHBOARD_NAMES[currentRole] || activeRoleInfo.name || "Dashboard";
+
+  /* =======================================================
+     PASSWORD CHANGE
+  ======================================================= */
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     setPasswordError(null);
     setPasswordSuccess(null);
 
     if (!oldPassword.trim()) {
-      setPasswordError('Please enter your current password.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('New password and confirm password do not match.');
+      setPasswordError("Please enter your current password.");
       return;
     }
 
-    setPasswordSuccess('Password updated successfully!');
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+
+    /*
+      IMPORTANT:
+      Abhi ye sirf UI success hai.
+
+      Actual password update ke liye baad mein:
+      POST /api/change-password
+
+      API connect karenge.
+    */
+
+    setPasswordSuccess("Password updated successfully!");
+
     setTimeout(() => {
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
       setPasswordSuccess(null);
       setIsPasswordModalOpen(false);
     }, 1500);
   };
 
+  /* =======================================================
+     ROLE SWITCH HANDLER
+     -------------------------------------------------------
+     User kisi assigned role par click karega:
+       1. active role change
+       2. dashboard open
+       3. dropdown close
+  ======================================================= */
+
+  const handleRoleSwitch = (roleCode: string) => {
+    if (roleCode === currentRole) {
+      setIsRoleDropdownOpen(false);
+      return;
+    }
+
+    onRoleChange(roleCode);
+
+    /* Role switch ke baad dashboard */
+    onTabChange("dashboard");
+
+    setIsRoleDropdownOpen(false);
+  };
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
+
   return (
     <>
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xs sticky top-0 z-40 transition-colors">
-        {/* Main Branding Header & Control Bar */}
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-2">
-          {/* Emblem & Portal Title */}
-          <div 
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 shrink" 
-            onClick={() => onTabChange('dashboard')}
-            title="Return to Dashboard"
+      <header
+        className="
+          bg-white dark:bg-slate-900
+          border-b border-slate-200 dark:border-slate-800
+          shadow-xs sticky top-0 z-40
+        "
+      >
+        {/* =================================================
+            TOP HEADER
+        ================================================= */}
+
+        <div
+          className="
+            max-w-7xl mx-auto
+            px-2.5 sm:px-6 lg:px-8
+            py-2
+            flex items-center justify-between
+            gap-2
+          "
+        >
+          {/* ===============================================
+              WII LOGO + PORTAL NAME
+          =============================================== */}
+
+          <div
+            className="
+              flex items-center gap-2 sm:gap-3
+              cursor-pointer
+              min-w-0 shrink
+            "
+            onClick={() => onTabChange("dashboard")}
           >
             <WiiLogo size="sm" />
-            <div className="hidden sm:block border-l border-slate-200 dark:border-slate-800 pl-3">
-              <h1 className="text-base font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-tight group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+
+            <div
+              className="
+                hidden sm:block
+                border-l border-slate-200
+                dark:border-slate-800
+                pl-3
+              "
+            >
+              <h1
+                className="
+                  text-base font-extrabold
+                  text-slate-900
+                  dark:text-slate-100
+                "
+              >
                 Access Management Portal
               </h1>
             </div>
           </div>
 
-          {/* Global Search Bar */}
-          <div className="relative flex-1 max-w-xs hidden lg:block">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
+          {/* ===============================================
+              SEARCH
+          =============================================== */}
+
+          <div
+            className="
+              relative flex-1
+              max-w-xs hidden lg:block
+            "
+          >
+            <Search
+              className="
+                w-4 h-4
+                absolute left-3 top-2.5
+                text-slate-400
+              "
+            />
+
             <input
               type="text"
               placeholder="Search Access ID, Name or Lab..."
               onChange={(e) => onSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 text-slate-900 dark:text-slate-100"
+              className="
+                w-full
+                pl-9 pr-3 py-1.5
+                text-xs
+                bg-slate-50 dark:bg-slate-800
+                border border-slate-300
+                dark:border-slate-700
+                rounded-lg
+                focus:outline-none
+                focus:ring-2
+                focus:ring-emerald-500
+                text-slate-900
+                dark:text-slate-100
+              "
             />
           </div>
 
-          {/* Right side controls: User Menu & Role Popover */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Active User Account Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-left shadow-2xs focus:ring-2 focus:ring-emerald-500 cursor-pointer max-w-[180px] sm:max-w-none"
+          {/* ===============================================
+              USER PROFILE BUTTON
+          =============================================== */}
+
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+              className="
+                flex items-center
+                gap-1.5 sm:gap-2.5
+                px-2 sm:px-3
+                py-1.5
+                rounded-xl
+                border border-slate-300
+                dark:border-slate-700
+                bg-slate-50
+                dark:bg-slate-800
+                text-left
+                cursor-pointer
+              "
+            >
+              {/* User icon */}
+
+              <div
+                className="
+                  w-7 h-7 sm:w-8 sm:h-8
+                  rounded-full
+                  bg-emerald-100
+                  dark:bg-emerald-950
+                  border border-emerald-300
+                  dark:border-emerald-700
+                  flex items-center justify-center
+                "
               >
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 flex items-center justify-center text-emerald-800 dark:text-emerald-300 font-bold text-xs shrink-0">
-                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700 dark:text-emerald-400" />
+                <User
+                  className="
+                    w-3.5 h-3.5
+                    text-emerald-700
+                    dark:text-emerald-400
+                  "
+                />
+              </div>
+
+              {/* =====================================================
+                  USER NAME + ACTIVE ROLE + EMAIL
+              ===================================================== */}
+              <div className="min-w-0 text-left">
+                {/* User Name */}
+                <div className="text-[11px] sm:text-xs font-extrabold text-slate-900 dark:text-slate-100 truncate leading-tight">
+                  {displayName}
                 </div>
 
-                <div className="min-w-0">
-                  <div className="text-[11px] sm:text-xs font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1 truncate">
-                    <span className="truncate">{displayName}</span>
-                    <span className="text-[9px] px-1 py-0.2 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold rounded uppercase border border-emerald-300 dark:border-emerald-800 shrink-0">
-                      {activeRoleInfo.title}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[120px] sm:max-w-[150px] hidden sm:block">
-                    {displayEmail}
-                  </div>
+                {/* Active Role */}
+                <div className="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase truncate leading-tight mt-0.5">
+                  {activeRoleInfo.title}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-              </button>
 
-              {/* User Account & Role Popover Menu */}
-              {isRoleDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-80 max-w-xs sm:max-w-none bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
-                  {/* Account Info Header */}
-                  <div className="p-3.5 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between">
-                    <div className="min-w-0">
-                      <div className="text-xs font-black truncate">{displayName}</div>
-                      <div className="text-[10px] text-slate-300 font-medium truncate">{displayEmail}</div>
+                {/* Current / Active Role */}
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                  {activeRoleInfo?.name || activeRoleInfo?.title || "User"}
+                </div>
+              </div>
+              <ChevronDown
+                className="
+                  w-4 h-4
+                  text-slate-400
+                "
+              />
+            </button>
+
+            {/* =================================================
+                USER DROPDOWN
+            ================================================= */}
+
+            {isRoleDropdownOpen && (
+              <div
+                className="
+                  absolute right-0 mt-2
+                  w-80
+                  max-w-[calc(100vw-1rem)]
+                  bg-white
+                  dark:bg-slate-900
+                  rounded-2xl
+                  shadow-2xl
+                  border
+                  border-slate-200
+                  dark:border-slate-800
+                  z-50
+                  overflow-hidden
+                "
+              >
+                {/* =========================================
+                    USER INFORMATION
+                ========================================= */}
+
+                <div
+                  className="
+                    p-3.5
+                    bg-slate-900
+                    dark:bg-slate-950
+                    text-white
+                    flex items-center
+                    justify-between
+                  "
+                >
+                  <div className="min-w-0">
+                    <div
+                      className="
+                        text-xs
+                        font-black
+                        truncate
+                      "
+                    >
+                      {displayName}
                     </div>
-                    <span className="px-2 py-0.5 text-[9px] font-bold bg-emerald-500 text-slate-950 rounded-md uppercase tracking-wider shrink-0">
-                      {activeRoleInfo.title}
+
+                    <div
+                      className="
+                        text-[10px]
+                        text-slate-300
+                        truncate
+                      "
+                    >
+                      {displayEmail}
+                    </div>
+                  </div>
+
+                  <span
+                    className="
+                      px-2 py-0.5
+                      text-[9px]
+                      font-bold
+                      bg-emerald-500
+                      text-slate-950
+                      rounded-md
+                      uppercase
+                    "
+                  >
+                    {activeRoleInfo.name}
+                  </span>
+                </div>
+
+                {/* =========================================
+                    ROLE SWITCH
+                ========================================= */}
+
+                <div className="p-2.5">
+                  <div
+                    className="
+                      px-2 py-1
+                      text-[10px]
+                      font-bold
+                      text-slate-400
+                      uppercase
+                      tracking-wider
+                      flex items-center
+                      justify-between
+                    "
+                  >
+                    <span
+                      className="
+                        flex items-center
+                        gap-1
+                      "
+                    >
+                      <UserCog
+                        className="
+                          w-3.5 h-3.5
+                          text-emerald-600
+                        "
+                      />
+                      SWITCH ROLE PERSONA
                     </span>
                   </div>
 
-                  {/* Switch Active Role */}
-                  <div className="p-2.5">
-                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between mb-1">
-                      <span className="flex items-center gap-1">
-                        <UserCog className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        Switch Role Persona
-                      </span>
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">Redirects to Dashboard</span>
-                    </div>
+                  {/* Assigned roles */}
 
-                    <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
-                      {rolesToDisplay.map((role) => {
-                        const isActive = currentRole === role.id;
+                  <div className="space-y-1">
+                    {rolesToDisplay.length === 0 ? (
+                      <div
+                        className="
+                          px-3 py-3
+                          text-xs
+                          text-slate-500
+                        "
+                      >
+                        No roles assigned.
+                      </div>
+                    ) : (
+                      rolesToDisplay.map((role) => {
+                        const isActive = currentRole === role.code;
+
                         return (
                           <button
                             key={role.id}
-                            onClick={() => {
-                              onRoleChange(role.id);
-                              onTabChange('dashboard');
-                              setIsRoleDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between gap-2 transition-all cursor-pointer text-xs ${
-                              isActive
-                                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-200 dark:border-emerald-800'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium'
-                            }`}
+                            onClick={() => handleRoleSwitch(role.code)}
+                            className={`
+                              w-full
+                              flex items-center
+                              justify-between
+                              px-2.5 py-2
+                              rounded-lg
+                              text-xs
+                              transition-all
+                              cursor-pointer
+
+                              ${
+                                isActive
+                                  ? `
+                                    bg-emerald-50
+                                    dark:bg-emerald-950/40
+                                    text-emerald-800
+                                    dark:text-emerald-300
+                                  `
+                                  : `
+                                    text-slate-700
+                                    dark:text-slate-300
+                                    hover:bg-slate-100
+                                    dark:hover:bg-slate-800
+                                  `
+                              }
+                            `}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${role.avatarColor}`} />
-                              <span className="truncate">{role.title}</span>
-                            </div>
+                            <span
+                              className="
+                                flex items-center
+                                gap-2
+                              "
+                            >
+                              {/* Active indicator */}
+
+                              <span
+                                className={`
+                                  w-2 h-2
+                                  rounded-full
+
+                                  ${
+                                    isActive ? "bg-emerald-600" : "bg-slate-400"
+                                  }
+                                `}
+                              />
+
+                              {/* Role name */}
+
+                              <span className="font-semibold">
+                                {role.name ||
+                                  ROLE_NAMES[role.code] ||
+                                  role.code}
+                              </span>
+                            </span>
+
+                            {/* Active badge */}
+
                             {isActive && (
-                              <span className="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.2 rounded-md shrink-0">
+                              <span
+                                className="
+                                  px-1.5 py-0.5
+                                  text-[9px]
+                                  font-black
+                                  rounded-full
+                                  bg-emerald-500
+                                  text-white
+                                "
+                              >
                                 ACTIVE
                               </span>
                             )}
                           </button>
                         );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Quick Account Controls */}
-                  <div className="p-2 bg-slate-50 dark:bg-slate-950/80 space-y-1">
-                    <button
-                      onClick={() => {
-                        setIsRoleDropdownOpen(false);
-                        setIsPasswordModalOpen(true);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-800 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      <span>Change Password</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        onResetData();
-                        setIsRoleDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <RefreshCw className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                      <span>Reset Sample Records</span>
-                    </button>
-
-                    {onLogout && (
-                      <button
-                        onClick={() => {
-                          setIsRoleDropdownOpen(false);
-                          onLogout();
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-100/70 dark:hover:bg-rose-950/60 transition-colors flex items-center gap-2 cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                        <span>Sign Out / Logout</span>
-                      </button>
+                      })
                     )}
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* =========================================
+                    ACCOUNT OPTIONS
+                ========================================= */}
+
+                <div
+                  className="
+                    p-2
+                    bg-slate-50
+                    dark:bg-slate-950/80
+                    space-y-1
+                  "
+                >
+                  {/* Change Password */}
+
+                  <button
+                    onClick={() => {
+                      setIsRoleDropdownOpen(false);
+                      setIsPasswordModalOpen(true);
+                    }}
+                    className="
+                      w-full
+                      text-left
+                      px-3 py-2
+                      rounded-xl
+                      text-xs
+                      font-bold
+                      flex items-center
+                      gap-2
+                      hover:bg-emerald-50
+                      dark:hover:bg-slate-800
+                    "
+                  >
+                    <Lock
+                      className="
+                        w-4 h-4
+                        text-emerald-600
+                      "
+                    />
+                    Change Password
+                  </button>
+
+                  {/* Reset */}
+
+                  <button
+                    onClick={() => {
+                      onResetData();
+                      setIsRoleDropdownOpen(false);
+                    }}
+                    className="
+                      w-full
+                      text-left
+                      px-3 py-2
+                      rounded-xl
+                      text-xs
+                      font-medium
+                      flex items-center
+                      gap-2
+                      hover:bg-slate-200
+                      dark:hover:bg-slate-800
+                    "
+                  >
+                    <RefreshCw
+                      className="
+                        w-4 h-4
+                        text-slate-500
+                      "
+                    />
+                    Reset Sample Records
+                  </button>
+
+                  {/* Logout */}
+
+                  {onLogout && (
+                    <button
+                      onClick={() => {
+                        setIsRoleDropdownOpen(false);
+                        onLogout();
+                      }}
+                      className="
+                        w-full
+                        text-left
+                        px-3 py-2
+                        rounded-xl
+                        text-xs
+                        font-bold
+                        text-rose-700
+                        flex items-center
+                        gap-2
+                        hover:bg-rose-100
+                      "
+                    >
+                      <LogOut
+                        className="
+                          w-4 h-4
+                        "
+                      />
+                      Sign Out / Logout
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Primary Navigation Tabs */}
-        <div className="relative bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 px-2 sm:px-6 lg:px-8 w-full max-w-full overflow-hidden">
-          {/* Subtle Mobile Scroll Right Indicator Overlay */}
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-100 dark:from-slate-900 to-transparent sm:hidden z-10" />
+        {/* =================================================
+            MAIN NAVIGATION
+        ================================================= */}
 
-          <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 overflow-x-auto py-1.5 sm:py-2 no-scrollbar scroll-smooth w-full touch-pan-x pr-10 sm:pr-2">
-            {/* 1. Dashboard */}
+        <div
+          className="
+            bg-slate-50
+            dark:bg-slate-900/90
+            border-t
+            border-slate-200
+            dark:border-slate-800
+          "
+        >
+          <div
+            className="
+              max-w-7xl mx-auto
+              flex items-center
+              gap-1 sm:gap-2
+              overflow-x-auto
+              py-1.5 sm:py-2
+              px-2 sm:px-6
+              no-scrollbar
+            "
+          >
+            {/* =================================================
+                DASHBOARD
+            ================================================= */}
+
             <button
-              onClick={() => onTabChange('dashboard')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                activeTab === 'dashboard'
-                  ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                  : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => onTabChange("dashboard")}
+              className={`
+                nav-button
+                ${
+                  activeTab === "dashboard"
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-700 dark:text-slate-300"
+                }
+              `}
             >
-              <Clock className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-              <span>
-                {currentRole === 'applicant' && 'Dashboard'}
-                {currentRole === 'supervisor' && 'PI Desk'}
-                {currentRole === 'lab_nodal' && 'Lab Desk'}
-                {currentRole === 'section_head' && 'IT Desk'}
-                {currentRole === 'it_officer' && 'Network Desk'}
-                {currentRole === 'hrms_officer' && 'HRMS Desk'}
-                {(currentRole === 'admin' || (currentRole as string) === 'super_admin') && 'Admin Desk'}
-              </span>
+              <Clock className="w-4 h-4" />
+
+              {dashboardName}
             </button>
 
-            {/* 2. Profile */}
+            {/* =================================================
+                PROFILE
+                -------------------------------------------------
+                Har role ke liye available
+            ================================================= */}
+
             <button
-              onClick={() => onTabChange('profile')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                activeTab === 'profile'
-                  ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                  : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => onTabChange("profile")}
+              className={`
+                nav-button
+                ${
+                  activeTab === "profile"
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-700 dark:text-slate-300"
+                }
+              `}
             >
-              <UserCheck className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'profile' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-              <span>Profile</span>
+              <UserCheck className="w-4 h-4" />
+              Profile
             </button>
 
-            {/* 3. Access (ONLY VISIBLE TO NORMAL USERS / APPLICANTS) */}
-            {currentRole === 'applicant' && (
+            {/* =================================================
+                ACCESS
+                -------------------------------------------------
+                Sirf USER role
+            ================================================= */}
+
+            {capabilities.access && (
               <button
-                onClick={() => onTabChange('new_request')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                  activeTab === 'new_request'
-                    ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                    : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-                }`}
+                onClick={() => onTabChange("new_request")}
+                className={`
+                  nav-button
+                  ${
+                    activeTab === "new_request"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-700 dark:text-slate-300"
+                  }
+                `}
               >
-                <KeyRound className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'new_request' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                <span>Access</span>
+                <KeyRound className="w-4 h-4" />
+                Access
               </button>
             )}
 
-            {/* 4. Requests */}
-            <button
-              onClick={() => onTabChange('my_requests')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 relative cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                activeTab === 'my_requests' || activeTab === 'approval_queue'
-                  ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                  : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-              }`}
-            >
-              <FileText className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'my_requests' || activeTab === 'approval_queue' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-              <span>Requests</span>
-              {pendingApprovalsCount > 0 && (
-                <span className={`ml-0.5 px-1.5 py-0.2 text-[10px] font-black rounded-full shrink-0 ${
-                  activeTab === 'my_requests' || activeTab === 'approval_queue' ? 'bg-amber-400 text-slate-900' : 'bg-amber-500 text-white'
-                }`}>
-                  {pendingApprovalsCount}
-                </span>
-              )}
-            </button>
+            {/* =================================================
+                REQUESTS
+            ================================================= */}
 
-            {/* 5. Master (VISIBLE TO ADMIN) */}
-            {(currentRole === 'admin' || (currentRole as string) === 'super_admin') && (
+            {capabilities.requests && (
               <button
-                onClick={() => onTabChange('super_admin_panel')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                  activeTab === 'super_admin_panel'
-                    ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                    : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-                }`}
+                onClick={() => onTabChange("my_requests")}
+                className={`
+                  nav-button relative
+                  ${
+                    activeTab === "my_requests" ||
+                    activeTab === "approval_queue"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-700 dark:text-slate-300"
+                  }
+                `}
               >
-                <Shield className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'super_admin_panel' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                <span>Master</span>
+                <FileText className="w-4 h-4" />
+                Requests
+                {pendingApprovalsCount > 0 && (
+                  <span
+                    className="
+                      ml-1
+                      px-1.5 py-0.5
+                      text-[10px]
+                      font-black
+                      rounded-full
+                      bg-amber-500
+                      text-white
+                    "
+                  >
+                    {pendingApprovalsCount}
+                  </span>
+                )}
               </button>
             )}
 
-            {/* 6. Helpdesk */}
+            {/* =================================================
+                APPROVAL QUEUE
+                -------------------------------------------------
+                Future mein isko separate tab banana ho to
+                yahan se easily kar sakte hain.
+            ================================================= */}
+
+            {capabilities.approvals && (
+              <button
+                onClick={() => onTabChange("approval_queue")}
+                className={`
+                  nav-button
+                  ${
+                    activeTab === "approval_queue"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-700 dark:text-slate-300"
+                  }
+                `}
+              >
+                <Shield className="w-4 h-4" />
+                Approval Queue
+              </button>
+            )}
+
+            {/* =================================================
+                MASTER
+                -------------------------------------------------
+                Sirf ADMINISTRATOR
+            ================================================= */}
+
+            {capabilities.master && (
+              <button
+                onClick={() => onTabChange("super_admin_panel")}
+                className={`
+                  nav-button
+                  ${
+                    activeTab === "super_admin_panel"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-700 dark:text-slate-300"
+                  }
+                `}
+              >
+                <Shield className="w-4 h-4" />
+                Master
+              </button>
+            )}
+
+            {/* =================================================
+                HELPDESK
+                -------------------------------------------------
+                Sabhi roles ke liye
+            ================================================= */}
+
             <button
-              onClick={() => onTabChange('helpdesk')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] sm:min-h-[38px] ${
-                activeTab === 'helpdesk'
-                  ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                  : 'text-slate-700 dark:text-slate-300 font-semibold hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => onTabChange("helpdesk")}
+              className={`
+                nav-button
+                ${
+                  activeTab === "helpdesk"
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-700 dark:text-slate-300"
+                }
+              `}
             >
-              <HelpCircle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'helpdesk' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
-              <span>Helpdesk</span>
+              <HelpCircle className="w-4 h-4" />
+              Helpdesk
             </button>
           </div>
         </div>
       </header>
 
-      {/* Password Change Modal */}
+      {/* =====================================================
+          PASSWORD MODAL
+      ===================================================== */}
+
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2.5 font-bold text-sm">
+        <div
+          className="
+            fixed inset-0
+            bg-slate-950/70
+            backdrop-blur-xs
+            z-50
+            flex items-center
+            justify-center
+            p-4
+          "
+        >
+          <div
+            className="
+              bg-white
+              dark:bg-slate-900
+              rounded-2xl
+              shadow-2xl
+              max-w-md
+              w-full
+              overflow-hidden
+            "
+          >
+            {/* Modal header */}
+
+            <div
+              className="
+                p-4
+                bg-slate-900
+                dark:bg-slate-950
+                text-white
+                flex items-center
+                justify-between
+              "
+            >
+              <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-emerald-400" />
-                <span>Change Account Password</span>
+
+                <span className="font-bold text-sm">
+                  Change Account Password
+                </span>
               </div>
-              <button
-                onClick={() => setIsPasswordModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
+
+              <button onClick={() => setIsPasswordModalOpen(false)}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Password form */}
+
             <form onSubmit={handlePasswordSubmit} className="p-5 space-y-4">
               {passwordError && (
-                <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-800 dark:text-rose-200 text-xs font-bold">
+                <div
+                  className="
+                    p-3
+                    bg-rose-50
+                    border border-rose-200
+                    rounded-xl
+                    text-rose-800
+                    text-xs
+                    font-bold
+                  "
+                >
                   {passwordError}
                 </div>
               )}
 
               {passwordSuccess && (
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200 text-xs font-bold flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>{passwordSuccess}</span>
+                <div
+                  className="
+                    p-3
+                    bg-emerald-50
+                    border border-emerald-200
+                    rounded-xl
+                    text-emerald-800
+                    text-xs
+                    font-bold
+                    flex items-center gap-2
+                  "
+                >
+                  <Check className="w-4 h-4" />
+
+                  {passwordSuccess}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold mb-1">
                   Current Password *
                 </label>
+
                 <input
                   type="password"
                   required
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="Enter current password"
-                  className="w-full text-xs px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900 dark:text-slate-100"
+                  className="
+                    w-full
+                    px-3 py-2.5
+                    border
+                    rounded-xl
+                    text-sm
+                  "
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold mb-1">
                   New Password *
                 </label>
+
                 <input
                   type="password"
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min. 6 characters)"
-                  className="w-full text-xs px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900 dark:text-slate-100"
+                  className="
+                    w-full
+                    px-3 py-2.5
+                    border
+                    rounded-xl
+                    text-sm
+                  "
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold mb-1">
                   Confirm New Password *
                 </label>
+
                 <input
                   type="password"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter new password"
-                  className="w-full text-xs px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900 dark:text-slate-100"
+                  className="
+                    w-full
+                    px-3 py-2.5
+                    border
+                    rounded-xl
+                    text-sm
+                  "
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div
+                className="
+                  flex justify-end
+                  gap-2
+                  pt-2
+                "
+              >
                 <button
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                  className="
+                    px-4 py-2
+                    rounded-xl
+                    border
+                    text-xs
+                    font-bold
+                  "
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                  className="
+                    px-5 py-2
+                    rounded-xl
+                    bg-emerald-600
+                    text-white
+                    text-xs
+                    font-bold
+                  "
                 >
                   Update Password
                 </button>
@@ -469,8 +1215,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       )}
+
+      {/* =====================================================
+          NAV BUTTON COMMON STYLE
+          -----------------------------------------------------
+          Isko CSS/Tailwind utility ke through use kar rahe hain.
+      ===================================================== */}
+
+      <style>
+        {`
+          .nav-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.875rem;
+            font-size: 0.75rem;
+            border-radius: 0.75rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+          }
+
+          .nav-button:hover {
+            background-color: rgba(226,232,240,0.7);
+          }
+        `}
+      </style>
     </>
   );
 };
-
-

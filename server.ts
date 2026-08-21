@@ -18,7 +18,8 @@ const app = express();
 ========================================================= */
 
 const PORT = Number(process.env.PORT || 3000);
-const JWT_SECRET = process.env.JWT_SECRET || "wii_portal_jwt_secret_key_2026_default";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "wii_portal_jwt_secret_key_2026_default";
 
 /* =========================================================
    MIDDLEWARE
@@ -162,7 +163,9 @@ async function testDatabaseConnection() {
     console.log("MySQL Database connected successfully.");
   } catch (error: any) {
     isDbConnected = false;
-    console.warn("MySQL Database connection unavailable. Using in-memory store for fallback operations.");
+    console.warn(
+      "MySQL Database connection unavailable. Using in-memory store for fallback operations.",
+    );
   }
 }
 
@@ -170,7 +173,10 @@ async function testDatabaseConnection() {
    PASSWORD VERIFICATION UTILITY
 ========================================================= */
 
-async function verifyPassword(providedPassword: string, storedHash: string): Promise<boolean> {
+async function verifyPassword(
+  providedPassword: string,
+  storedHash: string,
+): Promise<boolean> {
   if (!storedHash || !providedPassword) return false;
 
   // 1. Direct match (plain text credentials e.g. seeded records)
@@ -260,7 +266,9 @@ app.get("/api/health", (req, res) => {
 
 app.get(["/api/db-test", "/api/db/test"], async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT 1 AS connected, DATABASE() AS database_name");
+    const [rows] = await db.query(
+      "SELECT 1 AS connected, DATABASE() AS database_name",
+    );
     res.json({
       success: true,
       message: "Database connected successfully.",
@@ -330,6 +338,10 @@ app.post("/api/register", async (req, res) => {
   try {
     const { fullName, email, phone, password } = req.body;
 
+    // -----------------------------------------------------
+    // VALIDATION
+    // -----------------------------------------------------
+
     if (!fullName || !email || !phone || !password) {
       return res.status(400).json({
         success: false,
@@ -341,21 +353,30 @@ app.post("/api/register", async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanPhone = String(phone).trim();
 
-    // Try DB first if available
+    // -----------------------------------------------------
+    // CHECK EXISTING USER
+    // -----------------------------------------------------
+
     let existingInDb = false;
+
     if (isDbConnected) {
       try {
         const [existingUsers]: any = await db.query(
           "SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1",
-          [cleanEmail]
+          [cleanEmail],
         );
-        if (existingUsers.length > 0) existingInDb = true;
-      } catch (e) {
-        // Fall back to in-memory
+
+        if (existingUsers.length > 0) {
+          existingInDb = true;
+        }
+      } catch (error) {
+        console.warn("Unable to check existing DB user:", error);
       }
     }
 
-    const existingInMemory = inMemoryUsers.some((u) => u.email.toLowerCase() === cleanEmail);
+    const existingInMemory = inMemoryUsers.some(
+      (u) => u.email.toLowerCase() === cleanEmail,
+    );
 
     if (existingInDb || existingInMemory) {
       return res.status(409).json({
@@ -364,25 +385,81 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
+    // -----------------------------------------------------
+    // PASSWORD + ACTIVATION TOKEN
+    // -----------------------------------------------------
+
     const passwordHash = await bcrypt.hash(password, 12);
+
     const activationToken = crypto.randomUUID();
+
+    // -----------------------------------------------------
+    // CREATE USER
+    // -----------------------------------------------------
 
     let userId = Date.now();
 
     if (isDbConnected) {
       try {
+        // -------------------------------------------------
+        // STEP 1: INSERT USER
+        // -------------------------------------------------
+
         const [result]: any = await db.query(
-          `INSERT INTO users (employee_id, full_name, email, phone, password_hash, is_activated, activation_token, role, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [null, cleanName, cleanEmail, cleanPhone, passwordHash, 0, activationToken, "applicant", "inactive"]
+          `INSERT INTO users
+          (
+            employee_id,
+            full_name,
+            email,
+            phone,
+            password_hash,
+            is_activated,
+            activation_token,
+            status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            null,
+            cleanName,
+            cleanEmail,
+            cleanPhone,
+            passwordHash,
+            0,
+            activationToken,
+            "inactive",
+          ],
         );
+
         userId = result.insertId;
+
+        // -------------------------------------------------
+        // STEP 2: ASSIGN DEFAULT "USER" ROLE
+        // roles.id = 1
+        // -------------------------------------------------
+
+        await db.query(
+          `INSERT INTO user_roles
+          (user_id, role_id)
+          VALUES (?, ?)`,
+          [userId, 1],
+        );
+
+        console.log(`Default "user" role assigned to user ID: ${userId}`);
       } catch (err) {
-        console.warn("DB insert error during register, placing in-memory:", err);
+        console.error("DB registration error:", err);
+
+        return res.status(500).json({
+          success: false,
+          message: "Unable to create user account.",
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
-    // Save to in-memory array
+    // -----------------------------------------------------
+    // SAVE TO IN-MEMORY USERS
+    // -----------------------------------------------------
+
     inMemoryUsers.push({
       id: userId,
       employee_id: null,
@@ -392,39 +469,136 @@ app.post("/api/register", async (req, res) => {
       password_hash: passwordHash,
       is_activated: 0,
       activation_token: activationToken,
-      role: "applicant",
       status: "inactive",
       intercom_extension: null,
       last_active_at: null,
     });
 
+    // -----------------------------------------------------
+    // ACTIVATION LINK
+    // -----------------------------------------------------
+
     const clientHost = process.env.CLIENT_URL || `http://localhost:${PORT}`;
+
     const activationLink = `${clientHost}/activate/${activationToken}`;
 
-    // Attempt to send email if SMTP is configured
+    // -----------------------------------------------------
+    // SEND ACTIVATION EMAIL
+    // -----------------------------------------------------
+
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       try {
         await mailTransporter.sendMail({
           from: `"Wildlife Institute of India" <${process.env.EMAIL_USER}>`,
           to: cleanEmail,
           subject: "Activate Your WII Access Management Portal Account",
-          text: `Welcome ${cleanName},\n\nActivate your account: ${activationLink}`,
-          html: `<p>Welcome ${cleanName},</p><p><a href="${activationLink}">Click here to activate your account</a></p>`,
+
+          text: `Dear ${cleanName},
+
+Welcome to the Wildlife Institute of India Access Management Portal.
+
+Your account has been successfully registered.
+
+Please activate your account using the following link:
+
+${activationLink}
+
+After activation, you can log in using your registered email address and password.
+
+Regards,
+Wildlife Institute of India
+`,
+
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+
+              <h2>Welcome to WII Access Management Portal</h2>
+
+              <p>Dear <strong>${cleanName}</strong>,</p>
+
+              <p>
+                Your account has been successfully registered
+                with the Wildlife Institute of India Access Management Portal.
+              </p>
+
+              <p>
+                Please click the button below to activate your account:
+              </p>
+
+              <p>
+                <a
+                  href="${activationLink}"
+                  style="
+                    display:inline-block;
+                    padding:12px 20px;
+                    background:#008f63;
+                    color:white;
+                    text-decoration:none;
+                    border-radius:6px;
+                  "
+                >
+                  Activate My Account
+                </a>
+              </p>
+
+              <p>
+                If the button does not work, copy and open this link:
+              </p>
+
+              <p>${activationLink}</p>
+
+              <p>
+                After activation, you can log in using your
+                registered email address and password.
+              </p>
+
+              <br>
+
+              <p>
+                Regards,<br>
+                <strong>Wildlife Institute of India</strong>
+              </p>
+
+            </div>
+          `,
         });
-      } catch (e) {
-        console.warn("SMTP email notification failed, token logged for local dev:", activationToken);
+
+        console.log(`Activation email sent successfully to ${cleanEmail}`);
+      } catch (error) {
+        console.warn("SMTP email notification failed.", error);
+
+        console.warn(
+          "Activation token for local development:",
+          activationToken,
+        );
       }
     }
+
+    // -----------------------------------------------------
+    // SUCCESS RESPONSE
+    // -----------------------------------------------------
 
     return res.status(201).json({
       success: true,
       message: "Registration successful. Activation email has been sent.",
+
       userId,
+
       email: cleanEmail,
-      activationToken, // Included so clients can activate directly in dev environment
+
+      // Default role assigned during registration
+      role: {
+        id: 1,
+        code: "user",
+        name: "User",
+      },
+
+      // Development only
+      activationToken,
     });
   } catch (error: any) {
     console.error("REGISTRATION ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "Unable to complete registration.",
@@ -456,7 +630,7 @@ app.get("/api/activate/:token", async (req, res) => {
       try {
         const [users]: any = await db.query(
           "SELECT id, employee_id, full_name, email, is_activated FROM users WHERE activation_token = ? LIMIT 1",
-          [cleanToken]
+          [cleanToken],
         );
         if (users.length > 0) dbUser = users[0];
       } catch (e) {
@@ -466,7 +640,9 @@ app.get("/api/activate/:token", async (req, res) => {
 
     // Check in-memory
     const memUser = inMemoryUsers.find(
-      (u) => u.activation_token === cleanToken || u.email.toLowerCase() === cleanToken.toLowerCase()
+      (u) =>
+        u.activation_token === cleanToken ||
+        u.email.toLowerCase() === cleanToken.toLowerCase(),
     );
 
     if (!dbUser && !memUser) {
@@ -486,7 +662,7 @@ app.get("/api/activate/:token", async (req, res) => {
       try {
         await db.query(
           "UPDATE users SET is_activated = 1, status = 'active', activation_token = NULL, updated_at = NOW() WHERE id = ?",
-          [dbUser.id]
+          [dbUser.id],
         );
       } catch (e) {
         console.warn("DB update failed during activation:", e);
@@ -535,21 +711,47 @@ app.post("/api/login", async (req, res) => {
 
     let user: any = null;
 
+    /* =====================================================
+       GET USER
+    ===================================================== */
+
     if (isDbConnected) {
       try {
         const [users]: any = await db.query(
-          "SELECT id, full_name, email, phone, password_hash, is_activated, role, intercom_extension, status FROM users WHERE LOWER(email) = ? LIMIT 1",
-          [cleanEmail]
+          `SELECT
+             id,
+             full_name,
+             email,
+             phone,
+             password_hash,
+             is_activated,
+             intercom_extension,
+             status
+           FROM users
+           WHERE LOWER(email) = ?
+           LIMIT 1`,
+          [cleanEmail],
         );
-        if (users.length > 0) user = users[0];
+
+        if (users.length > 0) {
+          user = users[0];
+        }
       } catch (e) {
-        // Fall back to in-memory
+        console.warn("Database user lookup failed.");
       }
     }
+
+    /* =====================================================
+       FALLBACK - IN MEMORY USER
+    ===================================================== */
 
     if (!user) {
       user = inMemoryUsers.find((u) => u.email.toLowerCase() === cleanEmail);
     }
+
+    /* =====================================================
+       USER NOT FOUND
+    ===================================================== */
 
     if (!user) {
       return res.status(401).json({
@@ -558,14 +760,25 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    if (Number(user.is_activated) !== 1 || String(user.status).toLowerCase() !== "active") {
+    /* =====================================================
+       ACCOUNT ACTIVATION CHECK
+    ===================================================== */
+
+    if (
+      Number(user.is_activated) !== 1 ||
+      String(user.status).toLowerCase() !== "active"
+    ) {
       return res.status(403).json({
         success: false,
-        message: "Your account is not activated. Please activate your account first.",
+        message:
+          "Your account is not activated. Please activate your account first.",
       });
     }
 
-    // Password verification against stored user credentials (bcrypt, SHA256, or plaintext)
+    /* =====================================================
+       PASSWORD VERIFICATION
+    ===================================================== */
+
     const passwordMatch = await verifyPassword(password, user.password_hash);
 
     if (!passwordMatch) {
@@ -575,32 +788,120 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // Generate JWT token
+    /* =====================================================
+       GET ALL ASSIGNED ROLES
+    ===================================================== */
+
+    let roles: any[] = [];
+
+    if (isDbConnected) {
+      try {
+        const [userRoles]: any = await db.query(
+          `SELECT
+             r.id,
+             r.role_code,
+             r.role_name,
+             r.description
+           FROM user_roles ur
+           INNER JOIN roles r
+             ON r.id = ur.role_id
+           WHERE ur.user_id = ?
+             AND r.is_active = 1
+           ORDER BY r.id`,
+          [user.id],
+        );
+
+        roles = userRoles;
+      } catch (e) {
+        console.error("ROLE FETCH ERROR:", e);
+      }
+    }
+
+    /* =====================================================
+       FALLBACK FOR IN-MEMORY USER
+       Default role = User
+    ===================================================== */
+
+    if (roles.length === 0 && !isDbConnected) {
+      roles = [
+        {
+          id: 1,
+          role_code: "user",
+          role_name: "User",
+          description: "Registered Access Portal User",
+        },
+      ];
+    }
+
+    /* =====================================================
+       NO ROLE ASSIGNED
+    ===================================================== */
+
+    if (roles.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "No active role has been assigned to your account. Please contact the administrator.",
+      });
+    }
+
+    /* =====================================================
+       ROLE CODES
+    ===================================================== */
+
+    const roleCodes = roles.map((role) => role.role_code);
+
+    /* =====================================================
+       JWT TOKEN
+    ===================================================== */
+
     const token = jwt.sign(
       {
         userId: user.id,
         email: user.email,
-        role: user.role,
+        roles: roleCodes,
       },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      {
+        expiresIn: "24h",
+      },
     );
+
+    /* =====================================================
+       LOGIN RESPONSE
+    ===================================================== */
 
     return res.status(200).json({
       success: true,
       message: "Login successful.",
+
       token,
+
       user: {
         id: user.id,
-        fullName: user.full_name || user.fullName,
+        fullName: user.full_name,
         email: user.email,
         phone: user.phone,
-        role: user.role,
-        intercomExtension: user.intercom_extension || user.intercomExtension,
+
+        roles: roles.map((role) => ({
+          id: role.id,
+          code: role.role_code,
+          name: role.role_name,
+        })),
+
+        intercomExtension: user.intercom_extension || null,
+      },
+
+      /* Current/default role */
+      currentRole: {
+        id: roles[0].id,
+        code: roles[0].role_code,
+        name: roles[0].role_name,
       },
     });
   } catch (error: any) {
     console.error("LOGIN ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "Unable to process login request.",
@@ -657,7 +958,7 @@ app.get("/api/me", authenticateToken, async (req: any, res) => {
       try {
         const [users]: any = await db.query(
           "SELECT id, full_name, email, phone, role, intercom_extension, is_activated, status, last_active_at FROM users WHERE id = ? LIMIT 1",
-          [userId]
+          [userId],
         );
         if (users.length > 0) user = users[0];
       } catch (e) {
@@ -666,7 +967,9 @@ app.get("/api/me", authenticateToken, async (req: any, res) => {
     }
 
     if (!user) {
-      user = inMemoryUsers.find((u) => u.id === userId || String(u.id) === String(userId));
+      user = inMemoryUsers.find(
+        (u) => u.id === userId || String(u.id) === String(userId),
+      );
     }
 
     if (!user) {
@@ -774,7 +1077,8 @@ Return ONLY a valid JSON object.
           contents: [
             {
               inlineData: {
-                mimeType: mimeType === "application/pdf" ? "application/pdf" : mimeType,
+                mimeType:
+                  mimeType === "application/pdf" ? "application/pdf" : mimeType,
                 data: cleanBase64,
               },
             },
@@ -806,7 +1110,10 @@ Return ONLY a valid JSON object.
           extractedData = { ...extractedData, ...parsed };
         }
       } catch (geminiError) {
-        console.warn("Gemini OCR parsing error. Using heuristic fallback parser:", geminiError);
+        console.warn(
+          "Gemini OCR parsing error. Using heuristic fallback parser:",
+          geminiError,
+        );
       }
     }
 
@@ -833,13 +1140,15 @@ Return ONLY a valid JSON object.
         extractedData = {
           applicantName: formProfile?.applicantName || "Dr. Ananya Sharma",
           orderNumber: `WII/ESTT/${new Date().getFullYear()}/ORD-${Math.floor(
-            1000 + Math.random() * 9000
+            1000 + Math.random() * 9000,
           )}`,
           orderDate: formProfile?.dateOfJoining || "2026-02-01",
           designation: formProfile?.designation || "Senior Research Fellow",
           departmentCellProject:
-            formProfile?.departmentCellProject || "Department of Landscape Level Planning & GIS",
-          supervisingOfficerName: formProfile?.supervisingOfficerName || "Dr. R. K. Singh",
+            formProfile?.departmentCellProject ||
+            "Department of Landscape Level Planning & GIS",
+          supervisingOfficerName:
+            formProfile?.supervisingOfficerName || "Dr. R. K. Singh",
           dateOfJoining: formProfile?.dateOfJoining || "2026-02-01",
           validUpTo: formProfile?.validUpTo || "2028-01-31",
           employmentType: formProfile?.employmentType || "Project employee",
@@ -860,7 +1169,10 @@ Return ONLY a valid JSON object.
       mismatchMessage?: string;
     }> = [];
 
-    const nameMatch = checkSimilarity(formProfile?.applicantName, extractedData.applicantName);
+    const nameMatch = checkSimilarity(
+      formProfile?.applicantName,
+      extractedData.applicantName,
+    );
     comparisons.push({
       field: "applicantName",
       label: "Full Name",
@@ -872,7 +1184,10 @@ Return ONLY a valid JSON object.
         : `Form has "${formProfile?.applicantName || ""}" but Office Order specifies "${extractedData.applicantName}".`,
     });
 
-    const desigMatch = checkSimilarity(formProfile?.designation, extractedData.designation);
+    const desigMatch = checkSimilarity(
+      formProfile?.designation,
+      extractedData.designation,
+    );
     comparisons.push({
       field: "designation",
       label: "Designation / Cadre",
@@ -884,7 +1199,10 @@ Return ONLY a valid JSON object.
         : `Form has "${formProfile?.designation || ""}" but Office Order specifies "${extractedData.designation}".`,
     });
 
-    const piMatch = checkSimilarity(formProfile?.supervisingOfficerName, extractedData.supervisingOfficerName);
+    const piMatch = checkSimilarity(
+      formProfile?.supervisingOfficerName,
+      extractedData.supervisingOfficerName,
+    );
     comparisons.push({
       field: "supervisingOfficerName",
       label: "Supervising Officer (PI)",
@@ -896,7 +1214,10 @@ Return ONLY a valid JSON object.
         : `Form has PI "${formProfile?.supervisingOfficerName || ""}" but Office Order mentions "${extractedData.supervisingOfficerName}".`,
     });
 
-    const deptMatch = checkSimilarity(formProfile?.departmentCellProject, extractedData.departmentCellProject);
+    const deptMatch = checkSimilarity(
+      formProfile?.departmentCellProject,
+      extractedData.departmentCellProject,
+    );
     comparisons.push({
       field: "departmentCellProject",
       label: "Department / Project / Cell",
@@ -918,7 +1239,10 @@ Return ONLY a valid JSON object.
         !cleanFormDate.includes(cleanDocDate) &&
         !cleanDocDate.includes(cleanFormDate)
       ) {
-        validMatch = checkSimilarity(formProfile.validUpTo, extractedData.validUpTo);
+        validMatch = checkSimilarity(
+          formProfile.validUpTo,
+          extractedData.validUpTo,
+        );
       }
     }
 
@@ -942,14 +1266,19 @@ Return ONLY a valid JSON object.
       comparisons,
       hasMismatches,
       mismatchCount: mismatches.length,
-      mismatchesSummary: mismatches.map((m) => m.mismatchMessage || `${m.label} mismatch`),
-      overallConfidence: ai ? "AI Vision Verified (High Precision)" : "Verified (Heuristic Engine)",
+      mismatchesSummary: mismatches.map(
+        (m) => m.mismatchMessage || `${m.label} mismatch`,
+      ),
+      overallConfidence: ai
+        ? "AI Vision Verified (High Precision)"
+        : "Verified (Heuristic Engine)",
     });
   } catch (error: any) {
     console.error("Error in /api/verify-office-order:", error);
     res.status(500).json({
       success: false,
-      error: error?.message || "Failed to process and verify office order document.",
+      error:
+        error?.message || "Failed to process and verify office order document.",
     });
   }
 });

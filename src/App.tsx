@@ -27,6 +27,54 @@ import { HelpdeskView } from "./components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "./components/admin/AdminControlPage";
 import { AuthPage } from "./components/auth/AuthPage";
 
+// =========================================================
+// BACKEND ROLE -> FRONTEND ROLE MAP
+// =========================================================
+// Database roles use codes such as `user` and `administrator`.
+// The existing UI uses frontend role codes such as `applicant` and `admin`.
+// Keep this mapping in one place so API, state and Navbar stay consistent.
+interface AssignedRoleInfo {
+  id: number;
+  code: UserRole;
+  name: string;
+}
+
+const ROLE_META: Record<string, AssignedRoleInfo> = {
+  applicant: { id: 1, code: "applicant", name: "User" },
+  user: { id: 1, code: "applicant", name: "User" },
+  reporting_manager: {
+    id: 2,
+    code: "reporting_manager",
+    name: "Reporting Manager / Supervisor (P)",
+  },
+  nodal_officer: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
+  lab_nodal: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
+  associate_nodal_officer: {
+    id: 4,
+    code: "assoc_lab_nodal",
+    name: "Associate Nodal Officer",
+  },
+  assoc_lab_nodal: {
+    id: 4,
+    code: "assoc_lab_nodal",
+    name: "Associate Nodal Officer",
+  },
+  it_head: { id: 5, code: "it_officer", name: "IT Head" },
+  it_officer: { id: 5, code: "it_officer", name: "IT Head" },
+  manager: { id: 6, code: "section_head", name: "Manager" },
+  section_head: { id: 6, code: "section_head", name: "Manager" },
+  supervisor: { id: 7, code: "supervisor", name: "Supervisor" },
+  administrator: { id: 8, code: "admin", name: "Administrator" },
+  admin: { id: 8, code: "admin", name: "Administrator" },
+};
+
+// Convert frontend role codes into the object structure expected by Navbar.
+const toAssignedRoleObjects = (roles: UserRole[]): AssignedRoleInfo[] => {
+  return [...new Set(roles)]
+    .map((role) => ROLE_META[role])
+    .filter((role): role is AssignedRoleInfo => Boolean(role));
+};
+
 export default function App() {
   // =========================================================
   // AUTHENTICATION
@@ -37,6 +85,14 @@ export default function App() {
   const [currentRole, setCurrentRole] = useState<UserRole>("applicant");
 
   const [assignedRoles, setAssignedRoles] = useState<UserRole[]>(["applicant"]);
+
+  // Actual logged-in account information used by the Navbar.
+  // This keeps the person's name separate from the currently selected role.
+  const [loggedInUser, setLoggedInUser] = useState<{
+    fullName: string;
+    email: string;
+    phone?: string;
+  } | null>(null);
 
   const [activeTab, setActiveTab] = useState<
     | "dashboard"
@@ -92,6 +148,61 @@ export default function App() {
   const [activationSuccess, setActivationSuccess] = useState<boolean>(false);
 
   const [activationMessage, setActivationMessage] = useState<string>("");
+
+  // =========================================================
+  // RESTORE LOGIN SESSION
+  // =========================================================
+  // AuthPage stores the JWT and raw API user in localStorage.
+  // Restore them after refresh so the user does not get logged out visually.
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem("wii_auth_token");
+      const storedUser = localStorage.getItem("wii_user");
+
+      if (!token || !storedUser) return;
+
+      const user = JSON.parse(storedUser);
+
+      setLoggedInUser({
+        fullName: user.fullName || user.full_name || "User",
+        email: user.email || "",
+        phone: user.phone || "",
+      });
+
+      // Convert database role codes to the application's UserRole values.
+      const rawRoles = Array.isArray(user.roles)
+        ? user.roles
+            .map((role: any) => role?.code)
+            .filter(Boolean)
+            .map((code: string) => ROLE_META[code]?.code)
+            .filter(Boolean)
+        : [];
+
+      const restoredRoles: UserRole[] = [
+        ...new Set<UserRole>(["applicant", ...rawRoles]),
+      ];
+
+      setAssignedRoles(restoredRoles);
+
+      // Restore the last selected persona if it is still assigned.
+      const savedCurrentRole = localStorage.getItem(
+        "wii_current_role",
+      ) as UserRole | null;
+
+      const restoredCurrentRole =
+        savedCurrentRole && restoredRoles.includes(savedCurrentRole)
+          ? savedCurrentRole
+          : restoredRoles[0] || "applicant";
+
+      setCurrentRole(restoredCurrentRole);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.warn("Unable to restore saved login session:", error);
+      localStorage.removeItem("wii_auth_token");
+      localStorage.removeItem("wii_user");
+      localStorage.removeItem("wii_current_role");
+    }
+  }, []);
 
   // =========================================================
   // THEME EFFECT
@@ -425,15 +536,47 @@ export default function App() {
               newAssignedRoles,
               updatedProfileData,
             ) => {
+              // Login successful: hydrate the complete frontend session.
               setIsAuthenticated(true);
 
-              setCurrentRole("applicant");
+              // Keep the normal User role (`applicant`) on every account.
+              const normalizedRoles: UserRole[] = [
+                ...new Set<UserRole>([
+                  "applicant",
+                  ...(newAssignedRoles || []),
+                ]),
+              ];
 
-              setAssignedRoles(
-                newAssignedRoles && newAssignedRoles.length > 0
-                  ? newAssignedRoles
-                  : ["applicant"],
-              );
+              setAssignedRoles(normalizedRoles);
+
+              // Use AuthPage's selected role when it is actually assigned.
+              const normalizedInitialRole = normalizedRoles.includes(
+                initialRole,
+              )
+                ? initialRole
+                : "applicant";
+
+              setCurrentRole(normalizedInitialRole);
+              localStorage.setItem("wii_current_role", normalizedInitialRole);
+
+              // AuthPage stores the raw API user in localStorage.
+              // Read it so Navbar can display the person's real name/email.
+              try {
+                const storedUser = localStorage.getItem("wii_user");
+
+                if (storedUser) {
+                  const parsedUser = JSON.parse(storedUser);
+
+                  setLoggedInUser({
+                    fullName:
+                      parsedUser.fullName || parsedUser.full_name || "User",
+                    email: parsedUser.email || "",
+                    phone: parsedUser.phone || "",
+                  });
+                }
+              } catch (error) {
+                console.warn("Unable to read logged-in user data:", error);
+              }
 
               if (updatedProfileData) {
                 const merged = {
@@ -442,10 +585,10 @@ export default function App() {
                 };
 
                 setApplicantProfile(merged as ApplicantProfile);
-
                 saveApplicantProfile(merged as ApplicantProfile);
               }
 
+              setSelectedRequisition(null);
               setActiveTab("dashboard");
             }}
           />
@@ -471,13 +614,25 @@ export default function App() {
 
       <Navbar
         currentRole={currentRole}
-        assignedRoles={assignedRoles}
+        // Navbar expects complete role objects, not only role strings.
+        assignedRoles={toAssignedRoleObjects(assignedRoles)}
         onRoleChange={(role) => {
           setCurrentRole(role);
+          localStorage.setItem("wii_current_role", role);
 
+          // Switching persona always starts from that persona's dashboard.
+          setSelectedRequisition(null);
           setActiveTab("dashboard");
         }}
-        userProfile={applicantProfile}
+        // Give Navbar the real account name/email.
+        userProfile={
+          {
+            ...applicantProfile,
+            fullName: loggedInUser?.fullName || applicantProfile.applicantName,
+            personalEmail:
+              loggedInUser?.email || applicantProfile.personalEmail,
+          } as ApplicantProfile
+        }
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
@@ -491,12 +646,16 @@ export default function App() {
         onSearch={(query) => setSearchQuery(query)}
         onOpenAuth={() => setActiveTab("auth")}
         onLogout={() => {
+          // Clear all client-side authentication/session data.
+          localStorage.removeItem("wii_auth_token");
+          localStorage.removeItem("wii_user");
+          localStorage.removeItem("wii_current_role");
+
+          setLoggedInUser(null);
           setIsAuthenticated(false);
-
           setCurrentRole("applicant");
-
           setAssignedRoles(["applicant"]);
-
+          setSelectedRequisition(null);
           setActiveTab("auth");
         }}
       />
