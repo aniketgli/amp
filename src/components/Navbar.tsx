@@ -134,14 +134,9 @@ const DASHBOARD_NAMES: Record<string, string> = {
 /* =========================================================
    ROLE CAPABILITIES
    ---------------------------------------------------------
-   Yahan decide hota hai ki kaunsa role kya dekh sakta hai.
-   5 Core Tabs:
-   1. Dashboard (All roles)
-   2. Profile   (All roles)
-   3. Access    (User/Applicant role for applying requisitions & digital asset management)
-   4. Requests  (User, Approvers & Managers for requests and approvals)
-   5. Helpdesk  (All roles)
-   + Master     (Administrator only)
+   Navbar tabs role ke hisab se dynamically render hote hain:
+   - Admin role: Dashboard, Profile, Access, Requests, Master, Helpdesk (6 tabs)
+   - Other sabhi roles: Dashboard, Profile, Access, Requests, Helpdesk (5 tabs)
 ========================================================= */
 
 const ROLE_CAPABILITIES: Record<
@@ -149,105 +144,89 @@ const ROLE_CAPABILITIES: Record<
   {
     access: boolean;
     requests: boolean;
-    approvals: boolean;
     master: boolean;
   }
 > = {
   applicant: {
     access: true,
     requests: true,
-    approvals: false,
     master: false,
   },
   user: {
     access: true,
     requests: true,
-    approvals: false,
     master: false,
   },
 
   reporting_manager: {
     access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
   supervisor: {
     access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   nodal_officer: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
   lab_nodal: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   associate_nodal_officer: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
   assoc_lab_nodal: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   it_head: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
   it_officer: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   manager: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
   section_head: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   hrms_officer: {
-    access: false,
+    access: true,
     requests: true,
-    approvals: true,
     master: false,
   },
 
   administrator: {
     access: true,
     requests: true,
-    approvals: true,
     master: true,
   },
   admin: {
     access: true,
     requests: true,
-    approvals: true,
     master: true,
   },
 };
@@ -330,10 +309,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   ======================================================= */
 
   const capabilities = ROLE_CAPABILITIES[currentRole] || {
-    access: false,
+    access: true,
     requests: true,
-    approvals: false,
-    master: false,
+    master: currentRole === "admin" || currentRole === "administrator",
   };
 
   /* =======================================================
@@ -1011,33 +989,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* =================================================
-                APPROVAL QUEUE
-                -------------------------------------------------
-                Future mein isko separate tab banana ho to
-                yahan se easily kar sakte hain.
-            ================================================= */}
-
-            {capabilities.approvals && (
-              <button
-                onClick={() => onTabChange("approval_queue")}
-                className={`
-                  nav-button
-                  ${
-                    activeTab === "approval_queue"
-                      ? "bg-emerald-600 text-white"
-                      : "text-slate-700 dark:text-slate-300"
-                  }
-                `}
-              >
-                <Shield className="w-4 h-4" />
-                Approval Queue
-              </button>
-            )}
-
-            {/* =================================================
                 MASTER
                 -------------------------------------------------
-                Sirf ADMINISTRATOR
+                Sirf ADMINISTRATOR role ke liye
             ================================================= */}
 
             {capabilities.master && (

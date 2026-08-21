@@ -362,28 +362,34 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       // -----------------------------------------
 
       const roleCodeMap: Record<string, UserRole> = {
+        applicant: "applicant",
         user: "applicant",
         administrator: "admin",
-
+        admin: "admin",
         reporting_manager: "supervisor",
-        nodal_officer: "lab_nodal",
-        associate_nodal_officer: "assoc_lab_nodal",
-        it_head: "it_officer",
-        manager: "section_head",
         supervisor: "supervisor",
+        nodal_officer: "lab_nodal",
+        lab_nodal: "lab_nodal",
+        associate_nodal_officer: "assoc_lab_nodal",
+        assoc_lab_nodal: "assoc_lab_nodal",
+        it_head: "it_officer",
+        it_officer: "it_officer",
+        manager: "section_head",
+        section_head: "section_head",
+        hrms_officer: "hrms_officer",
       };
 
       const assignedRoles: UserRole[] = (data.user.roles || [])
-        .map((role: any) => roleCodeMap[role.code])
+        .map((role: any) => roleCodeMap[role.code] || roleCodeMap[role.name?.toLowerCase()] || (role.code as UserRole))
         .filter(Boolean);
 
       const uniqueRoles = [
-        ...new Set<UserRole>(["applicant", ...assignedRoles]),
+        ...new Set<UserRole>(assignedRoles.length > 0 ? assignedRoles : ["applicant"]),
       ];
 
       const activeRole: UserRole = uniqueRoles.includes("admin")
         ? "admin"
-        : "applicant";
+        : uniqueRoles[0] || "applicant";
 
       console.log("Mapped Assigned Roles:", uniqueRoles);
       console.log("Initial Active Role:", activeRole);
