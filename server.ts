@@ -41,7 +41,7 @@ interface InMemoryUser {
   password_hash: string;
   is_activated: number;
   activation_token: string | null;
-  role: string;
+  role?: string;
   status: string;
   intercom_extension: string | null;
   last_active_at: string | null;
