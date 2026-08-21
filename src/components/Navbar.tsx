@@ -92,14 +92,21 @@ interface NavbarProps {
 ========================================================= */
 
 const ROLE_NAMES: Record<string, string> = {
+  applicant: "User",
   user: "User",
-  reporting_manager: "Reporting Manager / Supervisor (P)",
+  reporting_manager: "Reporting Manager / Supervisor (PI)",
+  supervisor: "Reporting Manager / Supervisor (PI)",
   nodal_officer: "Nodal Officer",
+  lab_nodal: "Nodal Officer",
   associate_nodal_officer: "Associate Nodal Officer",
+  assoc_lab_nodal: "Associate Nodal Officer",
   it_head: "IT Head",
+  it_officer: "IT Head",
   manager: "Manager",
-  supervisor: "Supervisor",
+  section_head: "Manager",
+  hrms_officer: "Supervisor",
   administrator: "Administrator",
+  admin: "Administrator",
 };
 
 /* =========================================================
@@ -107,23 +114,34 @@ const ROLE_NAMES: Record<string, string> = {
 ========================================================= */
 
 const DASHBOARD_NAMES: Record<string, string> = {
-  user: "User Portal",
-  reporting_manager: "Reporting Manager Desk",
-  nodal_officer: "Nodal Officer Desk",
-  associate_nodal_officer: "Associate Nodal Desk",
-  it_head: "IT Head Desk",
-  manager: "Manager Desk",
-  supervisor: "Supervisor Desk",
-  administrator: "Admin Desk",
+  applicant: "Dashboard",
+  user: "Dashboard",
+  reporting_manager: "Dashboard",
+  supervisor: "Dashboard",
+  nodal_officer: "Dashboard",
+  lab_nodal: "Dashboard",
+  associate_nodal_officer: "Dashboard",
+  assoc_lab_nodal: "Dashboard",
+  it_head: "Dashboard",
+  it_officer: "Dashboard",
+  manager: "Dashboard",
+  section_head: "Dashboard",
+  hrms_officer: "Dashboard",
+  administrator: "Dashboard",
+  admin: "Dashboard",
 };
 
 /* =========================================================
    ROLE CAPABILITIES
    ---------------------------------------------------------
    Yahan decide hota hai ki kaunsa role kya dekh sakta hai.
-
-   Baad mein permissions change karni ho to mainly isi
-   section ko modify karna hoga.
+   5 Core Tabs:
+   1. Dashboard (All roles)
+   2. Profile   (All roles)
+   3. Access    (User/Applicant role for applying requisitions & digital asset management)
+   4. Requests  (User, Approvers & Managers for requests and approvals)
+   5. Helpdesk  (All roles)
+   + Master     (Administrator only)
 ========================================================= */
 
 const ROLE_CAPABILITIES: Record<
@@ -135,6 +153,12 @@ const ROLE_CAPABILITIES: Record<
     master: boolean;
   }
 > = {
+  applicant: {
+    access: true,
+    requests: true,
+    approvals: false,
+    master: false,
+  },
   user: {
     access: true,
     requests: true,
@@ -143,13 +167,25 @@ const ROLE_CAPABILITIES: Record<
   },
 
   reporting_manager: {
-    access: false,
+    access: true,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+  supervisor: {
+    access: true,
     requests: true,
     approvals: true,
     master: false,
   },
 
   nodal_officer: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+  lab_nodal: {
     access: false,
     requests: true,
     approvals: true,
@@ -162,8 +198,20 @@ const ROLE_CAPABILITIES: Record<
     approvals: true,
     master: false,
   },
+  assoc_lab_nodal: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
 
   it_head: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
+  it_officer: {
     access: false,
     requests: true,
     approvals: true,
@@ -176,8 +224,14 @@ const ROLE_CAPABILITIES: Record<
     approvals: true,
     master: false,
   },
+  section_head: {
+    access: false,
+    requests: true,
+    approvals: true,
+    master: false,
+  },
 
-  supervisor: {
+  hrms_officer: {
     access: false,
     requests: true,
     approvals: true,
@@ -185,7 +239,13 @@ const ROLE_CAPABILITIES: Record<
   },
 
   administrator: {
-    access: false,
+    access: true,
+    requests: true,
+    approvals: true,
+    master: true,
+  },
+  admin: {
+    access: true,
     requests: true,
     approvals: true,
     master: true,
@@ -495,7 +555,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* =====================================================
-                  USER NAME + ACTIVE ROLE + EMAIL
+                  USER NAME + ACTIVE ROLE
               ===================================================== */}
               <div className="min-w-0 text-left">
                 {/* User Name */}
@@ -503,14 +563,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {displayName}
                 </div>
 
-                {/* Active Role */}
-                <div className="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase truncate leading-tight mt-0.5">
-                  {activeRoleInfo.title}
-                </div>
-
-                {/* Current / Active Role */}
-                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                  {activeRoleInfo?.name || activeRoleInfo?.title || "User"}
+                {/* Active Role (Themed badge) */}
+                <div className="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate leading-tight mt-0.5">
+                  {activeRoleInfo?.name || ROLE_NAMES[currentRole] || "User"}
                 </div>
               </div>
               <ChevronDown

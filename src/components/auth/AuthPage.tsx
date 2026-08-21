@@ -365,7 +365,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         user: "applicant",
         administrator: "admin",
 
-        reporting_manager: "reporting_manager",
+        reporting_manager: "supervisor",
         nodal_officer: "lab_nodal",
         associate_nodal_officer: "assoc_lab_nodal",
         it_head: "it_officer",

@@ -44,8 +44,8 @@ const ROLE_META: Record<string, AssignedRoleInfo> = {
   user: { id: 1, code: "applicant", name: "User" },
   reporting_manager: {
     id: 2,
-    code: "reporting_manager",
-    name: "Reporting Manager / Supervisor (P)",
+    code: "supervisor",
+    name: "Reporting Manager / Supervisor (PI)",
   },
   nodal_officer: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
   lab_nodal: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
