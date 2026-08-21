@@ -64,7 +64,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     const saved = localStorage.getItem('wii_managed_users');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         return INITIAL_MANAGED_USERS;
       }
@@ -74,18 +75,46 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   const [userSearch, setUserSearch] = useState('');
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
-  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 
-  // New User Form State
-  const [newUser, setNewUser] = useState<Partial<ManagedUser>>({
-    name: '',
-    email: '',
-    designation: 'Research Associate',
-    department: 'Dept. of Landscape Level Planning & GIS',
-    role: 'applicant',
-    intercom: '200',
-    status: 'active',
-  });
+  // Sync users from backend API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.users)) {
+            setManagedUsers((prev) => {
+              const map = new Map<string, ManagedUser>();
+              INITIAL_MANAGED_USERS.forEach((u) => map.set(u.email.toLowerCase(), u));
+              prev.forEach((u) => map.set(u.email.toLowerCase(), u));
+              data.users.forEach((u: any) => {
+                const existing = map.get(u.email?.toLowerCase());
+                map.set(u.email.toLowerCase(), {
+                  id: existing?.id || `USR-${u.id}`,
+                  name: u.name || existing?.name || '',
+                  email: u.email,
+                  designation: u.designation || existing?.designation || '',
+                  department: u.department || existing?.department || '',
+                  role: (u.role as UserRole) || existing?.role || 'applicant',
+                  intercom: u.intercom || existing?.intercom || '',
+                  status: (u.status as 'active' | 'suspended') || existing?.status || 'active',
+                  permissions: existing?.permissions || ['GENERIC_ACCESS'],
+                  lastActive: u.lastActive || existing?.lastActive || 'Active',
+                });
+              });
+              const combined = Array.from(map.values());
+              localStorage.setItem('wii_managed_users', JSON.stringify(combined));
+              return combined;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch users from /api/users:', err);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   // Facilities Master State (Synced with localStorage)
   const [facilitiesList, setFacilitiesList] = useState<FacilityMasterItem[]>(() => getStoredFacilities());
@@ -170,56 +199,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     });
     saveUsersToStorage(updated);
     showToast(`Role updated successfully for User ${userId} -> ${newRole.toUpperCase()}`);
-  };
-
-  // Registered Users Pool for Add User Dropdown
-  const REGISTERED_USERS_POOL = [
-    { name: 'Dr. Ananya Sharma', email: 'ananya.sharma@wii.gov.in', designation: 'Senior Research Fellow', department: 'Dept. of Landscape Level Planning & GIS', intercom: '214' },
-    { name: 'Dr. R. K. Singh', email: 'rksingh@wii.gov.in', designation: 'Scientist - F / Supervising PI', department: 'Dept. of Wildlife Ecology & Conservation', intercom: '142' },
-    { name: 'Mr. Dinesh Singh Pundir', email: 'dinesh.pundir@wii.gov.in', designation: 'Senior Technical Officer - III (IT)', department: 'IT, RS & GIS Cell', intercom: '138' },
-    { name: 'Mr. Harendra Kumar', email: 'harendra.kumar@wii.gov.in', designation: 'Senior Technical Officer - III (HRMS)', department: 'IT, RS & GIS Cell', intercom: '182' },
-    { name: 'Dr. S. K. Gupta', email: 'skgupta@wii.gov.in', designation: 'Nodal Officer (Analytical Labs)', department: 'Research Laboratories Division', intercom: '155' },
-    { name: 'Dr. Panna Lal', email: 'pannalal@wii.gov.in', designation: 'Section Head (IT/GIS)', department: 'IT, RS & GIS Cell', intercom: '101' },
-    { name: 'Dr. S. A. Hussain', email: 'sahussain@wii.gov.in', designation: 'Scientist - G / Senior Professor', department: 'Species Inventory & Aquatic Ecology', intercom: '120' },
-    { name: 'Dr. Samrat Mondol', email: 'mondols@wii.gov.in', designation: 'Scientist - E / Lab In-Charge', department: 'Conservation Genetics Cell', intercom: '112' },
-    { name: 'Dr. B. S. Adhikari', email: 'adhikaribs@wii.gov.in', designation: 'Senior Scientist / Faculty Head', department: 'Faculty of Wildlife Sciences', intercom: '108' },
-    { name: 'Dr. Gautam Talukdar', email: 'gautam@wii.gov.in', designation: 'Scientist - D / Spatial Analyst', department: 'GIS & Remote Sensing Division', intercom: '132' },
-    { name: 'Dr. K. Ramesh', email: 'kramesh@wii.gov.in', designation: 'Scientist - E', department: 'Landscape Level Planning', intercom: '135' },
-    { name: 'Ms. Neha Sinha', email: 'neha.sinha@wii.gov.in', designation: 'Junior Research Fellow', department: 'Habitat Ecology & Wildlife Biology', intercom: '210' },
-    { name: 'Mr. Abhinav Verma', email: 'abhinav.verma@wii.gov.in', designation: 'Project Associate - II', department: 'EIA & Conservation Cell', intercom: '205' },
-    { name: 'Dr. Ruchika Sharma', email: 'ruchika.sharma@wii.gov.in', designation: 'Post-Doctoral Fellow', department: 'Ecotoxicology & Analytical Labs', intercom: '218' },
-    { name: 'Er. Vikas Mehta', email: 'vikas.mehta@wii.gov.in', designation: 'Technical Assistant (Systems)', department: 'IT Cell', intercom: '140' },
-  ];
-
-  const [selectedRegisteredEmail, setSelectedRegisteredEmail] = useState('');
-
-  // Handle Registered User Selection in Modal
-  const handleSelectRegisteredUser = (email: string) => {
-    setSelectedRegisteredEmail(email);
-    if (!email) {
-      setNewUser({
-        name: '',
-        email: '',
-        designation: 'Research Associate',
-        department: 'Dept. of Landscape Level Planning & GIS',
-        role: 'applicant',
-        intercom: '200',
-        status: 'active',
-      });
-      return;
-    }
-    const found = REGISTERED_USERS_POOL.find((u) => u.email === email);
-    if (found) {
-      setNewUser({
-        name: found.name,
-        email: found.email,
-        designation: found.designation,
-        department: found.department,
-        intercom: found.intercom,
-        role: 'applicant',
-        status: 'active',
-      });
-    }
   };
 
   // Handle Delete System User
@@ -343,53 +322,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       showToast(`Service deleted: ${srv.name}`);
     }
-  };
-
-  // Handle Add New System User
-  const handleCreateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUser.name || !newUser.email) {
-      alert('Please enter Name and Email');
-      return;
-    }
-    const created: ManagedUser = {
-      id: `USR-00${managedUsers.length + 1}`,
-      name: newUser.name,
-      email: newUser.email,
-      designation: newUser.designation || 'Research Fellow',
-      department: newUser.department || 'WII Cell',
-      role: newUser.role || 'applicant',
-      intercom: newUser.intercom || '100',
-      status: (newUser.status as 'active' | 'suspended') || 'active',
-      permissions: ['GENERIC_ACCESS'],
-      lastActive: 'Just created',
-    };
-    saveUsersToStorage([...managedUsers, created]);
-
-    recordSecurityAuditLog({
-      actorName: 'Dr. Virendra Kumar',
-      actorEmail: 'virendrakumar@wii.gov.in',
-      actorRole: 'admin',
-      actionType: 'USER_CREATE',
-      module: `Master User Roster`,
-      summary: `Created new Master System User: ${created.name} (${created.email}) with Role: ${created.role}.`,
-      details: {
-        newValue: `Role: ${created.role}, Intercom: ${created.intercom}`,
-        targetEntity: `User Record ${created.id}`,
-      },
-    });
-
-    setIsAddUserModalOpen(false);
-    setNewUser({
-      name: '',
-      email: '',
-      designation: 'Research Associate',
-      department: 'Dept. of Landscape Level Planning & GIS',
-      role: 'applicant',
-      intercom: '200',
-      status: 'active',
-    });
-    showToast(`New Master User Created: ${created.name} (${created.role})`);
   };
 
   // Handle Toggle Account Status
@@ -671,29 +603,21 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 User Roles & Account Master Directory
               </h2>
               <p className="text-xs text-slate-500">
-                Edit official designations, assign system authority roles, or toggle access statuses for all personnel.
+                Official designations, assigned system authority roles, and access statuses for all personnel.
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <div className="relative w-full sm:w-72">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search user, email, role..."
+                  placeholder="Search user, email, designation, role..."
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
               </div>
-
-              <button
-                onClick={() => setIsAddUserModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer w-full sm:w-auto shrink-0"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Add New User
-              </button>
             </div>
           </div>
 
@@ -721,8 +645,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 lab_nodal: 'bg-amber-50 text-amber-800 border-amber-200',
                 assoc_lab_nodal: 'bg-orange-50 text-orange-800 border-orange-200',
               };
-              const displayTitle = roleTitleMap[user.role] || roleObj?.title || user.role;
+              const displayTitle = roleTitleMap[user.role] || roleObj?.title || user.role || 'User';
               const colorClass = roleBadgeColorMap[user.role] || 'bg-slate-100 text-slate-800 border-slate-200';
+
+              const displayName = user.name?.trim() ? user.name : '—';
+              const displayEmail = user.email?.trim() ? user.email : '—';
+              const displayDesignation = user.designation?.trim() ? user.designation : '—';
+              const displayDept = user.department?.trim() ? user.department : '—';
+              const displayIntercom = user.intercom?.trim() ? user.intercom : '—';
 
               return (
                 <div key={user.id} className="p-3.5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-2.5">
@@ -733,11 +663,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           roleObj?.avatarColor || 'bg-slate-700'
                         } text-white font-bold flex items-center justify-center shrink-0 text-sm`}
                       >
-                        {user.name.charAt(0)}
+                        {displayName !== '—' ? displayName.charAt(0).toUpperCase() : 'U'}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-xs truncate">{user.name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono truncate">{user.email}</div>
+                        <div className="font-bold text-slate-900 text-xs truncate">{displayName}</div>
+                        <div className="text-[11px] text-slate-500 font-mono truncate">{displayEmail}</div>
                       </div>
                     </div>
 
@@ -749,25 +679,23 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           : 'bg-red-100 text-red-800 border border-red-300'
                       }`}
                     >
-                      {user.status}
+                      {user.status || 'ACTIVE'}
                     </button>
                   </div>
 
                   <div className="text-[11px] space-y-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
                     <div>
                       <span className="font-semibold text-slate-500">Designation:</span>{' '}
-                      <span className="font-bold text-slate-800">{user.designation}</span>
+                      <span className="font-bold text-slate-800">{displayDesignation}</span>
                     </div>
                     <div>
                       <span className="font-semibold text-slate-500">Department:</span>{' '}
-                      <span className="text-slate-700">{user.department}</span>
+                      <span className="text-slate-700">{displayDept}</span>
                     </div>
-                    {user.intercom && (
-                      <div>
-                        <span className="font-semibold text-slate-500">Intercom:</span>{' '}
-                        <span className="font-mono text-slate-700">{user.intercom}</span>
-                      </div>
-                    )}
+                    <div>
+                      <span className="font-semibold text-slate-500">Intercom:</span>{' '}
+                      <span className="font-mono text-slate-700">{displayIntercom}</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-1">
@@ -814,6 +742,36 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.map((user) => {
                   const roleObj = OFFICIAL_ROLES.find((r) => r.id === user.role);
+                  const roleTitleMap: Record<string, string> = {
+                    applicant: 'User',
+                    supervisor: 'Reporting Manager / Supervisor (PI)',
+                    lab_nodal: 'Nodal Officer',
+                    assoc_lab_nodal: 'Associate Nodal Officer',
+                    it_officer: 'IT Head',
+                    section_head: 'Manager',
+                    hrms_officer: 'Lab Supervisor',
+                    admin: 'Admin',
+                  };
+                  const roleBadgeColorMap: Record<string, string> = {
+                    admin: 'bg-purple-100 text-purple-900 border-purple-300',
+                    applicant: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                    supervisor: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+                    it_officer: 'bg-blue-50 text-blue-800 border-blue-200',
+                    section_head: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+                    hrms_officer: 'bg-purple-50 text-purple-800 border-purple-200',
+                    lab_nodal: 'bg-amber-50 text-amber-800 border-amber-200',
+                    assoc_lab_nodal: 'bg-orange-50 text-orange-800 border-orange-200',
+                  };
+
+                  const displayTitle = roleTitleMap[user.role] || roleObj?.title || user.role || 'User';
+                  const colorClass = roleBadgeColorMap[user.role] || 'bg-slate-100 text-slate-800 border-slate-200';
+
+                  const displayName = user.name?.trim() ? user.name : '—';
+                  const displayEmail = user.email?.trim() ? user.email : '—';
+                  const displayDesignation = user.designation?.trim() ? user.designation : '—';
+                  const displayDept = user.department?.trim() ? user.department : '—';
+                  const displayIntercom = user.intercom?.trim() ? user.intercom : '—';
+
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3">
@@ -823,54 +781,26 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                               roleObj?.avatarColor || 'bg-slate-700'
                             } text-white font-bold flex items-center justify-center shrink-0`}
                           >
-                            {user.name.charAt(0)}
+                            {displayName !== '—' ? displayName.charAt(0).toUpperCase() : 'U'}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900">{user.name}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">{user.email}</div>
+                            <div className="font-bold text-slate-900">{displayName}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">{displayEmail}</div>
                           </div>
                         </div>
                       </td>
 
                       <td className="p-3 max-w-[220px]">
-                        <div className="font-semibold text-slate-800">{user.designation}</div>
-                        <div className="text-[11px] text-slate-500 truncate" title={user.department}>
-                          {user.department}
+                        <div className="font-semibold text-slate-800">{displayDesignation}</div>
+                        <div className="text-[11px] text-slate-500 truncate" title={displayDept}>
+                          {displayDept}
                         </div>
                       </td>
 
                       <td className="p-3">
-                        {(() => {
-                          const roleTitleMap: Record<string, string> = {
-                            applicant: 'User',
-                            supervisor: 'Reporting Manager / Supervisor (PI)',
-                            lab_nodal: 'Nodal Officer',
-                            assoc_lab_nodal: 'Associate Nodal Officer',
-                            it_officer: 'IT Head',
-                            section_head: 'Manager',
-                            hrms_officer: 'Lab Supervisor',
-                            admin: 'Admin',
-                          };
-                          const roleBadgeColorMap: Record<string, string> = {
-                            admin: 'bg-purple-100 text-purple-900 border-purple-300',
-                            applicant: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-                            supervisor: 'bg-indigo-50 text-indigo-800 border-indigo-200',
-                            it_officer: 'bg-blue-50 text-blue-800 border-blue-200',
-                            section_head: 'bg-cyan-50 text-cyan-800 border-cyan-200',
-                            hrms_officer: 'bg-purple-50 text-purple-800 border-purple-200',
-                            lab_nodal: 'bg-amber-50 text-amber-800 border-amber-200',
-                            assoc_lab_nodal: 'bg-orange-50 text-orange-800 border-orange-200',
-                          };
-
-                          const displayTitle = roleTitleMap[user.role] || roleObj?.title || user.role;
-                          const colorClass = roleBadgeColorMap[user.role] || 'bg-slate-100 text-slate-800 border-slate-200';
-
-                          return (
-                            <span className={`inline-block text-xs font-bold px-3 py-1.5 rounded-lg border shadow-2xs ${colorClass}`}>
-                              {displayTitle}
-                            </span>
-                          );
-                        })()}
+                        <span className={`inline-block text-xs font-bold px-3 py-1.5 rounded-lg border shadow-2xs ${colorClass}`}>
+                          {displayTitle}
+                        </span>
                       </td>
 
                       <td className="p-3">
@@ -882,11 +812,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                               : 'bg-red-100 text-red-800 border border-red-300'
                           }`}
                         >
-                          {user.status}
+                          {user.status || 'ACTIVE'}
                         </button>
                       </td>
 
-                      <td className="p-3 font-mono text-slate-600">{user.intercom || 'N/A'}</td>
+                      <td className="p-3 font-mono text-slate-600">{displayIntercom}</td>
 
                       <td className="p-3 text-right sticky right-0 bg-white z-10 border-l border-slate-200/80 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                         <div className="flex items-center justify-end gap-1.5">
@@ -1315,93 +1245,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className="px-4 py-2 bg-purple-700 text-white rounded-lg font-bold shadow-xs hover:bg-purple-800 cursor-pointer"
                 >
                   Save Master User
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ADD USER MODAL */}
-      {isAddUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
-              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
-                <PlusCircle className="w-4 h-4 text-purple-600 shrink-0" />
-                Add New Master User / Officer
-              </h3>
-              <button
-                onClick={() => setIsAddUserModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} className="space-y-4 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2">
-              {/* Dropdown 1: Select Registered User */}
-              <div>
-                <label className="block font-extrabold text-slate-800 mb-1 flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-purple-700" />
-                  Select Registered User / Personnel
-                </label>
-                <select
-                  required
-                  value={selectedRegisteredEmail}
-                  onChange={(e) => handleSelectRegisteredUser(e.target.value)}
-                  className="w-full p-2.5 border border-purple-300 rounded-xl bg-purple-50/50 font-bold text-xs text-slate-800 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Registered User --</option>
-                  {REGISTERED_USERS_POOL.map((u) => (
-                    <option key={u.email} value={u.email}>
-                      {u.name} ({u.email}) — {u.designation}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Selected User Read-Only Preview Card */}
-              {selectedRegisteredEmail && newUser.name && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <div className="font-extrabold text-slate-900">{newUser.name}</div>
-                  <div className="font-mono text-[11px] text-purple-700">{newUser.email}</div>
-                  <div className="text-[11px] text-slate-600">{newUser.designation} • {newUser.department}</div>
-                </div>
-              )}
-
-              {/* Dropdown 2: System Role to Assign */}
-              <div>
-                <label className="block font-extrabold text-slate-800 mb-1">System Role to Assign</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                  className="w-full p-2.5 border border-purple-300 rounded-xl bg-purple-50/50 font-bold text-xs text-slate-800 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="applicant">User</option>
-                  <option value="supervisor">Reporting Manager / Supervisor (PI)</option>
-                  <option value="lab_nodal">Nodal Officer</option>
-                  <option value="assoc_lab_nodal">Associate Nodal Officer</option>
-                  <option value="it_officer">IT Head</option>
-                  <option value="section_head">Manager</option>
-                  <option value="hrms_officer">Lab Supervisor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAddUserModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-700 text-white rounded-lg font-bold shadow-xs hover:bg-purple-800 cursor-pointer"
-                >
-                  Create Master User
                 </button>
               </div>
             </form>

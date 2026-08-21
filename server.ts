@@ -1184,6 +1184,75 @@ function authenticateToken(req: any, res: any, next: any) {
 }
 
 /* =========================================================
+   GET ALL USERS API (Master Directory)
+========================================================= */
+
+app.get("/api/users", async (req, res) => {
+  try {
+    let dbUsers: any[] = [];
+    if (isDbConnected) {
+      try {
+        const [rows]: any = await db.query(
+          "SELECT id, employee_id, full_name, email, phone, role, intercom_extension, is_activated, status, last_active_at FROM users ORDER BY id ASC"
+        );
+        if (Array.isArray(rows) && rows.length > 0) {
+          dbUsers = rows;
+        }
+      } catch (e) {
+        console.warn("Error fetching users from DB:", e);
+      }
+    }
+
+    // Merge DB users with in-memory users ensuring no duplicates by email
+    const allUsersMap = new Map<string, any>();
+
+    // First add in-memory
+    inMemoryUsers.forEach((u) => {
+      allUsersMap.set(u.email.toLowerCase(), {
+        id: String(u.id),
+        name: u.full_name,
+        email: u.email,
+        phone: u.phone || "",
+        designation: u.role === "admin" ? "Director General & System Admin" : "Officer / Researcher",
+        department: "Wildlife Institute of India",
+        role: u.role || "applicant",
+        intercom: u.intercom_extension || "",
+        status: u.status || "active",
+        lastActive: u.last_active_at ? new Date(u.last_active_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active",
+      });
+    });
+
+    // Then add/override from DB
+    dbUsers.forEach((u) => {
+      allUsersMap.set(u.email.toLowerCase(), {
+        id: String(u.id),
+        name: u.full_name,
+        email: u.email,
+        phone: u.phone || "",
+        designation: u.designation || (u.role === "admin" ? "Director General & System Admin" : "Researcher / Officer"),
+        department: u.department || "Wildlife Institute of India",
+        role: u.role || "applicant",
+        intercom: u.intercom_extension || "",
+        status: u.status || (u.is_activated ? "active" : "inactive"),
+        lastActive: u.last_active_at ? new Date(u.last_active_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active",
+      });
+    });
+
+    return res.json({
+      success: true,
+      users: Array.from(allUsersMap.values()),
+    });
+  } catch (error: any) {
+    console.error("GET /api/users error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+      error: error?.message,
+    });
+  }
+});
+
+/* =========================================================
    CURRENT LOGGED-IN USER API
 ========================================================= */
 
