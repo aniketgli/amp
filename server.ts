@@ -1410,16 +1410,456 @@ app.put("/api/users/:userId/roles", async (req, res) => {
     connection.release();
   }
 });
-
 /* =========================================================
-   LOGOUT API
+   FACILITIES MASTER API
+   =========================================================
+   All facility records come directly from MySQL.
+   No hardcoded/localStorage facility records are used.
 ========================================================= */
 
-app.post("/api/logout", authenticateToken, (req, res) => {
-  res.json({
-    success: true,
-    message: "Logout successful.",
-  });
+/* GET ALL FACILITIES */
+app.get("/api/facilities", async (req, res) => {
+  try {
+    const [rows]: any = await db.query(`
+      SELECT
+        id,
+        facility_name,
+        department,
+        nodal_officer_name,
+        assoc_nodal_officer_name,
+        supervisor_name,
+        description,
+        status,
+        created_at,
+        updated_at
+      FROM facility_masters
+      ORDER BY id
+    `);
+
+    const facilities = rows.map((row: any) => ({
+      id: row.id,
+      name: row.facility_name,
+      dept: row.department || "",
+      nodal: row.nodal_officer_name || "",
+      assocNodal: row.assoc_nodal_officer_name || "",
+      supervisor: row.supervisor_name || "",
+      desc: row.description || "",
+      status: row.status || "active",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    return res.json({
+      success: true,
+      count: facilities.length,
+      facilities,
+    });
+  } catch (error: any) {
+    console.error("GET /api/facilities ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load facilities from database.",
+      error: error?.message,
+    });
+  }
+});
+
+/* CREATE FACILITY */
+app.post("/api/facilities", async (req, res) => {
+  try {
+    const {
+      name,
+      dept,
+      nodal,
+      assocNodal,
+      supervisor,
+      desc,
+      status = "active",
+    } = req.body;
+
+    if (!name || !nodal || !assocNodal || !supervisor) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Facility name, Nodal Officer, Associate Nodal Officer and Supervisor are required.",
+      });
+    }
+
+    /* Generate next FAC-XX ID */
+    const [existing]: any = await db.query(`
+      SELECT id
+      FROM facility_masters
+      WHERE id LIKE 'FAC-%'
+      ORDER BY id DESC
+    `);
+
+    let nextNumber = 1;
+
+    if (existing.length > 0) {
+      const numbers = existing
+        .map((row: any) => {
+          const match = String(row.id).match(/FAC-(\d+)/i);
+          return match ? Number(match[1]) : 0;
+        })
+        .filter((n: number) => Number.isFinite(n));
+
+      if (numbers.length > 0) {
+        nextNumber = Math.max(...numbers) + 1;
+      }
+    }
+
+    const facilityId = `FAC-${String(nextNumber).padStart(2, "0")}`;
+
+    await db.query(
+      `
+      INSERT INTO facility_masters
+      (
+        id,
+        facility_name,
+        department,
+        nodal_officer_name,
+        assoc_nodal_officer_name,
+        supervisor_name,
+        description,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        facilityId,
+        String(name).trim(),
+        dept || null,
+        String(nodal).trim(),
+        String(assocNodal).trim(),
+        String(supervisor).trim(),
+        desc || null,
+        status,
+      ],
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Facility created successfully.",
+      id: facilityId,
+    });
+  } catch (error: any) {
+    console.error("POST /api/facilities ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to create facility.",
+      error: error?.message,
+    });
+  }
+});
+
+/* UPDATE FACILITY */
+app.put("/api/facilities/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { name, dept, nodal, assocNodal, supervisor, desc, status } =
+      req.body;
+
+    if (!name || !nodal || !assocNodal || !supervisor) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Facility name, Nodal Officer, Associate Nodal Officer and Supervisor are required.",
+      });
+    }
+
+    const [result]: any = await db.query(
+      `
+      UPDATE facility_masters
+      SET
+        facility_name = ?,
+        department = ?,
+        nodal_officer_name = ?,
+        assoc_nodal_officer_name = ?,
+        supervisor_name = ?,
+        description = ?,
+        status = ?
+      WHERE id = ?
+      `,
+      [
+        String(name).trim(),
+        dept || null,
+        String(nodal).trim(),
+        String(assocNodal).trim(),
+        String(supervisor).trim(),
+        desc || null,
+        status || "active",
+        id,
+      ],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Facility not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Facility updated successfully.",
+    });
+  } catch (error: any) {
+    console.error("PUT /api/facilities ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update facility.",
+      error: error?.message,
+    });
+  }
+});
+
+/* DELETE FACILITY */
+app.delete("/api/facilities/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [result]: any = await db.query(
+      `
+      DELETE FROM facility_masters
+      WHERE id = ?
+      `,
+      [id],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Facility not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Facility deleted successfully.",
+    });
+  } catch (error: any) {
+    console.error("DELETE /api/facilities ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to delete facility.",
+      error: error?.message,
+    });
+  }
+});
+
+/* =========================================================
+   SERVICES MASTER API
+========================================================= */
+
+/* GET ALL SERVICES */
+app.get("/api/services", async (req, res) => {
+  try {
+    const [rows]: any = await db.query(`
+      SELECT
+        id,
+        service_name,
+        manager_name,
+        quota_access_specs,
+        status,
+        created_at,
+        updated_at
+      FROM service_masters
+      ORDER BY id
+    `);
+
+    const services = rows.map((row: any) => ({
+      id: row.id,
+      name: row.service_name,
+      manager: row.manager_name || "",
+      quota: row.quota_access_specs || "",
+      status: row.status || "active",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    return res.json({
+      success: true,
+      count: services.length,
+      services,
+    });
+  } catch (error: any) {
+    console.error("GET /api/services ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load services from database.",
+      error: error?.message,
+    });
+  }
+});
+
+/* CREATE SERVICE */
+app.post("/api/services", async (req, res) => {
+  try {
+    const { name, manager, quota, status = "active" } = req.body;
+
+    if (!name || !manager) {
+      return res.status(400).json({
+        success: false,
+        message: "Service name and Manager are required.",
+      });
+    }
+
+    /* Generate next SRV-XX ID */
+    const [existing]: any = await db.query(`
+      SELECT id
+      FROM service_masters
+      WHERE id LIKE 'SRV-%'
+      ORDER BY id DESC
+    `);
+
+    let nextNumber = 1;
+
+    if (existing.length > 0) {
+      const numbers = existing
+        .map((row: any) => {
+          const match = String(row.id).match(/SRV-(\d+)/i);
+          return match ? Number(match[1]) : 0;
+        })
+        .filter((n: number) => Number.isFinite(n));
+
+      if (numbers.length > 0) {
+        nextNumber = Math.max(...numbers) + 1;
+      }
+    }
+
+    const serviceId = `SRV-${String(nextNumber).padStart(2, "0")}`;
+
+    await db.query(
+      `
+      INSERT INTO service_masters
+      (
+        id,
+        service_name,
+        manager_name,
+        quota_access_specs,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        serviceId,
+        String(name).trim(),
+        String(manager).trim(),
+        quota || null,
+        status,
+      ],
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Service created successfully.",
+      id: serviceId,
+    });
+  } catch (error: any) {
+    console.error("POST /api/services ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to create service.",
+      error: error?.message,
+    });
+  }
+});
+
+/* UPDATE SERVICE */
+app.put("/api/services/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { name, manager, quota, status } = req.body;
+
+    if (!name || !manager) {
+      return res.status(400).json({
+        success: false,
+        message: "Service name and Manager are required.",
+      });
+    }
+
+    const [result]: any = await db.query(
+      `
+      UPDATE service_masters
+      SET
+        service_name = ?,
+        manager_name = ?,
+        quota_access_specs = ?,
+        status = ?
+      WHERE id = ?
+      `,
+      [
+        String(name).trim(),
+        String(manager).trim(),
+        quota || null,
+        status || "active",
+        id,
+      ],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Service not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Service updated successfully.",
+    });
+  } catch (error: any) {
+    console.error("PUT /api/services ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update service.",
+      error: error?.message,
+    });
+  }
+});
+
+/* DELETE SERVICE */
+app.delete("/api/services/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [result]: any = await db.query(
+      `
+      DELETE FROM service_masters
+      WHERE id = ?
+      `,
+      [id],
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Service not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Service deleted successfully.",
+    });
+  } catch (error: any) {
+    console.error("DELETE /api/services ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to delete service.",
+      error: error?.message,
+    });
+  }
 });
 
 /* =========================================================

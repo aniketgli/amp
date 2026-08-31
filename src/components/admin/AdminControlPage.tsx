@@ -1,155 +1,368 @@
-import React, { useState, useEffect } from "react";
-import {
-  FacilityMasterItem,
-  RequisitionRecord,
-  ServiceMasterItem,
-  UserRole,
-} from "../../types/requisition";
-// Role master is still required for labels/colors,
-// but user records will NEVER come from initialData.
-import { OFFICIAL_ROLES } from "../../data/initialData";
-import {
-  getStoredFacilities,
-  getStoredServices,
-  saveFacilities,
-  saveServices,
-} from "../../utils/storage";
+import React, { useEffect, useMemo, useState } from "react";
+import { RequisitionRecord, UserRole } from "../../types/requisition";
 import { recordSecurityAuditLog } from "../../utils/auditLogger";
 import { SecurityAuditTrailSection } from "./SecurityAuditTrailSection";
 import { DatabaseSchemaSection } from "./DatabaseSchemaSection";
+
 import {
-  Shield,
-  UserCheck,
-  BadgeCheck,
-  UserCog,
-  Settings,
-  Database,
-  Lock,
-  Unlock,
-  Edit3,
-  Trash2,
-  PlusCircle,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
   Activity,
-  Layers,
-  Server,
-  FileText,
-  Search,
-  Filter,
-  RefreshCw,
-  Download,
-  Key,
-  ShieldCheck,
-  Zap,
-  Globe,
-  Sliders,
-  Users,
+  BadgeCheck,
   Building2,
-  FlaskConical,
+  CheckCircle2,
+  Database,
+  Edit3,
+  PlusCircle,
+  Search,
+  Sliders,
+  Trash2,
+  Users,
   Wrench,
+  X,
+  XCircle,
+  Zap,
+  ShieldCheck,
 } from "lucide-react";
 
-interface SuperAdminControlPanelProps {
-  requisitions: RequisitionRecord[];
-  onUpdateRequisition: (req: RequisitionRecord) => void;
-  onRoleChange: (role: UserRole) => void;
+/* =========================================================
+   ADMIN CONTROL PAGE
+   =========================================================
+   IMPORTANT DESIGN RULES
+
+   1. Users come ONLY from MySQL -> /api/users
+   2. Facilities come ONLY from MySQL -> /api/facilities
+   3. Services come ONLY from MySQL -> /api/services
+   4. No hardcoded users
+   5. No localStorage master data
+   6. Department is NOT shown in the UI
+   7. Facility dropdowns are filtered by DB role
+   8. Service Manager dropdown is filtered by DB role
+   9. Add / Edit / Delete / Status changes go to backend
+   10. After every CRUD operation data is reloaded from DB
+========================================================= */
+
+/* =========================================================
+   TYPES
+========================================================= */
+
+type FacilityStatus = "active" | "inactive" | "maintenance";
+type ServiceStatus = "active" | "inactive";
+
+interface FacilityRecord {
+  id: string;
+
+  // Frontend-friendly names
+  name: string;
+
+  // Kept internally only for backend compatibility.
+  // It is NOT shown in Add/Edit UI.
+  dept: string;
+
+  nodal: string;
+  assocNodal: string;
+  supervisor: string;
+  desc: string;
+
+  status: FacilityStatus;
 }
 
-export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
+interface ServiceRecord {
+  id: string;
+  name: string;
+  manager: string;
+  quota: string;
+  status: ServiceStatus;
+}
+
+interface AdminUser {
+  id: string | number;
+  fullName?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  designation?: string;
+  department?: string;
+  intercomExtension?: string;
+  intercom?: string;
+  status?: string;
+  roles?: {
+    id: number;
+    code: string;
+    name: string;
+  }[];
+}
+
+interface AdminControlPageProps {
+  requisitions: RequisitionRecord[];
+
+  onUpdateRequisition: (req: RequisitionRecord) => void;
+
+  onRoleChange?: (role: UserRole) => void;
+}
+
+/* =========================================================
+   DATABASE ROLE DEFINITIONS
+
+   These are ROLE definitions, NOT users.
+
+   Users themselves are NEVER hardcoded.
+   Actual users always come from /api/users.
+========================================================= */
+
+const SYSTEM_ROLES = [
+  {
+    id: 1,
+    code: "user",
+    name: "User",
+  },
+  {
+    id: 2,
+    code: "reporting_manager",
+    name: "Reporting Manager / Supervisor",
+  },
+  {
+    id: 3,
+    code: "nodal_officer",
+    name: "Nodal Officer",
+  },
+  {
+    id: 4,
+    code: "associate_nodal_officer",
+    name: "Associate Nodal Officer",
+  },
+  {
+    id: 5,
+    code: "it_head",
+    name: "IT Head",
+  },
+  {
+    id: 6,
+    code: "manager",
+    name: "Manager",
+  },
+  {
+    id: 7,
+    code: "supervisor",
+    name: "Supervisor",
+  },
+  {
+    id: 8,
+    code: "administrator",
+    name: "Administrator",
+  },
+];
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
+export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
   requisitions,
   onUpdateRequisition,
-  onRoleChange,
 }) => {
+  /* =======================================================
+     ACTIVE ADMIN TAB
+  ======================================================= */
+
   const [activeSubTab, setActiveSubTab] = useState<
     | "users"
     | "masters"
-    | "facilities"
-    | "labs"
-    | "services"
     | "requisitions_override"
     | "system_config"
     | "audit_logs"
     | "database_schema"
   >("users");
 
-  // =========================================================
-  // DATABASE USERS STATE
-  // =========================================================
-  // IMPORTANT:
-  // Users are loaded ONLY from the backend /api/users endpoint.
-  // No hardcoded users and no localStorage user master are used.
-  const [managedUsers, setManagedUsers] = useState<any[]>([]);
+  /* =======================================================
+     USERS
+     -------------------------------------------------------
+     Users are ALWAYS loaded from DB.
+  ======================================================= */
 
+  const [managedUsers, setManagedUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
 
   const [userSearch, setUserSearch] = useState("");
-  const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // =========================================================
-  // ROLE HELPERS
-  // =========================================================
-  // The database uses role codes such as:
-  // user, reporting_manager, administrator, etc.
-  // The existing React application uses slightly different internal
-  // role IDs. Keep the mapping in ONE place so Navbar/Admin pages stay
-  // consistent with the database.
-  const DB_TO_UI_ROLE: Record<string, UserRole> = {
-    user: "applicant",
-    reporting_manager: "supervisor",
-    nodal_officer: "lab_nodal",
-    associate_nodal_officer: "assoc_lab_nodal",
-    it_head: "it_officer",
-    manager: "section_head",
-    supervisor: "hrms_officer",
-    administrator: "admin",
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+
+  /* =======================================================
+     FACILITIES
+  ======================================================= */
+
+  const [facilitiesList, setFacilitiesList] = useState<FacilityRecord[]>([]);
+
+  const [facilitiesLoading, setFacilitiesLoading] = useState(false);
+
+  const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
+
+  const [editingFacility, setEditingFacility] = useState<FacilityRecord | null>(
+    null,
+  );
+
+  const [isAddFacilityModalOpen, setIsAddFacilityModalOpen] = useState(false);
+
+  const [newFacility, setNewFacility] = useState({
+    name: "",
+    nodal: "",
+    assocNodal: "",
+    supervisor: "",
+    desc: "",
+  });
+
+  /* =======================================================
+     SERVICES
+  ======================================================= */
+
+  const [servicesList, setServicesList] = useState<ServiceRecord[]>([]);
+
+  const [servicesLoading, setServicesLoading] = useState(false);
+
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
+  const [editingService, setEditingService] = useState<ServiceRecord | null>(
+    null,
+  );
+
+  const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
+
+  const [newService, setNewService] = useState({
+    name: "",
+    manager: "",
+    quota: "",
+  });
+
+  /* =======================================================
+     SYSTEM CONFIG
+  ======================================================= */
+
+  const [systemConfig, setSystemConfig] = useState({
+    maintenanceMode: false,
+    emergencyApprovalBypass: false,
+  });
+
+  /* =======================================================
+     TOAST
+  ======================================================= */
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+
+    window.setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
   };
 
-  const getUserRoleCodes = (user: any): string[] => {
-    if (!Array.isArray(user?.roles)) return [];
+  /* =======================================================
+     HELPER: GET USER NAME
+  ======================================================= */
+
+  const getDisplayName = (user: AdminUser) => {
+    return String(user.fullName || user.name || "").trim() || "—";
+  };
+
+  /* =======================================================
+     HELPER: GET USER ROLES
+  ======================================================= */
+
+  const getUserRoleCodes = (user: AdminUser): string[] => {
+    if (!Array.isArray(user.roles)) {
+      return [];
+    }
+
     return user.roles
-      .map((role: any) => String(role?.code || ""))
+      .map((role) => String(role?.code || "").trim())
       .filter(Boolean);
   };
 
-  const getUserRoleNames = (user: any): string[] => {
-    if (!Array.isArray(user?.roles)) return [];
+  const getUserRoleNames = (user: AdminUser): string[] => {
+    if (!Array.isArray(user.roles)) {
+      return [];
+    }
+
     return user.roles
-      .map((role: any) => String(role?.name || ""))
+      .map((role) => String(role?.name || "").trim())
       .filter(Boolean);
   };
 
-  const getUserUiRoles = (user: any): UserRole[] => {
-    return getUserRoleCodes(user)
-      .map((code) => DB_TO_UI_ROLE[code])
-      .filter(Boolean);
+  /* =======================================================
+     HELPER: CHECK DB ROLE
+  ======================================================= */
+
+  const hasDbRole = (user: AdminUser, ...roleCodes: string[]) => {
+    const assignedRoles = getUserRoleCodes(user);
+
+    return roleCodes.some((code) => assignedRoles.includes(code));
   };
 
-  const hasDbRole = (user: any, ...codes: string[]) => {
-    const assigned = getUserRoleCodes(user);
-    return codes.some((code) => assigned.includes(code));
+  /* =======================================================
+     HELPER: NORMALIZE FACILITY API RESPONSE
+
+     Backend may return either:
+
+     facility_name
+     nodal_officer_name
+
+     OR:
+
+     name
+     nodal
+
+     This function supports both.
+  ======================================================= */
+
+  const normalizeFacility = (item: any): FacilityRecord => {
+    return {
+      id: String(item?.id ?? ""),
+
+      name: String(item?.name ?? item?.facility_name ?? ""),
+
+      dept: String(
+        item?.dept ?? item?.department ?? "Research Laboratories Division",
+      ),
+
+      nodal: String(item?.nodal ?? item?.nodal_officer_name ?? ""),
+
+      assocNodal: String(
+        item?.assocNodal ?? item?.assoc_nodal_officer_name ?? "",
+      ),
+
+      supervisor: String(item?.supervisor ?? item?.supervisor_name ?? ""),
+
+      desc: String(item?.desc ?? item?.description ?? ""),
+
+      status:
+        item?.status === "maintenance"
+          ? "maintenance"
+          : item?.status === "inactive"
+            ? "inactive"
+            : "active",
+    };
   };
 
-  const getDisplayName = (user: any) =>
-    String(user?.fullName || user?.name || "").trim() || "—";
+  /* =======================================================
+     HELPER: NORMALIZE SERVICE API RESPONSE
+  ======================================================= */
 
-  const getDisplayDesignation = (user: any) =>
-    String(user?.designation || "").trim() || "—";
+  const normalizeService = (item: any): ServiceRecord => {
+    return {
+      id: String(item?.id ?? ""),
 
-  const getDisplayDepartment = (user: any) =>
-    String(user?.department || "").trim() || "—";
+      name: String(item?.name ?? item?.service_name ?? ""),
 
-  const getDisplayIntercom = (user: any) =>
-    String(user?.intercomExtension || user?.intercom || "").trim() || "—";
+      manager: String(item?.manager ?? item?.manager_name ?? ""),
 
-  // =========================================================
-  // FETCH USERS FROM DATABASE
-  // =========================================================
-  // IMPORTANT: The Admin Control Panel is DB-driven.
-  // There is NO INITIAL_MANAGED_USERS fallback and NO localStorage
-  // user master. If /api/users fails, the table remains empty.
+      quota: String(item?.quota ?? item?.quota_access_specs ?? ""),
+
+      status: item?.status === "inactive" ? "inactive" : "active",
+    };
+  };
+
+  /* =======================================================
+     FETCH USERS
+  ======================================================= */
 
   const fetchUsers = async () => {
     setUsersLoading(true);
@@ -158,7 +371,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     try {
       const response = await fetch("/api/users", {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+        },
       });
 
       const data = await response.json();
@@ -168,164 +383,186 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       }
 
       if (!Array.isArray(data.users)) {
-        throw new Error("Invalid users response received from server.");
+        throw new Error("Invalid users response received.");
       }
 
-      // Replace the entire list with the database response.
+      /*
+        IMPORTANT:
+        Replace complete list.
+
+        NEVER merge with:
+        - hardcoded users
+        - localStorage users
+        - initial users
+      */
+
       setManagedUsers(data.users);
     } catch (error: any) {
       console.error("ADMIN USERS LOAD ERROR:", error);
-      setUsersError(error?.message || "Unable to load users from database.");
+
+      setUsersError(error?.message || "Unable to load users.");
+
       setManagedUsers([]);
     } finally {
       setUsersLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  /* =======================================================
+     FETCH FACILITIES
+  ======================================================= */
 
-  // Facilities Master State (Synced with localStorage)
-  const [facilitiesList, setFacilitiesList] = useState<FacilityMasterItem[]>(
-    () => getStoredFacilities(),
-  );
-  const [isAddFacilityModalOpen, setIsAddFacilityModalOpen] = useState(false);
-  const [newFacility, setNewFacility] = useState({
-    name: "",
-    nodal: "",
-    assocNodal: "",
-    supervisor: "",
-    dept: "",
-    desc: "",
-  });
+  const fetchFacilities = async () => {
+    setFacilitiesLoading(true);
+    setFacilitiesError(null);
 
-  // Services Master State (Synced with localStorage)
-  const [servicesList, setServicesList] = useState<ServiceMasterItem[]>(() =>
-    getStoredServices(),
-  );
-  const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
-  const [newService, setNewService] = useState({
-    name: "",
-    manager: "",
-    quota: "",
-  });
+    try {
+      const response = await fetch("/api/facilities");
 
-  // Listen to external updates if any
-  useEffect(() => {
-    const syncFromStorage = () => {
-      setFacilitiesList(getStoredFacilities());
-      setServicesList(getStoredServices());
-    };
-    window.addEventListener("wii_masters_updated", syncFromStorage);
-    return () =>
-      window.removeEventListener("wii_masters_updated", syncFromStorage);
-  }, []);
+      const data = await response.json();
 
-  // Masters Edit States
-  const [editingFacility, setEditingFacility] =
-    useState<FacilityMasterItem | null>(null);
-  const [editingService, setEditingService] =
-    useState<ServiceMasterItem | null>(null);
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to load facilities.");
+      }
 
-  // Role-filtered lists for Facility & Service Master dropdowns.
-  // Filtering is done against DB role codes, not the old single-role field.
-  const nodalOfficersList = managedUsers.filter((u) =>
-    hasDbRole(u, "nodal_officer"),
-  );
-  const nodalOptions =
-    nodalOfficersList.length > 0 ? nodalOfficersList : managedUsers;
+      const rows = Array.isArray(data.facilities) ? data.facilities : [];
 
-  const assocNodalOfficersList = managedUsers.filter((u) =>
-    hasDbRole(u, "associate_nodal_officer"),
-  );
-  const assocNodalOptions =
-    assocNodalOfficersList.length > 0 ? assocNodalOfficersList : managedUsers;
+      setFacilitiesList(rows.map(normalizeFacility));
+    } catch (error: any) {
+      console.error("FACILITIES LOAD ERROR:", error);
 
-  const supervisorOfficersList = managedUsers.filter((u) =>
-    hasDbRole(u, "reporting_manager", "supervisor"),
-  );
-  const supervisorOptions =
-    supervisorOfficersList.length > 0 ? supervisorOfficersList : managedUsers;
+      setFacilitiesError(error?.message || "Unable to load facilities.");
 
-  const managerOfficersList = managedUsers.filter((u) =>
-    hasDbRole(u, "manager", "it_head", "administrator"),
-  );
-  const managerOptions =
-    managerOfficersList.length > 0 ? managerOfficersList : managedUsers;
-
-  // System Master Config State
-  const [systemConfig, setSystemConfig] = useState({
-    maintenanceMode: false,
-    autoApproveEmail: true,
-    maxWifiDevicesPerUser: 3,
-    biometricSyncIntervalMinutes: 15,
-    labSlotMaxDaysAhead: 30,
-    emergencyApprovalBypass: false,
-    requirePiApprovalFirst: true,
-    portalVersion: "3.2.0-STABLE",
-    lastBackupTimestamp: "2026-08-08 08:30 IST",
-  });
-
-  // Toast Notification
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  // =========================================================
-  // USER DELETE / STATUS HANDLERS
-  // =========================================================
-  // These handlers update the current page immediately. For permanent
-  // DB persistence, corresponding backend endpoints can be wired here.
-  // The important point is that no hardcoded user is ever introduced.
-  const handleDeleteUser = (userId: string | number) => {
-    const userToDelete = managedUsers.find(
-      (u) => String(u.id) === String(userId),
-    );
-    if (!userToDelete) return;
-
-    const name = getDisplayName(userToDelete);
-    const email = String(userToDelete.email || "");
-
-    if (confirm(`Are you sure you want to delete ${name} (${email})?`)) {
-      setManagedUsers((current) =>
-        current.filter((u) => String(u.id) !== String(userId)),
-      );
-      showToast(`User removed from the current list: ${name}`);
+      setFacilitiesList([]);
+    } finally {
+      setFacilitiesLoading(false);
     }
   };
 
-  // =========================================================
-  // SAVE USER CHANGES
-  // =========================================================
-  // User identity comes from DB.
-  // Admin can update assigned roles and intercom.
-  // Role changes are persisted through the backend API.
-  const handleSaveEditUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /* =======================================================
+     FETCH SERVICES
+  ======================================================= */
 
-    if (!editingUser) return;
+  const fetchServices = async () => {
+    setServicesLoading(true);
+    setServicesError(null);
 
     try {
-      const roleIds = Array.isArray(editingUser.roles)
-        ? editingUser.roles.map((role: any) => role.id)
-        : [];
+      const response = await fetch("/api/services");
 
-      // A user must always have at least the basic "User" role.
-      if (roleIds.length === 0) {
-        showToast("At least one role must be assigned.");
-        return;
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to load services.");
       }
 
-      // The base User role (ID 1) is mandatory for every registered account.
-      const finalRoleIds = Array.from(new Set([1, ...roleIds]));
+      const rows = Array.isArray(data.services) ? data.services : [];
 
-      // -----------------------------------------
-      // UPDATE ROLES IN DATABASE
-      // -----------------------------------------
+      setServicesList(rows.map(normalizeService));
+    } catch (error: any) {
+      console.error("SERVICES LOAD ERROR:", error);
+
+      setServicesError(error?.message || "Unable to load services.");
+
+      setServicesList([]);
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  /* =======================================================
+     INITIAL DATABASE LOAD
+  ======================================================= */
+
+  useEffect(() => {
+    fetchUsers();
+    fetchFacilities();
+    fetchServices();
+  }, []);
+
+  /* =======================================================
+     ROLE-BASED DROPDOWN OPTIONS
+
+     IMPORTANT:
+     There is NO fallback to all users.
+
+     If database has no user with that role,
+     dropdown will show "No matching users".
+  ======================================================= */
+
+  const nodalOptions = useMemo(() => {
+    return managedUsers.filter((user) => hasDbRole(user, "nodal_officer"));
+  }, [managedUsers]);
+
+  const assocNodalOptions = useMemo(() => {
+    return managedUsers.filter((user) =>
+      hasDbRole(user, "associate_nodal_officer"),
+    );
+  }, [managedUsers]);
+
+  const supervisorOptions = useMemo(() => {
+    return managedUsers.filter((user) =>
+      hasDbRole(user, "reporting_manager", "supervisor"),
+    );
+  }, [managedUsers]);
+
+  const managerOptions = useMemo(() => {
+    return managedUsers.filter((user) =>
+      hasDbRole(user, "manager", "it_head", "administrator"),
+    );
+  }, [managedUsers]);
+
+  /* =======================================================
+     FILTER USERS
+  ======================================================= */
+
+  const filteredUsers = useMemo(() => {
+    const search = userSearch.trim().toLowerCase();
+
+    if (!search) {
+      return managedUsers;
+    }
+
+    return managedUsers.filter((user) => {
+      const roleText = getUserRoleNames(user).join(" ").toLowerCase();
+
+      return (
+        getDisplayName(user).toLowerCase().includes(search) ||
+        String(user.email || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(user.designation || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(user.department || "")
+          .toLowerCase()
+          .includes(search) ||
+        roleText.includes(search)
+      );
+    });
+  }, [managedUsers, userSearch]);
+
+  /* =======================================================
+     SAVE USER ROLES
+  ======================================================= */
+
+  const handleSaveEditUser = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!editingUser) {
+      return;
+    }
+
+    try {
+      const selectedRoleIds = Array.isArray(editingUser.roles)
+        ? editingUser.roles.map((role) => Number(role.id))
+        : [];
+
+      /*
+        Every account must retain User role.
+      */
+
+      const roleIds = Array.from(new Set([1, ...selectedRoleIds]));
 
       const response = await fetch(`/api/users/${editingUser.id}/roles`, {
         method: "PUT",
@@ -333,7 +570,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          roleIds: finalRoleIds,
+          roleIds,
         }),
       });
 
@@ -343,26 +580,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         throw new Error(data.message || "Unable to update roles.");
       }
 
-      // -----------------------------------------
-      // REFRESH COMPLETE USER LIST FROM DATABASE
-      // -----------------------------------------
-
-      const usersResponse = await fetch("/api/users");
-      const usersData = await usersResponse.json();
-
-      if (
-        usersResponse.ok &&
-        usersData.success &&
-        Array.isArray(usersData.users)
-      ) {
-        setManagedUsers(usersData.users);
-      }
+      await fetchUsers();
 
       setEditingUser(null);
 
-      showToast(
-        `Roles updated successfully for ${getDisplayName(editingUser)}.`,
-      );
+      showToast(`Roles updated for ${getDisplayName(editingUser)}.`);
     } catch (error: any) {
       console.error("SAVE USER ERROR:", error);
 
@@ -370,146 +592,474 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     }
   };
 
-  // Facility Edit & Delete handlers
-  const handleSaveEditFacility = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingFacility) return;
-    const oldFac = facilitiesList.find((f) => f.id === editingFacility.id);
-    const updated = facilitiesList.map((f) =>
-      f.id === editingFacility.id ? editingFacility : f,
+  /* =======================================================
+     DELETE USER
+  ======================================================= */
+
+  const handleDeleteUser = async (userId: string | number) => {
+    const user = managedUsers.find(
+      (item) => String(item.id) === String(userId),
     );
-    saveFacilitiesToStorage(updated);
 
-    recordSecurityAuditLog({
-      actorName: "Dr. Virendra Kumar",
-      actorEmail: "virendrakumar@wii.gov.in",
-      actorRole: "admin",
-      actionType: "FACILITY_MASTER_EDIT",
-      module: `Facility Master (${editingFacility.name})`,
-      summary: `Updated Facility Master details for "${editingFacility.name}". Nodal: ${editingFacility.nodal}.`,
-      details: {
-        previousValue: `Nodal: ${oldFac?.nodal || "N/A"}, Status: ${oldFac?.status || "N/A"}`,
-        newValue: `Nodal: ${editingFacility.nodal}, Status: ${editingFacility.status}`,
-        targetEntity: `Facility ${editingFacility.id}`,
-      },
-    });
+    if (!user) {
+      return;
+    }
 
-    showToast(`Facility Master updated & saved: ${editingFacility.name}`);
-    setEditingFacility(null);
-  };
-
-  const handleDeleteFacility = (id: string) => {
-    const fac = facilitiesList.find((f) => f.id === id);
-    if (!fac) return;
     if (
-      confirm(
-        `Are you sure you want to delete Facility "${fac.name}" (${fac.id})?`,
+      !window.confirm(
+        `Are you sure you want to delete "${getDisplayName(user)}"?`,
       )
     ) {
-      const updated = facilitiesList.filter((f) => f.id !== id);
-      saveFacilitiesToStorage(updated);
-
-      recordSecurityAuditLog({
-        actorName: "Dr. Virendra Kumar",
-        actorEmail: "virendrakumar@wii.gov.in",
-        actorRole: "admin",
-        actionType: "FACILITY_MASTER_EDIT",
-        module: `Facility Master (${fac.name})`,
-        summary: `Deleted Facility Master entry "${fac.name}" (${id}).`,
-      });
-
-      showToast(`Facility deleted: ${fac.name}`);
+      return;
     }
-  };
 
-  // Service Edit & Delete handlers
-  const handleSaveEditService = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingService) return;
-    const updated = servicesList.map((s) =>
-      s.id === editingService.id ? editingService : s,
-    );
-    saveServicesToStorage(updated);
-
-    recordSecurityAuditLog({
-      actorName: "Dr. Virendra Kumar",
-      actorEmail: "virendrakumar@wii.gov.in",
-      actorRole: "admin",
-      actionType: "SERVICE_MASTER_EDIT",
-      module: `Service Master (${editingService.name})`,
-      summary: `Updated Service Master details for "${editingService.name}". Quota: ${editingService.quota}.`,
-    });
-
-    showToast(`Service Master updated & saved: ${editingService.name}`);
-    setEditingService(null);
-  };
-
-  const handleDeleteService = (id: string) => {
-    const srv = servicesList.find((s) => s.id === id);
-    if (!srv) return;
-    if (
-      confirm(
-        `Are you sure you want to delete Service "${srv.name}" (${srv.id})?`,
-      )
-    ) {
-      const updated = servicesList.filter((s) => s.id !== id);
-      saveServicesToStorage(updated);
-
-      recordSecurityAuditLog({
-        actorName: "Dr. Virendra Kumar",
-        actorEmail: "virendrakumar@wii.gov.in",
-        actorRole: "admin",
-        actionType: "SERVICE_MASTER_EDIT",
-        module: `Service Master (${srv.name})`,
-        summary: `Deleted Service Master entry "${srv.name}" (${id}).`,
-      });
-
-      showToast(`Service deleted: ${srv.name}`);
-    }
-  };
-
-  // =========================================================
-  // TOGGLE STATUS IN CURRENT UI STATE
-  // =========================================================
-  const handleToggleStatus = (userId: string | number) => {
-    let targetUser: any = null;
-
-    setManagedUsers((current) =>
-      current.map((user) => {
-        if (String(user.id) !== String(userId)) return user;
-
-        targetUser = user;
-        const nextStatus =
-          String(user.status).toLowerCase() === "active"
-            ? "suspended"
-            : "active";
-
-        return { ...user, status: nextStatus };
-      }),
-    );
-
-    if (targetUser) {
-      const nextStatus =
-        String(targetUser.status).toLowerCase() === "active"
-          ? "suspended"
-          : "active";
-      showToast(
-        `${getDisplayName(targetUser)} is now ${nextStatus.toUpperCase()}.`,
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(String(userId))}`,
+        {
+          method: "DELETE",
+        },
       );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to delete user.");
+      }
+
+      await fetchUsers();
+
+      showToast("User deleted successfully.");
+    } catch (error: any) {
+      console.error("DELETE USER ERROR:", error);
+
+      showToast(error?.message || "Unable to delete user.");
     }
   };
 
-  // Admin Force Approve Requisition
+  /* =======================================================
+     ADD FACILITY
+     -------------------------------------------------------
+     Department is deliberately NOT part of the UI.
+
+     Backend compatibility:
+     `dept` is sent with the existing/default value.
+  ======================================================= */
+
+  const handleAddFacility = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (
+      !newFacility.name.trim() ||
+      !newFacility.nodal.trim() ||
+      !newFacility.assocNodal.trim() ||
+      !newFacility.supervisor.trim()
+    ) {
+      showToast("Please fill all required facility fields.");
+
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/facilities", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newFacility.name.trim(),
+
+          /*
+                Department hidden from UI.
+                Keep backend compatible.
+              */
+          dept: "Research Laboratories Division",
+
+          nodal: newFacility.nodal.trim(),
+
+          assocNodal: newFacility.assocNodal.trim(),
+
+          supervisor: newFacility.supervisor.trim(),
+
+          desc: newFacility.desc.trim(),
+
+          status: "active",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to create facility.");
+      }
+
+      await fetchFacilities();
+
+      setNewFacility({
+        name: "",
+        nodal: "",
+        assocNodal: "",
+        supervisor: "",
+        desc: "",
+      });
+
+      setIsAddFacilityModalOpen(false);
+
+      showToast("Facility added successfully.");
+    } catch (error: any) {
+      console.error("ADD FACILITY ERROR:", error);
+
+      showToast(error?.message || "Unable to add facility.");
+    }
+  };
+
+  /* =======================================================
+     UPDATE FACILITY
+  ======================================================= */
+
+  const handleSaveEditFacility = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!editingFacility) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/facilities/${encodeURIComponent(editingFacility.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: editingFacility.name.trim(),
+
+            /*
+                Keep existing DB department value.
+                User cannot edit it from UI.
+              */
+            dept: editingFacility.dept || "Research Laboratories Division",
+
+            nodal: editingFacility.nodal.trim(),
+
+            assocNodal: editingFacility.assocNodal.trim(),
+
+            supervisor: editingFacility.supervisor.trim(),
+
+            desc: editingFacility.desc.trim(),
+
+            status: editingFacility.status,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to update facility.");
+      }
+
+      await fetchFacilities();
+
+      setEditingFacility(null);
+
+      showToast("Facility updated successfully.");
+    } catch (error: any) {
+      console.error("UPDATE FACILITY ERROR:", error);
+
+      showToast(error?.message || "Unable to update facility.");
+    }
+  };
+
+  /* =======================================================
+     DELETE FACILITY
+  ======================================================= */
+
+  const handleDeleteFacility = async (id: string) => {
+    const facility = facilitiesList.find((item) => item.id === id);
+
+    if (!facility) {
+      return;
+    }
+
+    if (
+      !window.confirm(`Are you sure you want to delete "${facility.name}"?`)
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/facilities/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to delete facility.");
+      }
+
+      await fetchFacilities();
+
+      showToast("Facility deleted successfully.");
+    } catch (error: any) {
+      console.error("DELETE FACILITY ERROR:", error);
+
+      showToast(error?.message || "Unable to delete facility.");
+    }
+  };
+
+  /* =======================================================
+     TOGGLE FACILITY STATUS
+  ======================================================= */
+
+  const handleToggleFacilityStatus = async (facility: FacilityRecord) => {
+    const nextStatus = facility.status === "active" ? "inactive" : "active";
+
+    try {
+      const response = await fetch(
+        `/api/facilities/${encodeURIComponent(facility.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: facility.name,
+
+            dept: facility.dept || "Research Laboratories Division",
+
+            nodal: facility.nodal,
+
+            assocNodal: facility.assocNodal,
+
+            supervisor: facility.supervisor,
+
+            desc: facility.desc,
+
+            status: nextStatus,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to change facility status.");
+      }
+
+      await fetchFacilities();
+
+      showToast(`Facility status changed to ${nextStatus.toUpperCase()}.`);
+    } catch (error: any) {
+      console.error("FACILITY STATUS ERROR:", error);
+
+      showToast(error?.message || "Unable to change status.");
+    }
+  };
+
+  /* =======================================================
+     ADD SERVICE
+  ======================================================= */
+
+  const handleAddService = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!newService.name.trim() || !newService.manager.trim()) {
+      showToast("Please fill all required service fields.");
+
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/services", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newService.name.trim(),
+
+          manager: newService.manager.trim(),
+
+          quota: newService.quota.trim(),
+
+          status: "active",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to create service.");
+      }
+
+      await fetchServices();
+
+      setNewService({
+        name: "",
+        manager: "",
+        quota: "",
+      });
+
+      setIsAddServiceModalOpen(false);
+
+      showToast("Service added successfully.");
+    } catch (error: any) {
+      console.error("ADD SERVICE ERROR:", error);
+
+      showToast(error?.message || "Unable to add service.");
+    }
+  };
+
+  /* =======================================================
+     UPDATE SERVICE
+  ======================================================= */
+
+  const handleSaveEditService = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!editingService) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/services/${encodeURIComponent(editingService.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: editingService.name.trim(),
+
+            manager: editingService.manager.trim(),
+
+            quota: editingService.quota.trim(),
+
+            status: editingService.status,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to update service.");
+      }
+
+      await fetchServices();
+
+      setEditingService(null);
+
+      showToast("Service updated successfully.");
+    } catch (error: any) {
+      console.error("UPDATE SERVICE ERROR:", error);
+
+      showToast(error?.message || "Unable to update service.");
+    }
+  };
+
+  /* =======================================================
+     DELETE SERVICE
+  ======================================================= */
+
+  const handleDeleteService = async (id: string) => {
+    const service = servicesList.find((item) => item.id === id);
+
+    if (!service) {
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete "${service.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/services/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to delete service.");
+      }
+
+      await fetchServices();
+
+      showToast("Service deleted successfully.");
+    } catch (error: any) {
+      console.error("DELETE SERVICE ERROR:", error);
+
+      showToast(error?.message || "Unable to delete service.");
+    }
+  };
+
+  /* =======================================================
+     TOGGLE SERVICE STATUS
+  ======================================================= */
+
+  const handleToggleServiceStatus = async (service: ServiceRecord) => {
+    const nextStatus = service.status === "active" ? "inactive" : "active";
+
+    try {
+      const response = await fetch(
+        `/api/services/${encodeURIComponent(service.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: service.name,
+
+            manager: service.manager,
+
+            quota: service.quota,
+
+            status: nextStatus,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to change service status.");
+      }
+
+      await fetchServices();
+
+      showToast(`Service status changed to ${nextStatus.toUpperCase()}.`);
+    } catch (error: any) {
+      console.error("SERVICE STATUS ERROR:", error);
+
+      showToast(error?.message || "Unable to change status.");
+    }
+  };
+
+  /* =======================================================
+     FORCE APPROVE REQUISITION
+  ======================================================= */
+
   const handleForceApprove = (req: RequisitionRecord) => {
     const updated: RequisitionRecord = {
       ...req,
+
       status: "approved_provisioned",
+
       history: [
         ...(req.history || []),
         {
           id: `act-${Date.now()}`,
           actorRole: "admin",
-          actorName: "Director General / Admin",
+          actorName: "System Administrator",
           actionType: "tech_provision",
           comments: "FORCE APPROVED by System Admin Override.",
           timestamp: new Date().toISOString(),
@@ -517,915 +1067,703 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         },
       ],
     };
+
     onUpdateRequisition(updated);
 
     recordSecurityAuditLog({
-      actorName: "Dr. Virendra Kumar",
-      actorEmail: "virendrakumar@wii.gov.in",
+      actorName: "System Administrator",
+
+      actorEmail: "system@wii.gov.in",
+
       actorRole: "admin",
+
       actionType: "SECTION_HEAD_AUTHORIZATION",
+
       module: `Requisitions Override (${req.id})`,
-      summary: `Administrative Override: Force Approved & Provisioned Requisition #${req.id} for ${req.applicant.applicantName}.`,
-      details: {
-        previousValue: `Status: ${req.status}`,
-        newValue: "Status: approved_provisioned",
-        targetEntity: `Requisition ${req.id}`,
-        digitalSignature: "ADMIN_MASTER_BYPASS_SIG",
-      },
+
+      summary: `Administrative Override: Force Approved Requisition #${req.id}.`,
     });
 
-    showToast(`Requisition #${req.id} Force Approved & Provisioned by Admin.`);
+    showToast(`Requisition #${req.id} approved.`);
   };
 
-  // Admin Force Reject Requisition
+  /* =======================================================
+     FORCE REJECT REQUISITION
+  ======================================================= */
+
   const handleForceReject = (req: RequisitionRecord) => {
-    const reason = prompt(
+    const reason = window.prompt(
       "Enter Admin Rejection Reason:",
-      "Administrative Override by Directorate Order.",
+      "Administrative Override.",
     );
-    if (!reason) return;
+
+    if (!reason) {
+      return;
+    }
+
     const updated: RequisitionRecord = {
       ...req,
+
       status: "rejected",
+
       history: [
         ...(req.history || []),
         {
           id: `act-${Date.now()}`,
           actorRole: "admin",
-          actorName: "Director General / Admin",
+          actorName: "System Administrator",
           actionType: "reject",
-          comments: `FORCE REJECTED by Admin: ${reason}`,
+          comments: reason,
           timestamp: new Date().toISOString(),
           digitalSignature: "ADMIN_OVERRIDE_REJECT",
         },
       ],
     };
+
     onUpdateRequisition(updated);
 
-    recordSecurityAuditLog({
-      actorName: "Dr. Virendra Kumar",
-      actorEmail: "virendrakumar@wii.gov.in",
-      actorRole: "admin",
-      actionType: "PI_REJECTION",
-      module: `Requisitions Override (${req.id})`,
-      summary: `Administrative Override: Force Rejected Requisition #${req.id}. Reason: ${reason}`,
-      details: {
-        previousValue: `Status: ${req.status}`,
-        newValue: "Status: rejected",
-        targetEntity: `Requisition ${req.id}`,
-        comments: reason,
-      },
-    });
-
-    showToast(`Requisition #${req.id} Force Rejected.`);
+    showToast(`Requisition #${req.id} rejected.`);
   };
 
-  // =========================================================
-  // FILTER USERS
-  // =========================================================
-  const filteredUsers = managedUsers.filter((user) => {
-    const search = userSearch.trim().toLowerCase();
-    if (!search) return true;
+  /* =======================================================
+     SMALL REUSABLE DROPDOWN
 
-    const roleText = getUserRoleNames(user).join(" ").toLowerCase();
+     If there is no user with required DB role,
+     dropdown stays empty.
+  ======================================================= */
 
-    return (
-      getDisplayName(user).toLowerCase().includes(search) ||
-      String(user.email || "")
-        .toLowerCase()
-        .includes(search) ||
-      getDisplayDesignation(user).toLowerCase().includes(search) ||
-      getDisplayDepartment(user).toLowerCase().includes(search) ||
-      roleText.includes(search)
-    );
-  });
+  const renderUserOptions = (users: AdminUser[], emptyText: string) => {
+    if (users.length === 0) {
+      return <option value="">{emptyText}</option>;
+    }
+
+    return users.map((user) => (
+      <option key={user.id} value={getDisplayName(user)}>
+        {getDisplayName(user)}
+      </option>
+    ));
+  };
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-8">
-      {/* Toast Alert */}
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      {/* =====================================================
+          TOAST
+      ===================================================== */}
+
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-emerald-500/50 flex items-center gap-3 animate-bounce">
+        <div className="fixed top-5 right-5 z-[200] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-emerald-500/50 flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-emerald-400" />
+
           <span className="text-xs font-bold">{toastMessage}</span>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5 min-h-[140px]">
-        <div className="absolute top-0 right-0 w-80 h-full bg-emerald-500/5 pointer-events-none blur-2xl" />
-        <div className="space-y-1.5 max-w-2xl min-w-0 flex-1 z-10 relative">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
-              <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access
-              Management Portal
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
+      <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md flex flex-col sm:flex-row justify-between gap-5">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <BadgeCheck className="w-3.5 h-3.5" />
+              Access Management Portal
             </span>
-            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+
+            <span className="text-xs text-slate-400">
               • Wildlife Institute of India
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
+
+          <h1 className="text-2xl font-extrabold">
             Central Governance & Master Data Control
           </h1>
-          <p className="text-xs text-slate-300 leading-relaxed max-w-xl block">
-            Complete administrative control over User Roles & Accounts,
-            Facilities Master, Services Master, system parameters, and emergency
-            overrides.
+
+          <p className="text-xs text-slate-300 mt-2">
+            Complete administrative control over Users, Facilities, Services and
+            system parameters.
           </p>
         </div>
 
-        {/* Quick System Status Badges */}
-        <div className="bg-slate-800/90 border border-slate-700/80 p-3.5 rounded-xl text-xs space-y-1.5 w-full sm:w-auto min-w-0 sm:min-w-[280px] shadow-xs relative z-10 shrink-0">
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-medium text-slate-400">
-              Total System Users:
-            </span>
-            <span className="font-extrabold text-white text-xs">
-              {managedUsers.length}
-            </span>
+        {/* QUICK STATISTICS */}
+
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 min-w-[260px] text-xs space-y-2">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Total System Users</span>
+
+            <b>{managedUsers.length}</b>
           </div>
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-medium text-slate-400">
-              Facilities Master:
-            </span>
-            <span className="font-extrabold text-emerald-300 text-xs">
-              {facilitiesList.length}
-            </span>
+
+          <div className="flex justify-between">
+            <span className="text-slate-400">Facilities Master</span>
+
+            <b className="text-emerald-300">{facilitiesList.length}</b>
           </div>
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-medium text-slate-400">Services Master:</span>
-            <span className="font-extrabold text-purple-300 text-xs">
-              {servicesList.length}
-            </span>
-          </div>
-          <div className="flex justify-between items-center text-slate-300 pt-1 border-t border-slate-700">
-            <span className="font-medium text-slate-400">
-              Maintenance Mode:
-            </span>
-            <span
-              className={`font-bold text-[10px] px-2 py-0.5 rounded ${
-                systemConfig.maintenanceMode
-                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-              }`}
-            >
-              {systemConfig.maintenanceMode ? "ENABLED" : "NORMAL OPERATIONAL"}
-            </span>
+
+          <div className="flex justify-between">
+            <span className="text-slate-400">Services Master</span>
+
+            <b className="text-purple-300">{servicesList.length}</b>
           </div>
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs (Strict Order: 1. Users, 2. Facilities, Labs & Services Master, 3. Override, 4. Config, 5. Audit) */}
-      <div className="relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1.5 shadow-xs overflow-hidden">
-        {/* Subtle Mobile Scroll Right Indicator Overlay */}
-        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-slate-900 to-transparent sm:hidden z-10" />
+      {/* =====================================================
+          ADMIN SUB NAVIGATION
+      ===================================================== */}
 
-        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar scroll-smooth pr-10 sm:pr-1.5 touch-pan-x">
-          {/* 1. User Roles & Accounts */}
+      <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-sm overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
           <button
             onClick={() => setActiveSubTab("users")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "users"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">1. Users ({managedUsers.length})</span>
-            <span className="hidden sm:inline">
-              1. User Roles & Accounts ({managedUsers.length})
-            </span>
+            <Users className="w-4 h-4" />
+            User Roles & Accounts ({managedUsers.length})
           </button>
 
-          {/* 2. Facilities, Labs & Services Master */}
           <button
             onClick={() => setActiveSubTab("masters")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
-              activeSubTab === "masters" ||
-              activeSubTab === "facilities" ||
-              activeSubTab === "labs" ||
-              activeSubTab === "services"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
+              activeSubTab === "masters"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">
-              2. Facilities ({facilitiesList.length + servicesList.length})
-            </span>
-            <span className="hidden sm:inline">
-              2. Facilities & Services Master (
-              {facilitiesList.length + servicesList.length})
-            </span>
+            <Building2 className="w-4 h-4" />
+            Facilities & Services ({facilitiesList.length + servicesList.length}
+            )
           </button>
 
-          {/* 3. Master Requisitions Override */}
           <button
             onClick={() => setActiveSubTab("requisitions_override")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "requisitions_override"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">
-              3. Override ({requisitions.length})
-            </span>
-            <span className="hidden sm:inline">
-              3. Access Override ({requisitions.length})
-            </span>
+            <Zap className="w-4 h-4" />
+            Access Override
           </button>
 
-          {/* 4. System Maintenance & Parameters */}
           <button
             onClick={() => setActiveSubTab("system_config")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "system_config"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">4. Config</span>
-            <span className="hidden sm:inline">4. System Maintenance</span>
+            <Sliders className="w-4 h-4" />
+            System Maintenance
           </button>
 
-          {/* 5. Global Security Audit Trail */}
           <button
             onClick={() => setActiveSubTab("audit_logs")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "audit_logs"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">5. Audit Log</span>
-            <span className="hidden sm:inline">5. Security Audit Trail</span>
+            <Activity className="w-4 h-4" />
+            Security Audit
           </button>
 
-          {/* 6. Database Schema (9 Tables) */}
           <button
             onClick={() => setActiveSubTab("database_schema")}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "database_schema"
-                ? "bg-purple-700 text-white shadow-xs"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="sm:hidden">6. Schema (9)</span>
-            <span className="hidden sm:inline">6. DB Schema (9 Tables)</span>
+            <Database className="w-4 h-4" />
+            DB Schema
           </button>
         </div>
       </div>
 
-      {/* ==================== SUB-TAB 1: USER ROLES & ACCOUNTS ==================== */}
+      {/* =====================================================
+          USERS TAB
+      ===================================================== */}
+
       {activeSubTab === "users" && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex flex-wrap justify-between items-center gap-4 mb-5">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <UserCog className="w-5 h-5 text-purple-600" />
+              <h2 className="font-extrabold text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" />
                 User Roles & Account Master Directory
               </h2>
-              <p className="text-xs text-slate-500">
-                Official designations, assigned system authority roles, and
-                access statuses for all personnel.
+
+              <p className="text-xs text-slate-500 mt-1">
+                Users displayed here come directly from the MySQL database.
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search user, email, designation, role..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+
+              <input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search user, email, role..."
+                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
             </div>
           </div>
 
-          {/* Database loading / error state */}
           {usersLoading && (
-            <div className="py-8 text-center text-xs font-semibold text-slate-500">
+            <div className="py-10 text-center text-sm text-slate-500">
               Loading users from database...
             </div>
           )}
 
-          {usersError && !usersLoading && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+          {usersError && (
+            <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
               {usersError}
             </div>
           )}
 
-          {!usersLoading && !usersError && managedUsers.length === 0 && (
-            <div className="py-10 text-center text-xs font-semibold text-slate-500">
-              No users found in the database.
+          {!usersLoading && !usersError && filteredUsers.length === 0 && (
+            <div className="py-10 text-center text-sm text-slate-500">
+              No users found in database.
             </div>
           )}
 
-          {/* Mobile Card List (< sm) */}
-          <div className="block sm:hidden space-y-3">
-            {filteredUsers.map((user) => {
-              const primaryUiRole = getUserUiRoles(user)[0] || "applicant";
-              const roleObj = OFFICIAL_ROLES.find(
-                (r) => r.id === primaryUiRole,
-              );
-              const roleBadgeColorMap: Record<string, string> = {
-                admin: "bg-purple-100 text-purple-900 border-purple-300",
-                applicant: "bg-emerald-50 text-emerald-800 border-emerald-200",
-                supervisor: "bg-indigo-50 text-indigo-800 border-indigo-200",
-                it_officer: "bg-blue-50 text-blue-800 border-blue-200",
-                section_head: "bg-cyan-50 text-cyan-800 border-cyan-200",
-                hrms_officer: "bg-purple-50 text-purple-800 border-purple-200",
-                lab_nodal: "bg-amber-50 text-amber-800 border-amber-200",
-                assoc_lab_nodal:
-                  "bg-orange-50 text-orange-800 border-orange-200",
-              };
-              const displayTitle =
-                getUserRoleNames(user).join(", ") || roleObj?.title || "User";
-              const colorClass =
-                roleBadgeColorMap[primaryUiRole] ||
-                "bg-slate-100 text-slate-800 border-slate-200";
+          {!usersLoading && !usersError && filteredUsers.length > 0 && (
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-3">User & Email</th>
 
-              const displayName = getDisplayName(user);
-              const displayEmail = String(user.email || "—");
-              const displayDesignation = getDisplayDesignation(user);
-              const displayDept = getDisplayDepartment(user);
-              const displayIntercom = getDisplayIntercom(user);
+                    <th className="p-3">Designation & Department</th>
 
-              return (
-                <div
-                  key={user.id}
-                  className="p-3.5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-full ${
-                          roleObj?.avatarColor || "bg-slate-700"
-                        } text-white font-bold flex items-center justify-center shrink-0 text-sm`}
-                      >
-                        {displayName !== "—"
-                          ? displayName.charAt(0).toUpperCase()
-                          : "U"}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-xs truncate">
-                          {displayName}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-mono truncate">
-                          {displayEmail}
-                        </div>
-                      </div>
-                    </div>
+                    <th className="p-3">Assigned Roles</th>
 
-                    <button
-                      onClick={() => handleToggleStatus(user.id)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shrink-0 transition-all cursor-pointer ${
-                        user.status === "active"
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                          : "bg-red-100 text-red-800 border border-red-300"
-                      }`}
-                    >
-                      {user.status || "ACTIVE"}
-                    </button>
-                  </div>
+                    <th className="p-3">Status</th>
 
-                  <div className="text-[11px] space-y-1 bg-white p-2.5 rounded-lg border border-slate-200/80">
-                    <div>
-                      <span className="font-semibold text-slate-500">
-                        Designation:
-                      </span>{" "}
-                      <span className="font-bold text-slate-800">
-                        {displayDesignation}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-500">
-                        Department:
-                      </span>{" "}
-                      <span className="text-slate-700">{displayDept}</span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-500">
-                        Intercom:
-                      </span>{" "}
-                      <span className="font-mono text-slate-700">
-                        {displayIntercom}
-                      </span>
-                    </div>
-                  </div>
+                    <th className="p-3">Intercom</th>
 
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <span
-                      className={`inline-block text-[11px] font-bold px-2.5 py-1 rounded-lg border shadow-2xs ${colorClass}`}
-                    >
-                      {/* =====================================================
-    ASSIGNED ROLES
-    A user can have multiple roles.
-===================================================== */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {Array.isArray(user.roles) && user.roles.length > 0 ? (
-                          user.roles.map((role: any) => (
-                            <span
-                              key={role.id}
-                              className="inline-flex items-center px-2.5 py-1 rounded-lg border
-                   bg-purple-50 text-purple-800 border-purple-200
-                   text-[11px] font-bold"
-                            >
-                              {role.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            No role assigned
-                          </span>
-                        )}
-                      </div>
-                    </span>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setEditingUser(user)}
-                        className="p-1.5 text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                        title="Edit Master Record"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" /> Edit
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                        title="Delete Master Record"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop Table View (≥ sm) */}
-          <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl relative">
-            <table className="w-full min-w-[650px] text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="p-3">User & Email</th>
-                  <th className="p-3">Designation & Dept</th>
-                  <th className="p-3">Assigned Role</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Intercom</th>
-                  <th className="p-3 text-right sticky right-0 bg-slate-50 z-10 border-l border-slate-200/80 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
-                    Master Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((user) => {
-                  const primaryUiRole = getUserUiRoles(user)[0] || "applicant";
-                  const roleObj = OFFICIAL_ROLES.find(
-                    (r) => r.id === primaryUiRole,
-                  );
-                  const roleBadgeColorMap: Record<string, string> = {
-                    admin: "bg-purple-100 text-purple-900 border-purple-300",
-                    applicant:
-                      "bg-emerald-50 text-emerald-800 border-emerald-200",
-                    supervisor:
-                      "bg-indigo-50 text-indigo-800 border-indigo-200",
-                    it_officer: "bg-blue-50 text-blue-800 border-blue-200",
-                    section_head: "bg-cyan-50 text-cyan-800 border-cyan-200",
-                    hrms_officer:
-                      "bg-purple-50 text-purple-800 border-purple-200",
-                    lab_nodal: "bg-amber-50 text-amber-800 border-amber-200",
-                    assoc_lab_nodal:
-                      "bg-orange-50 text-orange-800 border-orange-200",
-                  };
-
-                  const displayTitle =
-                    getUserRoleNames(user).join(", ") ||
-                    roleObj?.title ||
-                    "User";
-                  const colorClass =
-                    roleBadgeColorMap[primaryUiRole] ||
-                    "bg-slate-100 text-slate-800 border-slate-200";
-
-                  const displayName = getDisplayName(user);
-                  const displayEmail = String(user.email || "—");
-                  const displayDesignation = getDisplayDesignation(user);
-                  const displayDept = getDisplayDepartment(user);
-                  const displayIntercom = getDisplayIntercom(user);
-
-                  return (
-                    <tr
-                      key={user.id}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
+                <tbody className="divide-y">
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-slate-50">
                       <td className="p-3">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`w-8 h-8 rounded-full ${
-                              roleObj?.avatarColor || "bg-slate-700"
-                            } text-white font-bold flex items-center justify-center shrink-0`}
-                          >
-                            {displayName !== "—"
-                              ? displayName.charAt(0).toUpperCase()
-                              : "U"}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900">
-                              {displayName}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              {displayEmail}
-                            </div>
-                          </div>
+                        <div className="font-bold text-slate-900">
+                          {getDisplayName(user)}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500">
+                          {user.email || "—"}
                         </div>
                       </td>
 
-                      <td className="p-3 max-w-[220px]">
-                        <div className="font-semibold text-slate-800">
-                          {displayDesignation}
+                      <td className="p-3">
+                        <div className="font-semibold">
+                          {user.designation || "—"}
                         </div>
-                        <div
-                          className="text-[11px] text-slate-500 truncate"
-                          title={displayDept}
-                        >
-                          {displayDept}
+
+                        <div className="text-[11px] text-slate-500">
+                          {user.department || "—"}
+                        </div>
+                      </td>
+
+                      <td className="p-3">
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(user.roles) &&
+                            user.roles.map((role) => (
+                              <span
+                                key={role.id}
+                                className="px-2 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-800 font-bold"
+                              >
+                                {role.name}
+                              </span>
+                            ))}
                         </div>
                       </td>
 
                       <td className="p-3">
                         <span
-                          className={`inline-block text-xs font-bold px-3 py-1.5 rounded-lg border shadow-2xs ${colorClass}`}
+                          className={`px-2 py-1 rounded text-[10px] font-bold ${
+                            String(user.status).toLowerCase() === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                         >
-                          {displayTitle}
+                          {String(user.status || "inactive").toUpperCase()}
                         </span>
                       </td>
 
+                      <td className="p-3 font-mono">
+                        {user.intercomExtension || user.intercom || "—"}
+                      </td>
+
                       <td className="p-3">
-                        <button
-                          onClick={() => handleToggleStatus(user.id)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
-                            user.status === "active"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              : "bg-red-100 text-red-800 border border-red-300"
-                          }`}
-                        >
-                          {user.status || "ACTIVE"}
-                        </button>
-                      </td>
-
-                      <td className="p-3 font-mono text-slate-600">
-                        {displayIntercom}
-                      </td>
-
-                      <td className="p-3 text-right sticky right-0 bg-white z-10 border-l border-slate-200/80 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex justify-end gap-2">
                           <button
                             onClick={() => setEditingUser(user)}
-                            className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Master Record"
+                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                            title="Edit User Roles"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
 
                           <button
                             onClick={() => handleDeleteUser(user.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Master Record"
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                            title="Delete User"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ==================== SUB-TAB 2: INTEGRATED FACILITIES & SERVICES MASTER ==================== */}
-      {(activeSubTab === "masters" ||
-        activeSubTab === "facilities" ||
-        activeSubTab === "labs" ||
-        activeSubTab === "services") && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+      {/* =====================================================
+          FACILITIES + SERVICES MASTER
+      ===================================================== */}
+
+      {activeSubTab === "masters" && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-8">
+          {/* MASTER HEADER */}
+
+          <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <h2 className="font-extrabold text-slate-900 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-purple-600" />
                 Facilities & Services Master Directory
               </h2>
-              <p className="text-xs text-slate-500">
-                Central management directory for official research facilities,
-                nodal officers, supervisors, and institutional services.
+
+              <p className="text-xs text-slate-500 mt-1">
+                All records below are loaded directly from MySQL database.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-2">
               <button
                 onClick={() => setIsAddFacilityModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer"
+                className="flex items-center gap-2 px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
+                <PlusCircle className="w-4 h-4" />
                 Add Facility
               </button>
+
               <button
                 onClick={() => setIsAddServiceModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer"
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
+                <PlusCircle className="w-4 h-4" />
                 Add Service
               </button>
             </div>
           </div>
 
-          {/* SECTION 1: FACILITIES MASTER */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          {/* =================================================
+              FACILITIES
+          ================================================= */}
+
+          <section>
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-purple-600" />
                 Facilities Master Register
-                <span className="bg-purple-100 text-purple-800 text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full">
+                <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-[10px]">
                   {facilitiesList.length} Total
                 </span>
               </h3>
+
+              <button
+                onClick={fetchFacilities}
+                className="text-xs text-purple-700 font-bold hover:underline"
+              >
+                Refresh
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {facilitiesList.map((fac) => (
-                <div
-                  key={fac.id}
-                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-purple-300 transition-all space-y-3"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <span className="text-[10px] font-mono font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
-                        {fac.id}
-                      </span>
-                      <h3 className="text-xs font-bold text-slate-900 mt-1">
-                        {fac.name}
-                      </h3>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 text-[10px] font-extrabold uppercase rounded ${
-                        fac.status === "active"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {fac.status}
-                    </span>
-                  </div>
+            {facilitiesLoading && (
+              <div className="py-8 text-center text-xs text-slate-500">
+                Loading facilities...
+              </div>
+            )}
 
-                  <div className="text-xs text-slate-600 space-y-1">
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Nodal Officer:
-                      </span>{" "}
-                      {fac.nodal}
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Associate Nodal Officer:
-                      </span>{" "}
-                      {fac.assocNodal}
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Supervisor:
-                      </span>{" "}
-                      {fac.supervisor}
-                    </div>
-                  </div>
+            {facilitiesError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">
+                {facilitiesError}
+              </div>
+            )}
 
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => {
-                        const updated = facilitiesList.map((f) =>
-                          f.id === fac.id
-                            ? {
-                                ...f,
-                                status:
-                                  f.status === "active"
-                                    ? ("inactive" as const)
-                                    : ("active" as const),
-                              }
-                            : f,
-                        );
-                        saveFacilitiesToStorage(updated);
-                        showToast(`Facility status updated for ${fac.name}`);
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-semibold bg-slate-200 hover:bg-slate-300 rounded text-slate-700 cursor-pointer"
-                    >
-                      Toggle Status
-                    </button>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditingFacility(fac)}
-                        className="px-2 py-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded border border-purple-200 flex items-center gap-1 cursor-pointer"
-                        title="Edit Facility"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteFacility(fac.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                        title="Delete Facility"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
+            {!facilitiesLoading &&
+              !facilitiesError &&
+              facilitiesList.length === 0 && (
+                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
+                  No facilities found in database.
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION 2: SERVICES MASTER */}
-          <div className="space-y-4 pt-4 border-t border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-emerald-600" />
-                Services Master Directory
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full">
-                  {servicesList.length} Total
-                </span>
-              </h3>
-            </div>
+              )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {servicesList.map((srv) => (
+              {facilitiesList.map((facility) => (
                 <div
-                  key={srv.id}
-                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all space-y-3"
+                  key={facility.id}
+                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-purple-300 transition-all"
                 >
-                  <div className="flex justify-between items-start gap-2">
+                  <div className="flex justify-between gap-2">
                     <div>
-                      <span className="text-[10px] font-mono font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                        {srv.id}
+                      <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                        {facility.id}
                       </span>
-                      <h3 className="text-xs font-bold text-slate-900 mt-1">
-                        {srv.name}
+
+                      <h3 className="font-bold text-slate-900 text-sm mt-2">
+                        {facility.name}
                       </h3>
                     </div>
+
                     <span
-                      className={`px-2 py-0.5 text-[10px] font-extrabold uppercase rounded ${
-                        srv.status === "active"
+                      className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                        facility.status === "active"
                           ? "bg-emerald-100 text-emerald-800"
-                          : "bg-red-100 text-red-800"
+                          : facility.status === "maintenance"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {srv.status}
+                      {facility.status}
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-600 space-y-1">
+                  {/* FACILITY INFORMATION */}
+
+                  <div className="mt-3 text-xs text-slate-600 space-y-1.5">
                     <div>
-                      <span className="font-semibold text-slate-700">
-                        Manager:
-                      </span>{" "}
-                      {srv.manager}
+                      <b>Nodal Officer:</b> {facility.nodal || "—"}
                     </div>
-                    {srv.quota && (
-                      <div>
-                        <span className="font-semibold text-slate-700">
-                          Quota / Specs:
-                        </span>{" "}
-                        {srv.quota}
-                      </div>
+
+                    <div>
+                      <b>Associate Nodal:</b> {facility.assocNodal || "—"}
+                    </div>
+
+                    <div>
+                      <b>Supervisor:</b> {facility.supervisor || "—"}
+                    </div>
+
+                    {facility.desc && (
+                      <div className="pt-1 text-slate-500">{facility.desc}</div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
+                  {/* ACTIONS */}
+
+                  <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
                     <button
-                      onClick={() => {
-                        const updated = servicesList.map((s) =>
-                          s.id === srv.id
-                            ? {
-                                ...s,
-                                status:
-                                  s.status === "active"
-                                    ? ("inactive" as const)
-                                    : ("active" as const),
-                              }
-                            : s,
-                        );
-                        saveServicesToStorage(updated);
-                        showToast(`Service status updated for ${srv.name}`);
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-semibold bg-slate-200 hover:bg-slate-300 rounded text-slate-700 cursor-pointer"
+                      onClick={() => handleToggleFacilityStatus(facility)}
+                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
                     >
                       Toggle Status
                     </button>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex gap-1">
                       <button
-                        onClick={() => setEditingService(srv)}
-                        className="px-2 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
-                        title="Edit Service"
+                        onClick={() => setEditingFacility(facility)}
+                        className="p-2 text-purple-700 hover:bg-purple-50 rounded"
+                        title="Edit Facility"
                       >
-                        <Edit3 className="w-3 h-3" />
-                        Edit
+                        <Edit3 className="w-4 h-4" />
                       </button>
+
                       <button
-                        onClick={() => handleDeleteService(srv.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                        title="Delete Service"
+                        onClick={() => handleDeleteFacility(facility.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                        title="Delete Facility"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
+
+          {/* =================================================
+              SERVICES
+          ================================================= */}
+
+          <section className="border-t border-slate-200 pt-6">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-emerald-600" />
+                Services Master Directory
+                <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">
+                  {servicesList.length} Total
+                </span>
+              </h3>
+
+              <button
+                onClick={fetchServices}
+                className="text-xs text-emerald-700 font-bold hover:underline"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {servicesLoading && (
+              <div className="py-8 text-center text-xs text-slate-500">
+                Loading services...
+              </div>
+            )}
+
+            {servicesError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">
+                {servicesError}
+              </div>
+            )}
+
+            {!servicesLoading &&
+              !servicesError &&
+              servicesList.length === 0 && (
+                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
+                  No services found in database.
+                </div>
+              )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {servicesList.map((service) => (
+                <div
+                  key={service.id}
+                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all"
+                >
+                  <div className="flex justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                        {service.id}
+                      </span>
+
+                      <h3 className="font-bold text-slate-900 text-sm mt-2">
+                        {service.name}
+                      </h3>
+                    </div>
+
+                    <span
+                      className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                        service.status === "active"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {service.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 text-xs text-slate-600 space-y-1.5">
+                    <div>
+                      <b>Manager:</b> {service.manager || "—"}
+                    </div>
+
+                    <div>
+                      <b>Quota / Access:</b> {service.quota || "—"}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
+                    <button
+                      onClick={() => handleToggleServiceStatus(service)}
+                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
+                    >
+                      Toggle Status
+                    </button>
+
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setEditingService(service)}
+                        className="p-2 text-emerald-700 hover:bg-emerald-50 rounded"
+                        title="Edit Service"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteService(service.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                        title="Delete Service"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       )}
 
-      {/* ==================== SUB-TAB 5: REQUISITIONS OVERRIDE ==================== */}
-      {activeSubTab === "requisitions_override" && (
-        <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-6 shadow-xs space-y-4 min-w-0 overflow-hidden">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3 min-w-0">
-            <div>
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2 min-w-0">
-                <Zap className="w-5 h-5 text-purple-600 shrink-0" />
-                <span className="truncate">
-                  Admin Master Approval Overrides
-                </span>
-              </h2>
-              <p className="text-xs text-slate-500">
-                Directly force-approve, force-reject, or modify any submitted
-                access request regardless of its current workflow stage.
-              </p>
-            </div>
-          </div>
+      {/* =====================================================
+          ACCESS OVERRIDE
+      ===================================================== */}
 
-          <div className="space-y-3 min-w-0">
-            {requisitions.map((req, idx) => (
+      {activeSubTab === "requisitions_override" && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h2 className="font-extrabold flex items-center gap-2 mb-4">
+            <Zap className="w-5 h-5 text-purple-600" />
+            Admin Master Approval Overrides
+          </h2>
+
+          <div className="space-y-3">
+            {requisitions.map((req) => (
               <div
-                key={`${req.id}-${idx}`}
-                className="p-3.5 sm:p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 min-w-0 overflow-hidden"
+                key={req.id}
+                className="border border-slate-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4"
               >
-                <div className="space-y-1.5 min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
-                    <span className="font-extrabold text-slate-900 text-xs shrink-0">
-                      #{req.id}
-                    </span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded shrink-0">
-                      {req.type}
-                    </span>
-                    <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[10px] font-bold rounded uppercase break-all max-w-full">
-                      Status: {req.status}
-                    </span>
+                <div>
+                  <b>#{req.id}</b>
+
+                  <div className="text-xs text-slate-500 mt-1">
+                    {req.applicant?.applicantName || "Applicant"}
                   </div>
-                  <div className="text-xs font-bold text-slate-800 truncate">
-                    {req.applicant.applicantName}
-                  </div>
-                  <div className="text-[11px] text-slate-500 break-words leading-relaxed">
-                    Dept: {req.applicant.departmentCellProject} • PI:{" "}
-                    {req.applicant.supervisingOfficerName}
+
+                  <div className="text-[11px] text-slate-500">
+                    Status: {req.status}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/80 w-full sm:w-auto justify-end">
+                <div className="flex gap-2">
                   <button
                     onClick={() => handleForceApprove(req)}
                     disabled={req.status === "approved_provisioned"}
-                    className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      req.status === "approved_provisioned"
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                    }`}
+                    className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:bg-slate-300"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    Force Approve
+                    <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                    Approve
                   </button>
 
                   <button
                     onClick={() => handleForceReject(req)}
                     disabled={req.status === "rejected"}
-                    className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      req.status === "rejected"
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        : "bg-red-600 hover:bg-red-700 text-white shadow-xs"
-                    }`}
+                    className="px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-bold disabled:bg-slate-300"
                   >
-                    <XCircle className="w-3.5 h-3.5 shrink-0" />
-                    Force Reject
+                    <XCircle className="w-4 h-4 inline mr-1" />
+                    Reject
                   </button>
                 </div>
               </div>
@@ -1434,83 +1772,81 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* ==================== SUB-TAB 6: SYSTEM MAINTENANCE ==================== */}
+      {/* =====================================================
+          SYSTEM CONFIG
+      ===================================================== */}
+
       {activeSubTab === "system_config" && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h2 className="font-extrabold flex items-center gap-2 border-b border-slate-200 pb-3">
             <Sliders className="w-5 h-5 text-purple-600" />
-            System Governance & Maintenance Parameters
+            System Governance & Maintenance
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-            {/* Maintenance Mode Card */}
-            <div className="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3">
+          <div className="grid md:grid-cols-2 gap-5 mt-5">
+            <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-900">
-                  Maintenance Mode Switch
-                </span>
+                <b className="text-sm">Maintenance Mode</b>
+
                 <button
-                  onClick={() => {
-                    setSystemConfig({
-                      ...systemConfig,
-                      maintenanceMode: !systemConfig.maintenanceMode,
-                    });
-                    showToast(`Maintenance mode toggled.`);
-                  }}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  onClick={() =>
+                    setSystemConfig((current) => ({
+                      ...current,
+                      maintenanceMode: !current.maintenanceMode,
+                    }))
+                  }
+                  className={`px-3 py-1 rounded-lg text-xs font-bold ${
                     systemConfig.maintenanceMode
                       ? "bg-red-600 text-white"
-                      : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      : "bg-slate-200 text-slate-700"
                   }`}
                 >
                   {systemConfig.maintenanceMode ? "ENABLED" : "DISABLED"}
                 </button>
               </div>
-              <p className="text-slate-500 text-[11px]">
-                When enabled, non-admin users will see a system maintenance
-                alert notice.
+
+              <p className="text-[11px] text-slate-500 mt-2">
+                Maintenance mode can be used for system maintenance.
               </p>
             </div>
 
-            {/* Emergency Approval Bypass */}
-            <div className="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3">
+            <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-900">
-                  Emergency Approval Fast-Track
-                </span>
+                <b className="text-sm">Emergency Approval</b>
+
                 <button
-                  onClick={() => {
-                    setSystemConfig({
-                      ...systemConfig,
-                      emergencyApprovalBypass:
-                        !systemConfig.emergencyApprovalBypass,
-                    });
-                    showToast(`Emergency bypass toggled.`);
-                  }}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  onClick={() =>
+                    setSystemConfig((current) => ({
+                      ...current,
+                      emergencyApprovalBypass: !current.emergencyApprovalBypass,
+                    }))
+                  }
+                  className={`px-3 py-1 rounded-lg text-xs font-bold ${
                     systemConfig.emergencyApprovalBypass
                       ? "bg-amber-600 text-white"
-                      : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      : "bg-slate-200 text-slate-700"
                   }`}
                 >
                   {systemConfig.emergencyApprovalBypass ? "ACTIVE" : "INACTIVE"}
                 </button>
               </div>
-              <p className="text-slate-500 text-[11px]">
-                Allows urgent requisitions to auto-bypass step 1 PI review
-                during field expeditions.
-              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ==================== SUB-TAB 5: SECURITY AUDIT TRAIL ==================== */}
+      {/* =====================================================
+          SECURITY AUDIT
+      ===================================================== */}
+
       {activeSubTab === "audit_logs" && (
         <SecurityAuditTrailSection managedUsers={managedUsers} />
       )}
 
-      {/* ==================== SUB-TAB 6: DATABASE SCHEMA (9 TABLES) ==================== */}
+      {/* =====================================================
+          DATABASE SCHEMA
+      ===================================================== */}
+
       {activeSubTab === "database_schema" && (
         <DatabaseSchemaSection
           managedUsersCount={managedUsers.length}
@@ -1520,182 +1856,110 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         />
       )}
 
-      {/* EDIT USER MODAL */}
+      {/* =====================================================
+          EDIT USER ROLE MODAL
+      ===================================================== */}
+
       {editingUser && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
-              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
-                <Edit3 className="w-4 h-4 text-purple-600 shrink-0" />
-                Edit Master User Record
-              </h3>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold">Edit User Roles</h3>
+
               <button
                 onClick={() => setEditingUser(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={handleSaveEditUser}
-              className="space-y-4 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
-            >
-              {/* User Identity Info Card (Read-Only) */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                <div className="font-extrabold text-slate-900 text-xs">
-                  {getDisplayName(editingUser)}
-                </div>
-                <div className="font-mono text-[11px] text-purple-700 font-semibold">
-                  {editingUser.email}
-                </div>
-                <div className="text-[11px] text-slate-600">
-                  {getDisplayDesignation(editingUser)}
-                </div>
-                <div className="text-[11px] text-slate-500 font-medium">
-                  {getDisplayDepartment(editingUser)}
+            <form onSubmit={handleSaveEditUser} className="space-y-4 mt-4">
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <b>{getDisplayName(editingUser)}</b>
+
+                <div className="text-xs text-slate-500">
+                  {editingUser.email || "—"}
                 </div>
               </div>
 
-              {/* Editable Field 1: System Role */}
               <div>
-                <label className="block font-extrabold text-slate-800 mb-1">
-                  System Role
+                <label className="font-bold text-xs">
+                  Assigned System Roles
                 </label>
-                {/* =====================================================
-    ASSIGNED SYSTEM ROLES
-    Admin can assign multiple roles to one user.
-===================================================== */}
-                <div>
-                  <label className="block font-extrabold text-slate-800 mb-2">
-                    Assigned System Roles
-                  </label>
 
-                  <div className="border border-slate-200 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto">
-                    {[
-                      { id: 1, code: "user", name: "User" },
-                      {
-                        id: 2,
-                        code: "reporting_manager",
-                        name: "Reporting Manager / Supervisor (P)",
-                      },
-                      {
-                        id: 3,
-                        code: "nodal_officer",
-                        name: "Nodal Officer",
-                      },
-                      {
-                        id: 4,
-                        code: "associate_nodal_officer",
-                        name: "Associate Nodal Officer",
-                      },
-                      {
-                        id: 5,
-                        code: "it_head",
-                        name: "IT Head",
-                      },
-                      {
-                        id: 6,
-                        code: "manager",
-                        name: "Manager",
-                      },
-                      {
-                        id: 7,
-                        code: "supervisor",
-                        name: "Supervisor",
-                      },
-                      {
-                        id: 8,
-                        code: "administrator",
-                        name: "Administrator",
-                      },
-                    ].map((role) => {
-                      const isAssigned = Array.isArray(editingUser.roles)
-                        ? editingUser.roles.some((r: any) => r.id === role.id)
-                        : false;
+                <div className="border border-slate-200 rounded-xl mt-2 p-3 space-y-1">
+                  {SYSTEM_ROLES.map((role) => {
+                    const assigned =
+                      Array.isArray(editingUser.roles) &&
+                      editingUser.roles.some((r) => Number(r.id) === role.id);
 
-                      return (
-                        <label
-                          key={role.id}
-                          className="flex items-center gap-3 p-2.5 rounded-lg
-                     hover:bg-slate-50 cursor-pointer border
-                     border-transparent hover:border-slate-200"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isAssigned}
-                            onChange={(e) => {
-                              const currentRoles = Array.isArray(
-                                editingUser.roles,
-                              )
-                                ? editingUser.roles
-                                : [];
+                    return (
+                      <label
+                        key={role.id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assigned}
+                          disabled={role.id === 1}
+                          onChange={(event) => {
+                            const currentRoles = Array.isArray(
+                              editingUser.roles,
+                            )
+                              ? editingUser.roles
+                              : [];
 
-                              if (e.target.checked) {
-                                setEditingUser({
-                                  ...editingUser,
-
-                                  roles: [
-                                    ...currentRoles,
-                                    {
-                                      id: role.id,
-                                      code: role.code,
-                                      name: role.name,
-                                    },
-                                  ],
-                                });
-                              } else {
-                                setEditingUser({
-                                  ...editingUser,
-
-                                  roles: currentRoles.filter(
-                                    (r: any) => r.id !== role.id,
-                                  ),
-                                });
+                            if (event.target.checked) {
+                              if (
+                                currentRoles.some(
+                                  (r) => Number(r.id) === role.id,
+                                )
+                              ) {
+                                return;
                               }
-                            }}
-                            className="w-4 h-4 accent-purple-700"
-                          />
 
-                          <span className="font-semibold text-slate-800">
-                            {role.name}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                              setEditingUser({
+                                ...editingUser,
+
+                                roles: [...currentRoles, role],
+                              });
+                            } else {
+                              setEditingUser({
+                                ...editingUser,
+
+                                roles: currentRoles.filter(
+                                  (r) => Number(r.id) !== role.id,
+                                ),
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 accent-purple-700"
+                        />
+
+                        <span className="text-xs font-semibold">
+                          {role.name}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Editable Field 2: Intercom Number */}
-              <div>
-                <label className="block font-extrabold text-slate-800 mb-1">
-                  Intercom Extension Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 101"
-                  value={editingUser.intercom || ""}
-                  onChange={(e) =>
-                    setEditingUser({ ...editingUser, intercom: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-mono text-xs font-bold text-slate-800 focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
                 <button
                   type="button"
                   onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-700 text-white rounded-lg font-bold shadow-xs hover:bg-purple-800 cursor-pointer"
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
                 >
-                  Save Master User
+                  Save Roles
                 </button>
               </div>
             </form>
@@ -1703,175 +1967,132 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* ADD FACILITY MODAL */}
+      {/* =====================================================
+          ADD FACILITY MODAL
+          -----------------------------------------------------
+          DEPARTMENT REMOVED
+      ===================================================== */}
+
       {isAddFacilityModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
-              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
-                <Building2 className="w-4 h-4 text-purple-600 shrink-0" />
-                Add New Facility Master
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-purple-600" />
+                Add New Facility
               </h3>
+
               <button
                 onClick={() => setIsAddFacilityModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newFacility.name) return;
-                const id = `FAC-0${facilitiesList.length + 1}`;
-                const updated = [
-                  ...facilitiesList,
-                  {
-                    id,
-                    name: newFacility.name,
-                    nodal: newFacility.nodal || "Dr. S. K. Gupta",
-                    assocNodal: newFacility.assocNodal || "Dr. Neha Verma",
-                    supervisor: newFacility.supervisor || "Er. Vikas Mehta",
-                    dept: newFacility.dept || "Research Cell",
-                    desc:
-                      newFacility.desc ||
-                      "Research equipment & instrument access",
-                    status: "active" as const,
-                  },
-                ];
-                saveFacilitiesToStorage(updated);
-                setIsAddFacilityModalOpen(false);
-                setNewFacility({
-                  name: "",
-                  nodal: "",
-                  assocNodal: "",
-                  supervisor: "",
-                  dept: "",
-                  desc: "",
-                });
-                showToast(`New facility added: ${newFacility.name}`);
-              }}
-              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
-            >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Facility Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Wildlife Genetics & Genomics Facility"
-                  value={newFacility.name}
-                  onChange={(e) =>
-                    setNewFacility({ ...newFacility, name: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <form onSubmit={handleAddFacility} className="space-y-3 mt-4">
+              {/* Facility Name */}
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Nodal Officer
-                </label>
-                <select
-                  required
-                  value={newFacility.nodal}
-                  onChange={(e) =>
-                    setNewFacility({ ...newFacility, nodal: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Nodal Officer --</option>
-                  {nodalOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {newFacility.nodal &&
-                    !nodalOptions.some((u) => u.name === newFacility.nodal) && (
-                      <option value={newFacility.nodal}>
-                        {newFacility.nodal}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <input
+                required
+                placeholder="Facility Name"
+                value={newFacility.name}
+                onChange={(e) =>
+                  setNewFacility({
+                    ...newFacility,
+                    name: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Associate Nodal Officer
-                </label>
-                <select
-                  required
-                  value={newFacility.assocNodal}
-                  onChange={(e) =>
-                    setNewFacility({
-                      ...newFacility,
-                      assocNodal: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Associate Nodal Officer --</option>
-                  {assocNodalOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {newFacility.assocNodal &&
-                    !assocNodalOptions.some(
-                      (u) => u.name === newFacility.assocNodal,
-                    ) && (
-                      <option value={newFacility.assocNodal}>
-                        {newFacility.assocNodal}
-                      </option>
-                    )}
-                </select>
-              </div>
+              {/* Nodal Officer */}
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Supervisor
-                </label>
-                <select
-                  required
-                  value={newFacility.supervisor}
-                  onChange={(e) =>
-                    setNewFacility({
-                      ...newFacility,
-                      supervisor: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Supervisor --</option>
-                  {supervisorOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {newFacility.supervisor &&
-                    !supervisorOptions.some(
-                      (u) => u.name === newFacility.supervisor,
-                    ) && (
-                      <option value={newFacility.supervisor}>
-                        {newFacility.supervisor}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <select
+                required
+                value={newFacility.nodal}
+                onChange={(e) =>
+                  setNewFacility({
+                    ...newFacility,
+                    nodal: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              >
+                <option value="">Select Nodal Officer</option>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                {renderUserOptions(nodalOptions, "No Nodal Officer available")}
+              </select>
+
+              {/* Associate Nodal Officer */}
+
+              <select
+                required
+                value={newFacility.assocNodal}
+                onChange={(e) =>
+                  setNewFacility({
+                    ...newFacility,
+                    assocNodal: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              >
+                <option value="">Select Associate Nodal Officer</option>
+
+                {renderUserOptions(
+                  assocNodalOptions,
+                  "No Associate Nodal Officer available",
+                )}
+              </select>
+
+              {/* Supervisor */}
+
+              <select
+                required
+                value={newFacility.supervisor}
+                onChange={(e) =>
+                  setNewFacility({
+                    ...newFacility,
+                    supervisor: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              >
+                <option value="">Select Supervisor</option>
+
+                {renderUserOptions(
+                  supervisorOptions,
+                  "No Supervisor available",
+                )}
+              </select>
+
+              {/* Description */}
+
+              <textarea
+                placeholder="Description"
+                value={newFacility.desc}
+                onChange={(e) =>
+                  setNewFacility({
+                    ...newFacility,
+                    desc: e.target.value,
+                  })
+                }
+                rows={3}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsAddFacilityModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer hover:bg-slate-200"
+                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-700 text-white rounded-xl font-bold shadow-xs hover:bg-purple-800 cursor-pointer"
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
                 >
                   Create Facility
                 </button>
@@ -1881,116 +2102,87 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* ADD SERVICE MODAL */}
+      {/* =====================================================
+          ADD SERVICE MODAL
+      ===================================================== */}
+
       {isAddServiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b pb-3 shrink-0 min-w-0">
-              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2 truncate">
-                <Wrench className="w-4 h-4 text-emerald-600 shrink-0" />
-                Add New Service Master
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-emerald-600" />
+                Add New Service
               </h3>
+
               <button
                 onClick={() => setIsAddServiceModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newService.name) return;
-                const id = `SRV-0${servicesList.length + 1}`;
-                const updated = [
-                  ...servicesList,
-                  {
-                    id,
-                    name: newService.name,
-                    manager: newService.manager || "Mr. Dinesh Singh Pundir",
-                    quota: newService.quota || "Standard Quota",
-                    status: "active" as const,
-                  },
-                ];
-                saveServicesToStorage(updated);
-                setIsAddServiceModalOpen(false);
-                setNewService({ name: "", manager: "", quota: "" });
-                showToast(`New service added: ${newService.name}`);
-              }}
-              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
-            >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Service Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Institutional Webmail (@wii.gov.in)"
-                  value={newService.name}
-                  onChange={(e) =>
-                    setNewService({ ...newService, name: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+            <form onSubmit={handleAddService} className="space-y-3 mt-4">
+              {/* Service Name */}
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Manager
-                </label>
-                <select
-                  required
-                  value={newService.manager}
-                  onChange={(e) =>
-                    setNewService({ ...newService, manager: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                >
-                  <option value="">-- Select Manager --</option>
-                  {managerOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {newService.manager &&
-                    !managerOptions.some(
-                      (u) => u.name === newService.manager,
-                    ) && (
-                      <option value={newService.manager}>
-                        {newService.manager}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <input
+                required
+                placeholder="Service Name"
+                value={newService.name}
+                onChange={(e) =>
+                  setNewService({
+                    ...newService,
+                    name: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Quota / Access Specs
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 10 GB / user or Slot Basis"
-                  value={newService.quota}
-                  onChange={(e) =>
-                    setNewService({ ...newService, quota: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+              {/* Manager */}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <select
+                required
+                value={newService.manager}
+                onChange={(e) =>
+                  setNewService({
+                    ...newService,
+                    manager: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              >
+                <option value="">Select Manager</option>
+
+                {renderUserOptions(managerOptions, "No Manager available")}
+              </select>
+
+              {/* Quota / Access */}
+
+              <input
+                placeholder="Quota / Access Specifications"
+                value={newService.quota}
+                onChange={(e) =>
+                  setNewService({
+                    ...newService,
+                    quota: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsAddServiceModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer hover:bg-slate-200"
+                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-700 text-white rounded-xl font-bold shadow-xs hover:bg-emerald-800 cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"
                 >
                   Create Service
                 </button>
@@ -2000,175 +2192,134 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* EDIT FACILITY MODAL */}
+      {/* =====================================================
+          EDIT FACILITY MODAL
+      ===================================================== */}
+
       {editingFacility && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="p-2 bg-purple-100 text-purple-700 rounded-lg font-mono text-xs font-bold shrink-0">
-                  {editingFacility.id}
-                </div>
-                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
-                  Edit Facility Master
-                </h3>
-              </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold">Edit Facility</h3>
+
               <button
                 onClick={() => setEditingFacility(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={handleSaveEditFacility}
-              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
-            >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Facility Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingFacility.name}
-                  onChange={(e) =>
-                    setEditingFacility({
-                      ...editingFacility,
-                      name: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <form onSubmit={handleSaveEditFacility} className="space-y-3 mt-4">
+              <input
+                required
+                value={editingFacility.name}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    name: e.target.value,
+                  })
+                }
+                placeholder="Facility Name"
+                className="w-full p-2.5 border border-slate-300 rounded-xl"
+              />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Nodal Officer
-                </label>
-                <select
-                  required
-                  value={editingFacility.nodal}
-                  onChange={(e) =>
-                    setEditingFacility({
-                      ...editingFacility,
-                      nodal: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Nodal Officer --</option>
-                  {nodalOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {editingFacility.nodal &&
-                    !nodalOptions.some(
-                      (u) => u.name === editingFacility.nodal,
-                    ) && (
-                      <option value={editingFacility.nodal}>
-                        {editingFacility.nodal}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <select
+                required
+                value={editingFacility.nodal}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    nodal: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="">Select Nodal Officer</option>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Associate Nodal Officer
-                </label>
-                <select
-                  required
-                  value={editingFacility.assocNodal}
-                  onChange={(e) =>
-                    setEditingFacility({
-                      ...editingFacility,
-                      assocNodal: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Associate Nodal Officer --</option>
-                  {assocNodalOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {editingFacility.assocNodal &&
-                    !assocNodalOptions.some(
-                      (u) => u.name === editingFacility.assocNodal,
-                    ) && (
-                      <option value={editingFacility.assocNodal}>
-                        {editingFacility.assocNodal}
-                      </option>
-                    )}
-                </select>
-              </div>
+                {renderUserOptions(nodalOptions, "No Nodal Officer available")}
+              </select>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Supervisor
-                </label>
-                <select
-                  required
-                  value={editingFacility.supervisor}
-                  onChange={(e) =>
-                    setEditingFacility({
-                      ...editingFacility,
-                      supervisor: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="">-- Select Supervisor --</option>
-                  {supervisorOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {editingFacility.supervisor &&
-                    !supervisorOptions.some(
-                      (u) => u.name === editingFacility.supervisor,
-                    ) && (
-                      <option value={editingFacility.supervisor}>
-                        {editingFacility.supervisor}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <select
+                required
+                value={editingFacility.assocNodal}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    assocNodal: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="">Select Associate Nodal Officer</option>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Status
-                </label>
-                <select
-                  value={editingFacility.status}
-                  onChange={(e) =>
-                    setEditingFacility({
-                      ...editingFacility,
-                      status: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
+                {renderUserOptions(
+                  assocNodalOptions,
+                  "No Associate Nodal Officer available",
+                )}
+              </select>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <select
+                required
+                value={editingFacility.supervisor}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    supervisor: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="">Select Supervisor</option>
+
+                {renderUserOptions(
+                  supervisorOptions,
+                  "No Supervisor available",
+                )}
+              </select>
+
+              <textarea
+                value={editingFacility.desc}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    desc: e.target.value,
+                  })
+                }
+                placeholder="Description"
+                rows={3}
+                className="w-full p-2.5 border border-slate-300 rounded-xl resize-none"
+              />
+
+              <select
+                value={editingFacility.status}
+                onChange={(e) =>
+                  setEditingFacility({
+                    ...editingFacility,
+                    status: e.target.value as FacilityStatus,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="active">Active</option>
+
+                <option value="inactive">Inactive</option>
+
+                <option value="maintenance">Maintenance</option>
+              </select>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
                 <button
                   type="button"
                   onClick={() => setEditingFacility(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-700 text-white rounded-xl font-bold shadow-xs hover:bg-purple-800 cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
                 >
                   Save Changes
                 </button>
@@ -2178,128 +2329,93 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         </div>
       )}
 
-      {/* EDIT SERVICE MODAL */}
+      {/* =====================================================
+          EDIT SERVICE MODAL
+      ===================================================== */}
+
       {editingService && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden min-w-0">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg font-mono text-xs font-bold shrink-0">
-                  {editingService.id}
-                </div>
-                <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
-                  Edit Service Master
-                </h3>
-              </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold">Edit Service</h3>
+
               <button
                 onClick={() => setEditingService(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={handleSaveEditService}
-              className="space-y-3 text-xs overflow-y-auto flex-1 min-h-0 min-w-0 pt-2"
-            >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Service Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingService.name}
-                  onChange={(e) =>
-                    setEditingService({
-                      ...editingService,
-                      name: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+            <form onSubmit={handleSaveEditService} className="space-y-3 mt-4">
+              <input
+                required
+                value={editingService.name}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    name: e.target.value,
+                  })
+                }
+                placeholder="Service Name"
+                className="w-full p-2.5 border border-slate-300 rounded-xl"
+              />
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Manager
-                </label>
-                <select
-                  required
-                  value={editingService.manager}
-                  onChange={(e) =>
-                    setEditingService({
-                      ...editingService,
-                      manager: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                >
-                  <option value="">-- Select Manager --</option>
-                  {managerOptions.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.designation || u.email})
-                    </option>
-                  ))}
-                  {editingService.manager &&
-                    !managerOptions.some(
-                      (u) => u.name === editingService.manager,
-                    ) && (
-                      <option value={editingService.manager}>
-                        {editingService.manager}
-                      </option>
-                    )}
-                </select>
-              </div>
+              <select
+                required
+                value={editingService.manager}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    manager: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="">Select Manager</option>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Quota / Access Specs
-                </label>
-                <input
-                  type="text"
-                  value={editingService.quota}
-                  onChange={(e) =>
-                    setEditingService({
-                      ...editingService,
-                      quota: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+                {renderUserOptions(managerOptions, "No Manager available")}
+              </select>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Status
-                </label>
-                <select
-                  value={editingService.status}
-                  onChange={(e) =>
-                    setEditingService({
-                      ...editingService,
-                      status: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
+              <input
+                value={editingService.quota}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    quota: e.target.value,
+                  })
+                }
+                placeholder="Quota / Access Specifications"
+                className="w-full p-2.5 border border-slate-300 rounded-xl"
+              />
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <select
+                value={editingService.status}
+                onChange={(e) =>
+                  setEditingService({
+                    ...editingService,
+                    status: e.target.value as ServiceStatus,
+                  })
+                }
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+              >
+                <option value="active">Active</option>
+
+                <option value="inactive">Inactive</option>
+              </select>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
                 <button
                   type="button"
                   onClick={() => setEditingService(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold cursor-pointer hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-700 text-white rounded-xl font-bold shadow-xs hover:bg-emerald-800 cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"
                 >
                   Save Changes
                 </button>
@@ -2311,3 +2427,5 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     </div>
   );
 };
+
+export default SuperAdminControlPanel;
