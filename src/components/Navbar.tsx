@@ -166,52 +166,88 @@ const ROLE_CAPABILITIES: Record<
     master: false,
   },
 
-  reporting_manager: {
+  user: {
     access: true,
+    requests: true,
+    master: false,
+  },
+
+  reporting_manager: {
+    access: false,
     requests: true,
     master: false,
   },
 
   nodal_officer: {
-    access: true,
+    access: false,
+    requests: true,
+    master: false,
+  },
+
+  lab_nodal: {
+    access: false,
     requests: true,
     master: false,
   },
 
   associate_nodal_officer: {
-    access: true,
+    access: false,
+    requests: true,
+    master: false,
+  },
+
+  assoc_lab_nodal: {
+    access: false,
     requests: true,
     master: false,
   },
 
   it_head: {
-    access: true,
+    access: false,
+    requests: true,
+    master: false,
+  },
+
+  it_officer: {
+    access: false,
     requests: true,
     master: false,
   },
 
   manager: {
-    access: true,
+    access: false,
+    requests: true,
+    master: false,
+  },
+
+  section_head: {
+    access: false,
     requests: true,
     master: false,
   },
 
   supervisor: {
-    access: true,
+    access: false,
+    requests: true,
+    master: false,
+  },
+
+  hrms_officer: {
+    access: false,
     requests: true,
     master: false,
   },
 
   // Frontend canonical Administrator role.
   admin: {
-    access: true,
+    access: false,
     requests: true,
     master: true,
   },
 
   // Backend alias kept for compatibility.
   administrator: {
-    access: true,
+    access: false,
     requests: true,
     master: true,
   },
@@ -300,9 +336,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   ======================================================= */
 
   const capabilities = ROLE_CAPABILITIES[currentRole] || {
-    access: true,
+    access: currentRole === "applicant" || currentRole === "user",
     requests: true,
-    master: false,
+    master: currentRole === "admin" || currentRole === "administrator",
   };
 
   /* =======================================================
@@ -454,11 +490,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             "
             onClick={() => onTabChange("dashboard")}
           >
-            <WiiLogo size="sm" />
+            <WiiLogo size="md" showSubtitle={true} />
 
             <div
               className="
-                hidden sm:block
+                hidden lg:block
                 border-l
                 border-slate-200
                 dark:border-slate-800

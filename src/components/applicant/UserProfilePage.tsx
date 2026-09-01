@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ApplicantProfile, OfficeOrderVerificationResult, UserRole } from '../../types/requisition';
+import { ApplicantProfile, UserRole } from '../../types/requisition';
 import { OFFICIAL_ROLES } from '../../data/initialData';
-import { OfficeOrderVerificationCard } from './OfficeOrderVerificationCard';
 import { recordSecurityAuditLog } from '../../utils/auditLogger';
 import {
   User,
@@ -293,75 +292,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     ...initialProfile,
   });
 
-  const [verificationResult, setVerificationResult] = useState<OfficeOrderVerificationResult | null>(() => {
-    if (initialProfile.officeOrderVerification) {
-      return initialProfile.officeOrderVerification;
-    }
-    // Default initial verified result for Ananya Sharma
-    return {
-      verifiedAt: new Date().toISOString(),
-      status: 'verified',
-      fileName: initialProfile.officeOrderFileName || 'WII_Office_Order_Engagement_2026.pdf',
-      extractedData: {
-        applicantName: initialProfile.applicantName || 'Dr. Ananya Sharma',
-        orderNumber: 'WII/ADMN/2026/ORD-891',
-        orderDate: '2026-01-25',
-        designation: initialProfile.designation || 'Senior Research Fellow',
-        departmentCellProject: initialProfile.departmentCellProject || 'Dept. of Landscape Level Planning & GIS',
-        supervisingOfficerName: initialProfile.supervisingOfficerName || 'Dr. R. K. Singh (Scientist - F / PI)',
-        dateOfJoining: initialProfile.dateOfJoining || '2026-02-01',
-        validUpTo: initialProfile.validUpTo || '2028-01-31',
-        employmentType: initialProfile.employmentType || 'Project employee',
-        monthlyEmoluments: '₹42,000/- per month + HRA',
-        extractedTextSummary: 'Official Sanction Order issued by Wildlife Institute of India sanctioning the engagement of Dr. Ananya Sharma as Senior Research Fellow under DST Project with Dr. R. K. Singh as PI.',
-      },
-      comparisons: [
-        {
-          field: 'applicantName',
-          label: 'Applicant Full Name',
-          formValue: initialProfile.applicantName || 'Dr. Ananya Sharma',
-          docValue: 'Dr. Ananya Sharma',
-          isMatch: true,
-        },
-        {
-          field: 'designation',
-          label: 'Designation / Cadre',
-          formValue: initialProfile.designation || 'Senior Research Fellow',
-          docValue: 'Senior Research Fellow',
-          isMatch: true,
-        },
-        {
-          field: 'supervisingOfficerName',
-          label: 'Supervising Officer (PI)',
-          formValue: initialProfile.supervisingOfficerName || 'Dr. R. K. Singh (Scientist - F / PI)',
-          docValue: 'Dr. R. K. Singh (Scientist - F / PI)',
-          isMatch: true,
-        },
-        {
-          field: 'departmentCellProject',
-          label: 'Department / Cell / Project',
-          formValue: initialProfile.departmentCellProject || 'Dept. of Landscape Level Planning & GIS',
-          docValue: 'Dept. of Landscape Level Planning & GIS',
-          isMatch: true,
-        },
-        {
-          field: 'validUpTo',
-          label: 'Tenure Valid Up To',
-          formValue: initialProfile.validUpTo || '2028-01-31',
-          docValue: '2028-01-31',
-          isMatch: true,
-        },
-      ],
-      hasMismatches: false,
-      mismatchCount: 0,
-      mismatchesSummary: [],
-      overallConfidence: 'OCR AI Engine Verified',
-    };
-  });
-
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaved, setIsSaved] = useState(false);
-  const [docMismatchWarning, setDocMismatchWarning] = useState<string | null>(null);
 
   const isEditable = currentRole === 'applicant' || currentRole === 'admin' || currentRole === 'super_admin';
 
@@ -389,42 +321,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     const targetProfile = SAMPLE_USER_PROFILES[userId] || SAMPLE_USER_PROFILES['USR-002'];
     setProfile(targetProfile);
     setErrors({});
-    setDocMismatchWarning(null);
-
-    // Reset verification for this selected user
-    setVerificationResult({
-      verifiedAt: new Date().toISOString(),
-      status: 'verified',
-      fileName: targetProfile.officeOrderFileName || 'WII_Sanction_Notification.pdf',
-      extractedData: {
-        applicantName: targetProfile.applicantName,
-        orderNumber: `WII/ESTT/2026/ORD-${Math.floor(100 + Math.random() * 900)}`,
-        orderDate: targetProfile.dateOfJoining || '2026-02-01',
-        designation: targetProfile.designation,
-        departmentCellProject: targetProfile.departmentCellProject,
-        supervisingOfficerName: targetProfile.supervisingOfficerName,
-        dateOfJoining: targetProfile.dateOfJoining,
-        validUpTo: targetProfile.validUpTo,
-        employmentType: targetProfile.employmentType,
-        monthlyEmoluments: 'Official Grade Fellowship',
-        extractedTextSummary: `Official notification appointing ${targetProfile.applicantName} as ${targetProfile.designation} under ${targetProfile.supervisingOfficerName}.`,
-      },
-      comparisons: [
-        { field: 'applicantName', label: 'Applicant Full Name', formValue: targetProfile.applicantName, docValue: targetProfile.applicantName, isMatch: true },
-        { field: 'designation', label: 'Designation / Cadre', formValue: targetProfile.designation, docValue: targetProfile.designation, isMatch: true },
-        { field: 'supervisingOfficerName', label: 'Supervising Officer (PI)', formValue: targetProfile.supervisingOfficerName, docValue: targetProfile.supervisingOfficerName, isMatch: true },
-        { field: 'departmentCellProject', label: 'Department / Cell / Project', formValue: targetProfile.departmentCellProject, docValue: targetProfile.departmentCellProject, isMatch: true },
-        { field: 'validUpTo', label: 'Tenure Valid Up To', formValue: targetProfile.validUpTo, docValue: targetProfile.validUpTo, isMatch: true },
-      ],
-      hasMismatches: false,
-      mismatchCount: 0,
-      overallConfidence: 'OCR AI Engine Verified',
-    });
   };
 
   const handleUpdateMultipleFields = (updates: Partial<ApplicantProfile>) => {
     setProfile((prev) => ({ ...prev, ...updates }));
-    setDocMismatchWarning(null);
     setErrors((prev) => {
       const copy = { ...prev };
       Object.keys(updates).forEach((k) => delete copy[k]);
@@ -548,21 +448,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
       return;
     }
 
-    // Check if uploaded office order has uncorrected mismatches
-    if (verificationResult && verificationResult.hasMismatches) {
-      setDocMismatchWarning(
-        `Cannot save profile: There are ${verificationResult.mismatchCount} critical discrepancy(ies) between your entered Profile and the uploaded Office Order. Please resolve the mismatches or click 'Auto-Fix & Sync Form with Office Order' to continue.`
-      );
-      // Scroll to bottom warning or alert
-      return;
-    }
-
     setErrors({});
-    setDocMismatchWarning(null);
     const updatedProfile = {
       ...profile,
       accountNoBank: `${profile.accountNo || ''} (${profile.bankName || ''})`,
-      officeOrderVerification: verificationResult || undefined,
     };
     onSaveProfile(updatedProfile);
 
@@ -573,7 +462,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
       actorRole: (currentRole === 'super_admin' ? 'admin' : (currentRole || 'applicant')) as UserRole,
       actionType: 'PROFILE_UPDATE',
       module: `User Profile [${updatedProfile.applicantName || 'User'}]`,
-      summary: `Updated personal identity profile details & Sanction Order credentials (${updatedProfile.designation || 'Staff'}).`,
+      summary: `Updated personal identity profile details (${updatedProfile.designation || 'Staff'}).`,
       details: {
         targetEntity: 'Applicant Profile Record',
         comments: `Designation: ${updatedProfile.designation}, Project: ${updatedProfile.departmentCellProject}`,
@@ -586,43 +475,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
 
   const handleChange = (field: keyof ApplicantProfile, value: string) => {
     if (!isEditable) return;
-    setProfile((prev) => {
-      const nextProfile = { ...prev, [field]: value };
-
-      // Dynamically re-evaluate matching status against active verification result
-      if (verificationResult && verificationResult.extractedData) {
-        const cleanA = (value || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-        const docVal = verificationResult.extractedData[field as keyof typeof verificationResult.extractedData] as string;
-        const cleanB = (docVal || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-
-        if (docVal) {
-          const isMatch = !cleanA || !cleanB || cleanA === cleanB || cleanA.includes(cleanB) || cleanB.includes(cleanA);
-          const updatedComparisons = verificationResult.comparisons.map((c) => {
-            if (c.field === field) {
-              return {
-                ...c,
-                formValue: value || '(Empty in form)',
-                isMatch,
-                mismatchMessage: isMatch ? undefined : `${c.label} does not match Office Order "${docVal}".`,
-              };
-            }
-            return c;
-          });
-
-          const mismatches = updatedComparisons.filter((c) => !c.isMatch);
-          setVerificationResult({
-            ...verificationResult,
-            status: mismatches.length > 0 ? 'mismatch' : 'verified',
-            hasMismatches: mismatches.length > 0,
-            mismatchCount: mismatches.length,
-            mismatchesSummary: mismatches.map((m) => m.mismatchMessage || `${m.label} mismatch`),
-            comparisons: updatedComparisons,
-          });
-        }
-      }
-
-      return nextProfile;
-    });
+    setProfile((prev) => ({ ...prev, [field]: value }));
 
     if (errors[field]) {
       setErrors((prev) => {
@@ -1248,30 +1101,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Section 5: Office Order Document Intelligence & OCR Verification */}
-        <OfficeOrderVerificationCard
-          profile={profile}
-          isEditable={isEditable}
-          onUpdateProfileFields={handleUpdateMultipleFields}
-          verificationResult={verificationResult}
-          onSetVerificationResult={setVerificationResult}
-        />
-
-        {/* Blocking Discrepancy Error Alert before Save */}
-        {docMismatchWarning && (
-          <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-xl flex items-start gap-3 animate-shake">
-            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <h4 className="text-xs font-extrabold text-rose-900 uppercase tracking-wider">
-                Profile Submission Blocked (Document Discrepancy)
-              </h4>
-              <p className="text-xs text-rose-800 font-medium leading-relaxed">
-                {docMismatchWarning}
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Action Button */}
         {isEditable && (

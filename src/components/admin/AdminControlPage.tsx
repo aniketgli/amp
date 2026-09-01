@@ -3,6 +3,7 @@ import { RequisitionRecord, UserRole } from "../../types/requisition";
 import { recordSecurityAuditLog } from "../../utils/auditLogger";
 import { SecurityAuditTrailSection } from "./SecurityAuditTrailSection";
 import { DatabaseSchemaSection } from "./DatabaseSchemaSection";
+import { LogoBrandingMasterSection } from "./LogoBrandingMasterSection";
 
 import {
   Activity,
@@ -21,6 +22,15 @@ import {
   XCircle,
   Zap,
   ShieldCheck,
+  GitMerge,
+  ArrowUp,
+  ArrowDown,
+  Layers,
+  Plus,
+  RotateCcw,
+  Check,
+  Settings2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 /* =========================================================
@@ -47,6 +57,83 @@ import {
 type FacilityStatus = "active" | "inactive" | "maintenance";
 type ServiceStatus = "active" | "inactive";
 
+export interface WorkflowStage {
+  stageNumber: number;
+  stageName: string;
+  dealingRole: string;
+  dealingOfficerName: string;
+  actionType: "endorsement" | "verification" | "approval" | "provisioning";
+  isMandatory: boolean;
+}
+
+export const getDefaultFacilityWorkflow = (
+  supervisor: string,
+  assocNodal: string,
+  nodal: string
+): WorkflowStage[] => [
+  {
+    stageNumber: 1,
+    stageName: "Supervising Officer / PI Endorsement",
+    dealingRole: "reporting_manager",
+    dealingOfficerName: "Applicant's Supervising Officer (PI)",
+    actionType: "endorsement",
+    isMandatory: true,
+  },
+  {
+    stageNumber: 2,
+    stageName: "Technical Supervisor Verification",
+    dealingRole: "supervisor",
+    dealingOfficerName: supervisor || "Lab Technical Supervisor",
+    actionType: "verification",
+    isMandatory: true,
+  },
+  {
+    stageNumber: 3,
+    stageName: "Associate Nodal Officer Review",
+    dealingRole: "assoc_nodal",
+    dealingOfficerName: assocNodal || "Associate Nodal Officer",
+    actionType: "verification",
+    isMandatory: true,
+  },
+  {
+    stageNumber: 4,
+    stageName: "Nodal Officer Final Approval",
+    dealingRole: "nodal",
+    dealingOfficerName: nodal || "Nodal Officer",
+    actionType: "approval",
+    isMandatory: true,
+  },
+];
+
+export const getDefaultServiceWorkflow = (
+  manager: string
+): WorkflowStage[] => [
+  {
+    stageNumber: 1,
+    stageName: "Supervising Officer / PI Endorsement",
+    dealingRole: "reporting_manager",
+    dealingOfficerName: "Applicant's Supervising Officer (PI)",
+    actionType: "endorsement",
+    isMandatory: true,
+  },
+  {
+    stageNumber: 2,
+    stageName: "In-Charge Manager Verification",
+    dealingRole: "manager",
+    dealingOfficerName: manager || "Service In-Charge Manager",
+    actionType: "verification",
+    isMandatory: true,
+  },
+  {
+    stageNumber: 3,
+    stageName: "IT Head / Admin Provisioning",
+    dealingRole: "it_head",
+    dealingOfficerName: "IT Officer / System Admin",
+    actionType: "provisioning",
+    isMandatory: true,
+  },
+];
+
 interface FacilityRecord {
   id: string;
 
@@ -63,6 +150,7 @@ interface FacilityRecord {
   desc: string;
 
   status: FacilityStatus;
+  workflowStages?: WorkflowStage[];
 }
 
 interface ServiceRecord {
@@ -71,6 +159,7 @@ interface ServiceRecord {
   manager: string;
   quota: string;
   status: ServiceStatus;
+  workflowStages?: WorkflowStage[];
 }
 
 interface AdminUser {
@@ -169,7 +258,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     | "requisitions_override"
     | "system_config"
     | "audit_logs"
-    | "database_schema"
+    | "logo_branding"
   >("users");
 
   /* =======================================================
@@ -231,6 +320,159 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     manager: "",
     quota: "",
   });
+
+  /* =======================================================
+     WORKFLOW & STAGE EDITING
+  ======================================================= */
+  const [editingWorkflow, setEditingWorkflow] = useState<{
+    type: "facility" | "service";
+    item: FacilityRecord | ServiceRecord;
+    stages: WorkflowStage[];
+  } | null>(null);
+
+  const handleOpenWorkflowModal = (
+    type: "facility" | "service",
+    item: FacilityRecord | ServiceRecord
+  ) => {
+    let stages: WorkflowStage[] = [];
+    if (item.workflowStages && Array.isArray(item.workflowStages) && item.workflowStages.length > 0) {
+      stages = item.workflowStages;
+    } else if (type === "facility") {
+      const fac = item as FacilityRecord;
+      stages = getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal);
+    } else {
+      const srv = item as ServiceRecord;
+      stages = getDefaultServiceWorkflow(srv.manager);
+    }
+
+    setEditingWorkflow({
+      type,
+      item,
+      stages: JSON.parse(JSON.stringify(stages)),
+    });
+  };
+
+  const handleAddStage = () => {
+    if (!editingWorkflow) return;
+    const currentStages = [...editingWorkflow.stages];
+    const newStageNumber = currentStages.length + 1;
+    const newStage: WorkflowStage = {
+      stageNumber: newStageNumber,
+      stageName: `Stage ${newStageNumber} Review & Approval`,
+      dealingRole: "supervisor",
+      dealingOfficerName: "Dealing Officer / Supervisor",
+      actionType: "verification",
+      isMandatory: true,
+    };
+    setEditingWorkflow({
+      ...editingWorkflow,
+      stages: [...currentStages, newStage],
+    });
+  };
+
+  const handleRemoveStage = (index: number) => {
+    if (!editingWorkflow) return;
+    const currentStages = editingWorkflow.stages.filter((_, i) => i !== index);
+    const renumbered = currentStages.map((stg, i) => ({
+      ...stg,
+      stageNumber: i + 1,
+    }));
+    setEditingWorkflow({
+      ...editingWorkflow,
+      stages: renumbered,
+    });
+  };
+
+  const handleMoveStage = (index: number, direction: "up" | "down") => {
+    if (!editingWorkflow) return;
+    const stages = [...editingWorkflow.stages];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= stages.length) return;
+
+    const temp = stages[index];
+    stages[index] = stages[targetIndex];
+    stages[targetIndex] = temp;
+
+    const renumbered = stages.map((stg, i) => ({
+      ...stg,
+      stageNumber: i + 1,
+    }));
+
+    setEditingWorkflow({
+      ...editingWorkflow,
+      stages: renumbered,
+    });
+  };
+
+  const handleResetWorkflowToDefault = () => {
+    if (!editingWorkflow) return;
+    if (editingWorkflow.type === "facility") {
+      const fac = editingWorkflow.item as FacilityRecord;
+      setEditingWorkflow({
+        ...editingWorkflow,
+        stages: getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal),
+      });
+    } else {
+      const srv = editingWorkflow.item as ServiceRecord;
+      setEditingWorkflow({
+        ...editingWorkflow,
+        stages: getDefaultServiceWorkflow(srv.manager),
+      });
+    }
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!editingWorkflow) return;
+    const { type, item, stages } = editingWorkflow;
+
+    try {
+      if (type === "facility") {
+        const fac = item as FacilityRecord;
+        const response = await fetch(`/api/facilities/${encodeURIComponent(fac.id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: fac.name,
+            dept: fac.dept || "Research Laboratories Division",
+            nodal: fac.nodal,
+            assocNodal: fac.assocNodal,
+            supervisor: fac.supervisor,
+            desc: fac.desc,
+            status: fac.status,
+            workflowStages: stages,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Failed to update workflow.");
+        }
+        await fetchFacilities();
+      } else {
+        const srv = item as ServiceRecord;
+        const response = await fetch(`/api/services/${encodeURIComponent(srv.id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: srv.name,
+            manager: srv.manager,
+            quota: srv.quota,
+            status: srv.status,
+            workflowStages: stages,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Failed to update workflow.");
+        }
+        await fetchServices();
+      }
+
+      setEditingWorkflow(null);
+      showToast(`Workflow stages updated for ${item.name}.`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update workflow.");
+    }
+  };
 
   /* =======================================================
      SYSTEM CONFIG
@@ -376,6 +618,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
         },
       });
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}). Database may be starting up.`);
+      }
+
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -386,23 +633,10 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
         throw new Error("Invalid users response received.");
       }
 
-      /*
-        IMPORTANT:
-        Replace complete list.
-
-        NEVER merge with:
-        - hardcoded users
-        - localStorage users
-        - initial users
-      */
-
       setManagedUsers(data.users);
     } catch (error: any) {
       console.error("ADMIN USERS LOAD ERROR:", error);
-
       setUsersError(error?.message || "Unable to load users.");
-
-      setManagedUsers([]);
     } finally {
       setUsersLoading(false);
     }
@@ -419,6 +653,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     try {
       const response = await fetch("/api/facilities");
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
+      }
+
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -430,10 +669,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       setFacilitiesList(rows.map(normalizeFacility));
     } catch (error: any) {
       console.error("FACILITIES LOAD ERROR:", error);
-
       setFacilitiesError(error?.message || "Unable to load facilities.");
-
-      setFacilitiesList([]);
     } finally {
       setFacilitiesLoading(false);
     }
@@ -450,6 +686,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     try {
       const response = await fetch("/api/services");
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
+      }
+
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -461,10 +702,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       setServicesList(rows.map(normalizeService));
     } catch (error: any) {
       console.error("SERVICES LOAD ERROR:", error);
-
       setServicesError(error?.message || "Unable to load services.");
-
-      setServicesList([]);
     } finally {
       setServicesLoading(false);
     }
@@ -1280,15 +1518,15 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveSubTab("database_schema")}
+            onClick={() => setActiveSubTab("logo_branding")}
             className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "database_schema"
+              activeSubTab === "logo_branding"
                 ? "bg-purple-700 text-white"
                 : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <Database className="w-4 h-4" />
-            DB Schema
+            <ImageIcon className="w-4 h-4" />
+            Company Logo Master
           </button>
         </div>
       </div>
@@ -1523,85 +1761,121 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
               )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {facilitiesList.map((facility) => (
-                <div
-                  key={facility.id}
-                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-purple-300 transition-all"
-                >
-                  <div className="flex justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
-                        {facility.id}
-                      </span>
+              {facilitiesList.map((facility) => {
+                const stages = facility.workflowStages && facility.workflowStages.length > 0
+                  ? facility.workflowStages
+                  : getDefaultFacilityWorkflow(facility.supervisor, facility.assocNodal, facility.nodal);
 
-                      <h3 className="font-bold text-slate-900 text-sm mt-2">
-                        {facility.name}
-                      </h3>
+                return (
+                  <div
+                    key={facility.id}
+                    className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-purple-300 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                            {facility.id}
+                          </span>
+
+                          <h3 className="font-bold text-slate-900 text-sm mt-2">
+                            {facility.name}
+                          </h3>
+                        </div>
+
+                        <span
+                          className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                            facility.status === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : facility.status === "maintenance"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {facility.status}
+                        </span>
+                      </div>
+
+                      {/* FACILITY INFORMATION */}
+
+                      <div className="mt-3 text-xs text-slate-600 space-y-1.5">
+                        <div>
+                          <b>Nodal Officer:</b> {facility.nodal || "—"}
+                        </div>
+
+                        <div>
+                          <b>Associate Nodal:</b> {facility.assocNodal || "—"}
+                        </div>
+
+                        <div>
+                          <b>Supervisor:</b> {facility.supervisor || "—"}
+                        </div>
+
+                        {facility.desc && (
+                          <div className="pt-1 text-slate-500">{facility.desc}</div>
+                        )}
+                      </div>
+
+                      {/* WORKFLOW PIPELINE FLOW */}
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <GitMerge className="w-3.5 h-3.5 text-purple-600" />
+                            Approval Flow ({stages.length} Stages)
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                          {stages.map((stg, idx) => (
+                            <React.Fragment key={stg.stageNumber || idx}>
+                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>
+                                {idx + 1}. {stg.stageName.split(' ')[0]}
+                              </span>
+                              {idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    <span
-                      className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                        facility.status === "active"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : facility.status === "maintenance"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {facility.status}
-                    </span>
-                  </div>
+                    {/* ACTIONS */}
 
-                  {/* FACILITY INFORMATION */}
-
-                  <div className="mt-3 text-xs text-slate-600 space-y-1.5">
-                    <div>
-                      <b>Nodal Officer:</b> {facility.nodal || "—"}
-                    </div>
-
-                    <div>
-                      <b>Associate Nodal:</b> {facility.assocNodal || "—"}
-                    </div>
-
-                    <div>
-                      <b>Supervisor:</b> {facility.supervisor || "—"}
-                    </div>
-
-                    {facility.desc && (
-                      <div className="pt-1 text-slate-500">{facility.desc}</div>
-                    )}
-                  </div>
-
-                  {/* ACTIONS */}
-
-                  <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
-                    <button
-                      onClick={() => handleToggleFacilityStatus(facility)}
-                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
-                    >
-                      Toggle Status
-                    </button>
-
-                    <div className="flex gap-1">
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
                       <button
-                        onClick={() => setEditingFacility(facility)}
-                        className="p-2 text-purple-700 hover:bg-purple-50 rounded"
-                        title="Edit Facility"
+                        onClick={() => handleToggleFacilityStatus(facility)}
+                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        Toggle Status
                       </button>
 
-                      <button
-                        onClick={() => handleDeleteFacility(facility.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded"
-                        title="Delete Facility"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleOpenWorkflowModal("facility", facility)}
+                          className="p-1.5 text-purple-700 hover:bg-purple-50 rounded flex items-center gap-1 text-[11px] font-bold"
+                          title="Configure Workflow Flow/Stages"
+                        >
+                          <GitMerge className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => setEditingFacility(facility)}
+                          className="p-1.5 text-purple-700 hover:bg-purple-50 rounded"
+                          title="Edit Facility"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteFacility(facility.id)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                          title="Delete Facility"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
@@ -1648,71 +1922,107 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
               )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {servicesList.map((service) => (
-                <div
-                  key={service.id}
-                  className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all"
-                >
-                  <div className="flex justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                        {service.id}
-                      </span>
+              {servicesList.map((service) => {
+                const stages = service.workflowStages && service.workflowStages.length > 0
+                  ? service.workflowStages
+                  : getDefaultServiceWorkflow(service.manager);
 
-                      <h3 className="font-bold text-slate-900 text-sm mt-2">
-                        {service.name}
-                      </h3>
+                return (
+                  <div
+                    key={service.id}
+                    className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                            {service.id}
+                          </span>
+
+                          <h3 className="font-bold text-slate-900 text-sm mt-2">
+                            {service.name}
+                          </h3>
+                        </div>
+
+                        <span
+                          className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                            service.status === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {service.status}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 text-xs text-slate-600 space-y-1.5">
+                        <div>
+                          <b>Manager:</b> {service.manager || "—"}
+                        </div>
+
+                        <div>
+                          <b>Quota / Access:</b> {service.quota || "—"}
+                        </div>
+                      </div>
+
+                      {/* WORKFLOW PIPELINE FLOW */}
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                            <GitMerge className="w-3.5 h-3.5 text-emerald-600" />
+                            Approval Flow ({stages.length} Stages)
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                          {stages.map((stg, idx) => (
+                            <React.Fragment key={stg.stageNumber || idx}>
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>
+                                {idx + 1}. {stg.stageName.split(' ')[0]}
+                              </span>
+                              {idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    <span
-                      className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                        service.status === "active"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {service.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 text-xs text-slate-600 space-y-1.5">
-                    <div>
-                      <b>Manager:</b> {service.manager || "—"}
-                    </div>
-
-                    <div>
-                      <b>Quota / Access:</b> {service.quota || "—"}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
-                    <button
-                      onClick={() => handleToggleServiceStatus(service)}
-                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
-                    >
-                      Toggle Status
-                    </button>
-
-                    <div className="flex gap-1">
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
                       <button
-                        onClick={() => setEditingService(service)}
-                        className="p-2 text-emerald-700 hover:bg-emerald-50 rounded"
-                        title="Edit Service"
+                        onClick={() => handleToggleServiceStatus(service)}
+                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        Toggle Status
                       </button>
 
-                      <button
-                        onClick={() => handleDeleteService(service.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded"
-                        title="Delete Service"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleOpenWorkflowModal("service", service)}
+                          className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded flex items-center gap-1 text-[11px] font-bold"
+                          title="Configure Workflow Flow/Stages"
+                        >
+                          <GitMerge className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => setEditingService(service)}
+                          className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded"
+                          title="Edit Service"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteService(service.id)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                          title="Delete Service"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>
@@ -1844,16 +2154,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       )}
 
       {/* =====================================================
-          DATABASE SCHEMA
+          COMPANY LOGO MASTER
       ===================================================== */}
 
-      {activeSubTab === "database_schema" && (
-        <DatabaseSchemaSection
-          managedUsersCount={managedUsers.length}
-          facilitiesCount={facilitiesList.length}
-          servicesCount={servicesList.length}
-          requisitionsCount={requisitions.length}
-        />
+      {activeSubTab === "logo_branding" && (
+        <LogoBrandingMasterSection />
       )}
 
       {/* =====================================================
@@ -2421,6 +2726,277 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          CONFIGURE WORKFLOW STAGES & DEALING PERSONS MODAL
+      ===================================================== */}
+
+      {editingWorkflow && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl my-8 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-lg ${editingWorkflow.type === 'facility' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  <GitMerge className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Configure Approval Workflow Stages
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Set sequence of dealing persons & officers for <span className="font-bold text-slate-800">{editingWorkflow.item.name}</span> ({editingWorkflow.item.id})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingWorkflow(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* STAGES LIST */}
+            <div className="overflow-y-auto py-4 space-y-4 flex-grow pr-1">
+              {editingWorkflow.stages.length === 0 ? (
+                <div className="py-8 text-center border border-dashed border-slate-300 rounded-xl text-slate-500 text-xs">
+                  No workflow stages defined. Click &quot;Add Stage&quot; below to add one.
+                </div>
+              ) : (
+                editingWorkflow.stages.map((stg, index) => (
+                  <div
+                    key={index}
+                    className="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3 relative hover:border-slate-300 transition-all"
+                  >
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-purple-700 text-white font-bold text-xs flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                        <span className="font-bold text-xs text-slate-800">
+                          Stage {index + 1}: {stg.stageName || "Unnamed Stage"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveStage(index, "up")}
+                          disabled={index === 0}
+                          className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600"
+                          title="Move Stage Up"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleMoveStage(index, "down")}
+                          disabled={index === editingWorkflow.stages.length - 1}
+                          className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600"
+                          title="Move Stage Down"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStage(index)}
+                          className="p-1 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded ml-2"
+                          title="Delete Stage"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Stage Name / Title
+                        </label>
+                        <input
+                          type="text"
+                          value={stg.stageName}
+                          onChange={(e) => {
+                            const newStages = [...editingWorkflow.stages];
+                            newStages[index].stageName = e.target.value;
+                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                          }}
+                          placeholder="e.g. Technical Verification"
+                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Dealing Person Role / Type
+                        </label>
+                        <select
+                          value={stg.dealingRole}
+                          onChange={(e) => {
+                            const newStages = [...editingWorkflow.stages];
+                            const role = e.target.value;
+                            newStages[index].dealingRole = role;
+
+                            // Auto populate officer name based on item if applicable
+                            if (role === "reporting_manager") {
+                              newStages[index].dealingOfficerName = "Applicant's Supervising Officer (PI)";
+                            } else if (role === "supervisor" && editingWorkflow.type === "facility") {
+                              const fac = editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName = fac.supervisor || "Lab Technical Supervisor";
+                            } else if (role === "assoc_nodal" && editingWorkflow.type === "facility") {
+                              const fac = editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName = fac.assocNodal || "Associate Nodal Officer";
+                            } else if (role === "nodal" && editingWorkflow.type === "facility") {
+                              const fac = editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName = fac.nodal || "Nodal Officer";
+                            } else if (role === "manager" && editingWorkflow.type === "service") {
+                              const srv = editingWorkflow.item as ServiceRecord;
+                              newStages[index].dealingOfficerName = srv.manager || "Service Manager";
+                            } else if (role === "it_head") {
+                              newStages[index].dealingOfficerName = "IT Officer / System Admin";
+                            }
+
+                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                          }}
+                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                        >
+                          <option value="reporting_manager">Reporting Manager / PI (Applicant Supervisor)</option>
+                          <option value="supervisor">Lab Technical Supervisor</option>
+                          <option value="assoc_nodal">Associate Nodal Officer</option>
+                          <option value="nodal">Nodal Officer</option>
+                          <option value="manager">Service In-Charge Manager</option>
+                          <option value="it_head">IT Head / Admin Officer</option>
+                          <option value="section_head">Section Head / Director</option>
+                          <option value="custom">Specific Officer / User</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Dealing Person Name
+                        </label>
+                        {stg.dealingRole === "custom" ? (
+                          <select
+                            value={stg.dealingOfficerName}
+                            onChange={(e) => {
+                              const newStages = [...editingWorkflow.stages];
+                              newStages[index].dealingOfficerName = e.target.value;
+                              setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                            }}
+                            className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                          >
+                            <option value="">Select Specific Officer</option>
+                            {managedUsers.map((u) => {
+                              const name = getDisplayName(u);
+                              return (
+                                <option key={u.id} value={name}>
+                                  {name} ({u.designation || 'Officer'})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={stg.dealingOfficerName}
+                            onChange={(e) => {
+                              const newStages = [...editingWorkflow.stages];
+                              newStages[index].dealingOfficerName = e.target.value;
+                              setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                            }}
+                            placeholder="Officer Name / Designation"
+                            className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Stage Action Required
+                        </label>
+                        <select
+                          value={stg.actionType}
+                          onChange={(e) => {
+                            const newStages = [...editingWorkflow.stages];
+                            newStages[index].actionType = e.target.value as any;
+                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                          }}
+                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                        >
+                          <option value="endorsement">Endorsement / Recommendation</option>
+                          <option value="verification">Technical Verification / Inspection</option>
+                          <option value="approval">Final Officer Approval</option>
+                          <option value="provisioning">Provisioning & Clearance</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 mt-2">
+                      <input
+                        type="checkbox"
+                        id={`mandatory-${index}`}
+                        checked={stg.isMandatory !== false}
+                        onChange={(e) => {
+                          const newStages = [...editingWorkflow.stages];
+                          newStages[index].isMandatory = e.target.checked;
+                          setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                        }}
+                        className="rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <label htmlFor={`mandatory-${index}`} className="text-xs font-semibold text-slate-700">
+                        Mandatory Stage (Request cannot skip this step)
+                      </label>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div className="flex flex-wrap justify-between items-center gap-2 border-t border-slate-200 pt-3 flex-shrink-0 mt-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddStage}
+                  className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Stage
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetWorkflowToDefault}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1"
+                  title="Reset to default multi-stage flow"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset Default
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingWorkflow(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveWorkflow}
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <Check className="w-4 h-4" /> Save Workflow Stages
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

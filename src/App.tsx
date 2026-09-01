@@ -44,7 +44,7 @@ const ROLE_META: Record<string, AssignedRoleInfo> = {
   user: { id: 1, code: "applicant", name: "User" },
   reporting_manager: {
     id: 2,
-    code: "reporting_manager",
+    code: "supervisor",
     name: "Reporting Manager / Supervisor (P)",
   },
   nodal_officer: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
@@ -337,6 +337,13 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === "super_admin_panel" && currentRole !== "admin") {
+      setActiveTab("dashboard");
+    }
+    if (
+      activeTab === "new_request" &&
+      currentRole !== "applicant" &&
+      currentRole !== "user"
+    ) {
       setActiveTab("dashboard");
     }
   }, [currentRole, activeTab]);

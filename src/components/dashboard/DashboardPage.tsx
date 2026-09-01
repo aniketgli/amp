@@ -185,79 +185,43 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
           )}
 
           {currentRole === 'supervisor' && (
-            <>
-              <button
-                onClick={() => onNavigateTab('my_requests')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
-              >
-                <UserCheck className="w-4 h-4 shrink-0" />
-                <span className="truncate">Fellow Endorsements {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
-              </button>
-              <button
-                onClick={() => onNavigateTab('new_request')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
-              >
-                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">New Access</span>
-              </button>
-            </>
+            <button
+              onClick={() => onNavigateTab('my_requests')}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
+            >
+              <UserCheck className="w-4 h-4 shrink-0" />
+              <span className="truncate">Fellow Endorsements {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
+            </button>
           )}
 
           {(currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal') && (
-            <>
-              <button
-                onClick={() => onNavigateTab('my_requests')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
-              >
-                <FlaskConical className="w-4 h-4 shrink-0" />
-                <span className="truncate">Lab Access Desk {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
-              </button>
-              <button
-                onClick={() => onNavigateTab('new_request')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
-              >
-                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">New Access</span>
-              </button>
-            </>
+            <button
+              onClick={() => onNavigateTab('my_requests')}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
+            >
+              <FlaskConical className="w-4 h-4 shrink-0" />
+              <span className="truncate">Lab Access Desk {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
+            </button>
           )}
 
           {currentRole === 'section_head' && (
-            <>
-              <button
-                onClick={() => onNavigateTab('my_requests')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
-              >
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span className="truncate">Executive Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
-              </button>
-              <button
-                onClick={() => onNavigateTab('new_request')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
-              >
-                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">New Access</span>
-              </button>
-            </>
+            <button
+              onClick={() => onNavigateTab('my_requests')}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span className="truncate">Executive Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
+            </button>
           )}
 
           {(currentRole === 'it_officer' || currentRole === 'hrms_officer') && (
-            <>
-              <button
-                onClick={() => onNavigateTab('my_requests')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
-              >
-                <Server className="w-4 h-4 shrink-0" />
-                <span className="truncate">Provisioning Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
-              </button>
-              <button
-                onClick={() => onNavigateTab('new_request')}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer min-w-0 sm:w-48 text-center truncate"
-              >
-                <PlusCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">New Access</span>
-              </button>
-            </>
+            <button
+              onClick={() => onNavigateTab('my_requests')}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 min-w-0 sm:w-48 text-center truncate"
+            >
+              <Server className="w-4 h-4 shrink-0" />
+              <span className="truncate">Provisioning Queue {rolePendingList.length > 0 && `(${rolePendingList.length})`}</span>
+            </button>
           )}
 
           {currentRole === 'admin' && (
