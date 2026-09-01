@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -694,6 +695,73 @@ app.get("/api/health", (req, res) => {
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     timestamp: new Date().toISOString(),
   });
+});
+
+/* =========================================================
+   GLOBAL BRANDING & LOGO PERSISTENCE API
+========================================================= */
+
+const BRANDING_FILE_PATH = path.join(process.cwd(), "branding_config.json");
+
+let serverBrandingConfig: any = {
+  logoUrl: null,
+  hindiName: "भारतीय वन्यजीव संस्थान",
+  englishName: "Wildlife Institute of India",
+  subtitle: "",
+  primaryColor: "#7A1C1C",
+  updatedAt: new Date().toISOString(),
+};
+
+try {
+  if (fs.existsSync(BRANDING_FILE_PATH)) {
+    const raw = fs.readFileSync(BRANDING_FILE_PATH, "utf-8");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      serverBrandingConfig = { ...serverBrandingConfig, ...parsed };
+    }
+  }
+} catch (e) {
+  console.warn("Failed to load branding_config.json on startup:", e);
+}
+
+app.get("/api/branding", (req, res) => {
+  res.json({
+    success: true,
+    branding: serverBrandingConfig,
+  });
+});
+
+app.post("/api/branding", (req, res) => {
+  try {
+    const payload = req.body || {};
+    serverBrandingConfig = {
+      ...serverBrandingConfig,
+      ...payload,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      fs.writeFileSync(
+        BRANDING_FILE_PATH,
+        JSON.stringify(serverBrandingConfig, null, 2),
+        "utf-8"
+      );
+    } catch (fsErr) {
+      console.warn("Could not write to branding_config.json:", fsErr);
+    }
+
+    res.json({
+      success: true,
+      message: "Branding updated across server & all devices successfully.",
+      branding: serverBrandingConfig,
+    });
+  } catch (error: any) {
+    console.error("Error saving branding config on server:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Failed to save branding config.",
+    });
+  }
 });
 
 /* =========================================================

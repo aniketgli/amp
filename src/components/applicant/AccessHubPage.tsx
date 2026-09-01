@@ -799,6 +799,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
           </div>
         );
       })()}
+
       {/* QUICK APPLY DIALOG MODAL OVERLAY */}
       {modalConfig && modalConfig.isOpen && (
         <QuickApplyModal

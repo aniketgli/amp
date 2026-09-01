@@ -38,6 +38,30 @@ export const getBrandingConfig = (): BrandingConfig => {
   return DEFAULT_BRANDING;
 };
 
+export const fetchServerBranding = async (): Promise<BrandingConfig> => {
+  try {
+    const res = await fetch("/api/branding");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.branding) {
+        const merged: BrandingConfig = {
+          ...DEFAULT_BRANDING,
+          ...data.branding,
+          subtitle: "",
+        };
+        try {
+          localStorage.setItem(BRANDING_KEY, JSON.stringify(merged));
+          window.dispatchEvent(new CustomEvent(BRANDING_EVENT, { detail: merged }));
+        } catch (_) {}
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not sync branding from server:", err);
+  }
+  return getBrandingConfig();
+};
+
 export const saveBrandingConfig = (config: Partial<BrandingConfig>): BrandingConfig => {
   const current = getBrandingConfig();
   const updated: BrandingConfig = {
@@ -53,6 +77,15 @@ export const saveBrandingConfig = (config: Partial<BrandingConfig>): BrandingCon
     console.error("Error saving branding config to localStorage:", err);
   }
 
+  // Persist to backend server so logo is accessible on all devices
+  fetch("/api/branding", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updated),
+  }).catch((err) => {
+    console.warn("Server branding save error:", err);
+  });
+
   return updated;
 };
 
@@ -63,6 +96,15 @@ export const resetBrandingConfig = (): BrandingConfig => {
   } catch (err) {
     console.error("Error resetting branding config:", err);
   }
+
+  fetch("/api/branding", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(DEFAULT_BRANDING),
+  }).catch((err) => {
+    console.warn("Server branding reset error:", err);
+  });
+
   return DEFAULT_BRANDING;
 };
 
@@ -70,6 +112,11 @@ export const useBranding = (): BrandingConfig => {
   const [branding, setBranding] = useState<BrandingConfig>(getBrandingConfig);
 
   useEffect(() => {
+    // Sync with server on initial mount so all devices load the saved logo
+    fetchServerBranding().then((serverData) => {
+      setBranding(serverData);
+    });
+
     const handleUpdate = (e: Event) => {
       if (e instanceof CustomEvent && e.detail) {
         setBranding(e.detail);
