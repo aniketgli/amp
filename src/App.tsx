@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 
+import { useLocation, useNavigate } from "react-router-dom";
+
 import {
   ApplicantProfile,
   RequisitionRecord,
@@ -26,6 +28,77 @@ import { ApprovalQueue } from "./components/workflow/ApprovalQueuePage";
 import { HelpdeskView } from "./components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "./components/admin/AdminControlPage";
 import { AuthPage } from "./components/auth/AuthPage";
+
+// =========================================================
+// APPLICATION TAB / ROUTE TYPE
+// =========================================================
+// Keep all top-level application destinations in one type.
+// The URL is now the source of truth for page navigation, while
+// activeTab is retained as a compatibility layer for the existing
+// page components.
+// =========================================================
+type AppTab =
+  | "dashboard"
+  | "profile"
+  | "my_requests"
+  | "new_request"
+  | "approval_queue"
+  | "helpdesk"
+  | "super_admin_panel"
+  | "auth";
+
+// =========================================================
+// URL -> APPLICATION TAB
+// =========================================================
+// IMPORTANT: This function MUST live outside App().
+// The previous version declared it below useState(), which means
+// the function was called before its const initialization and could
+// throw a ReferenceError on first render.
+// =========================================================
+const getTabFromPath = (pathname: string): AppTab => {
+  // Authentication
+  if (pathname === "/login" || pathname === "/auth") {
+    return "auth";
+  }
+
+  // Dashboard
+  if (pathname === "/" || pathname === "/dashboard") {
+    return "dashboard";
+  }
+
+  // Profile
+  if (pathname === "/profile") {
+    return "profile";
+  }
+
+  // Requests
+  if (pathname === "/requests") {
+    return "my_requests";
+  }
+
+  // New request
+  if (pathname === "/requests/new" || pathname === "/new-request") {
+    return "new_request";
+  }
+
+  // Approval queue
+  if (pathname === "/approval-queue" || pathname === "/approvals") {
+    return "approval_queue";
+  }
+
+  // Helpdesk
+  if (pathname === "/helpdesk") {
+    return "helpdesk";
+  }
+
+  // Administrator / Master
+  if (pathname === "/admin" || pathname === "/master") {
+    return "super_admin_panel";
+  }
+
+  // Unknown path: fall back to dashboard.
+  return "dashboard";
+};
 
 // =========================================================
 // BACKEND ROLE -> FRONTEND ROLE MAP
@@ -76,6 +149,63 @@ const toAssignedRoleObjects = (roles: UserRole[]): AssignedRoleInfo[] => {
 };
 
 export default function App() {
+  // ==========================================================
+  // REACT ROUTER
+  // ==========================================================
+  //
+  // navigate()
+  //   Browser URL change karta hai without full page reload.
+  //
+  // location
+  //   Current browser URL provide karta hai.
+  //
+  // Example:
+  //
+  // navigate("/admin");
+  //
+  // URL:
+  // http://192.168.205.75:5000/admin
+  //
+  // ==========================================================
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // =========================================================
+  // CENTRAL NAVIGATION FUNCTION
+  // =========================================================
+  // All top-level page navigation goes through this function.
+  // It updates BOTH the existing activeTab state and the browser URL.
+  // This fixes the original problem where the UI changed but the URL
+  // stayed at "/".
+  // =========================================================
+  const navigateToTab = (tab: AppTab) => {
+    const routeMap: Record<AppTab, string> = {
+      dashboard: "/",
+      profile: "/profile",
+      my_requests: "/requests",
+      new_request: "/requests/new",
+      approval_queue: "/approval-queue",
+      helpdesk: "/helpdesk",
+      super_admin_panel: "/admin",
+      auth: "/login",
+    };
+
+    // Keep existing components compatible with activeTab.
+    setActiveTab(tab);
+
+    // Clear a selected request whenever the user changes top-level pages.
+    if (tab !== "my_requests") {
+      setSelectedRequisition(null);
+    }
+
+    // React Router changes the URL without a full page reload.
+    const targetPath = routeMap[tab];
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  };
+
   // =========================================================
   // AUTHENTICATION
   // =========================================================
@@ -94,16 +224,27 @@ export default function App() {
     phone?: string;
   } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<
-    | "dashboard"
-    | "profile"
-    | "my_requests"
-    | "new_request"
-    | "approval_queue"
-    | "helpdesk"
-    | "super_admin_panel"
-    | "auth"
-  >("dashboard");
+  // The URL is the initial source of truth for the current page.
+  const [activeTab, setActiveTab] = useState<AppTab>(
+    getTabFromPath(window.location.pathname),
+  );
+
+  // =========================================================
+  // URL -> ACTIVE TAB SYNCHRONIZATION
+  // =========================================================
+  // Browser Back / Forward changes location.pathname. Keep the legacy
+  // activeTab state synchronized so existing components continue to work.
+  // =========================================================
+  useEffect(() => {
+    const tab = getTabFromPath(location.pathname);
+    setActiveTab(tab);
+
+    // A top-level route change should never leave an old requisition detail
+    // selected, because that would hide the newly requested page.
+    if (tab !== "my_requests") {
+      setSelectedRequisition(null);
+    }
+  }, [location.pathname]);
 
   // =========================================================
   // APPLICATION DATA
@@ -159,7 +300,9 @@ export default function App() {
       const token = localStorage.getItem("wii_auth_token");
       const storedUser = localStorage.getItem("wii_user");
 
-      if (!token || !storedUser) return;
+      if (!token || !storedUser) {
+        return;
+      }
 
       const user = JSON.parse(storedUser);
 
@@ -233,7 +376,7 @@ export default function App() {
   // =========================================================
 
   useEffect(() => {
-    const pathname = window.location.pathname;
+    const pathname = location.pathname;
 
     console.log("Current pathname:", pathname);
 
@@ -319,7 +462,7 @@ export default function App() {
     } else {
       setIsActivationPage(false);
     }
-  }, []);
+  }, [location.pathname]);
 
   // =========================================================
   // INITIAL LOAD
@@ -336,17 +479,29 @@ export default function App() {
   // =========================================================
 
   useEffect(() => {
-    if (activeTab === "super_admin_panel" && currentRole !== "admin") {
-      setActiveTab("dashboard");
+    // Do not run role protection before authentication has been restored.
+    // Otherwise a valid saved Admin session can briefly look like the
+    // default Applicant role during the first render and get redirected.
+    if (!isAuthenticated) {
+      return;
     }
+
+    // Frontend guard for the Master/Admin page.
+    // NOTE: Backend authorization is still required for real security.
+    if (activeTab === "super_admin_panel" && currentRole !== "admin") {
+      navigateToTab("dashboard");
+      return;
+    }
+
+    // New requests are available only to the User/Applicant persona.
     if (
       activeTab === "new_request" &&
       currentRole !== "applicant" &&
       currentRole !== "user"
     ) {
-      setActiveTab("dashboard");
+      navigateToTab("dashboard");
     }
-  }, [currentRole, activeTab]);
+  }, [currentRole, activeTab, isAuthenticated]);
 
   // =========================================================
   // SAVE PROFILE
@@ -369,7 +524,7 @@ export default function App() {
 
     setSelectedRequisition(newRecord);
 
-    setActiveTab("my_requests");
+    navigateToTab("my_requests");
   };
 
   // =========================================================
@@ -400,7 +555,7 @@ export default function App() {
 
       setSelectedRequisition(null);
 
-      setActiveTab("dashboard");
+      navigateToTab("dashboard");
     }
   };
 
@@ -475,9 +630,9 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      window.history.replaceState({}, "", "/");
-
-                      window.location.reload();
+                      // Use React Router instead of manually editing history
+                      // and forcing a full browser reload.
+                      navigateToTab("auth");
                     }}
                     className="mt-8 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
                   >
@@ -506,9 +661,9 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      window.history.replaceState({}, "", "/");
-
-                      window.location.reload();
+                      // Use React Router instead of manually editing history
+                      // and forcing a full browser reload.
+                      navigateToTab("auth");
                     }}
                     className="mt-8 w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 rounded-lg transition"
                   >
@@ -535,7 +690,7 @@ export default function App() {
             initialMode="login"
             isAuthenticated={isAuthenticated}
             onNavigateHome={
-              isAuthenticated ? () => setActiveTab("dashboard") : undefined
+              isAuthenticated ? () => navigateToTab("dashboard") : undefined
             }
             onLoginSuccess={(
               _initialRole,
@@ -594,7 +749,7 @@ export default function App() {
               }
 
               setSelectedRequisition(null);
-              setActiveTab("dashboard");
+              navigateToTab("dashboard");
             }}
           />
         </div>
@@ -627,7 +782,7 @@ export default function App() {
 
           // Switching persona always starts from that persona's dashboard.
           setSelectedRequisition(null);
-          setActiveTab("dashboard");
+          navigateToTab("dashboard");
         }}
         // Give Navbar the real account name/email.
         userProfile={
@@ -639,17 +794,13 @@ export default function App() {
           } as ApplicantProfile
         }
         activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-
-          if (tab !== "my_requests") {
-            setSelectedRequisition(null);
-          }
-        }}
+        // Navbar already exposes onTabChange. The App now connects it to
+        // React Router so every top-level navigation also updates the URL.
+        onTabChange={(tab) => navigateToTab(tab as AppTab)}
         pendingApprovalsCount={pendingApprovalsCount}
         onResetData={handleResetDemoData}
         onSearch={(query) => setSearchQuery(query)}
-        onOpenAuth={() => setActiveTab("auth")}
+        onOpenAuth={() => navigateToTab("auth")}
         onLogout={() => {
           // Clear all client-side authentication/session data.
           localStorage.removeItem("wii_auth_token");
@@ -661,7 +812,7 @@ export default function App() {
           setCurrentRole("applicant");
           setAssignedRoles(["applicant"]);
           setSelectedRequisition(null);
-          setActiveTab("auth");
+          navigateToTab("auth");
         }}
       />
 
@@ -686,7 +837,7 @@ export default function App() {
                 requisitions={requisitions}
                 currentRole={currentRole}
                 onNavigateTab={(tab) => {
-                  setActiveTab(tab);
+                  navigateToTab(tab as AppTab);
                 }}
                 onSelectRequisition={(req) => {
                   setSelectedRequisition(req);
@@ -717,7 +868,7 @@ export default function App() {
                 }}
                 onSubmitRequisition={handleCreateRequisition}
                 onNavigateTab={(tab) => {
-                  setActiveTab(tab as any);
+                  navigateToTab(tab as AppTab);
                 }}
               />
             )}
@@ -732,7 +883,7 @@ export default function App() {
                   setSelectedRequisition(req);
                 }}
                 onUpdateRequisition={handleUpdateRequisition}
-                onCreateNew={() => setActiveTab("new_request")}
+                onCreateNew={() => navigateToTab("new_request")}
                 searchQuery={searchQuery}
                 initialTab="all"
               />
@@ -748,7 +899,7 @@ export default function App() {
                   setSelectedRequisition(req);
                 }}
                 onUpdateRequisition={handleUpdateRequisition}
-                onCreateNew={() => setActiveTab("new_request")}
+                onCreateNew={() => navigateToTab("new_request")}
                 searchQuery={searchQuery}
               />
             )}

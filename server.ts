@@ -417,7 +417,8 @@ const inMemoryFacilities: InMemoryFacility[] = [
     nodal_officer_name: "Dr. S. K. Gupta",
     assoc_nodal_officer_name: "Dr. Neha Verma",
     supervisor_name: "Mr. Harendra Kumar",
-    description: "DNA extraction, species identification, wildlife forensic analysis, and population genetics.",
+    description:
+      "DNA extraction, species identification, wildlife forensic analysis, and population genetics.",
     status: "active",
     workflow_stages: defaultFacilityWorkflowStages,
     created_at: new Date().toISOString(),
@@ -430,7 +431,8 @@ const inMemoryFacilities: InMemoryFacility[] = [
     nodal_officer_name: "Dr. S. K. Gupta",
     assoc_nodal_officer_name: "Dr. Neha Verma",
     supervisor_name: "Mr. Harendra Kumar",
-    description: "Spatial mapping, habitat modeling, satellite imagery analysis, and land use mapping.",
+    description:
+      "Spatial mapping, habitat modeling, satellite imagery analysis, and land use mapping.",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -442,7 +444,8 @@ const inMemoryFacilities: InMemoryFacility[] = [
     nodal_officer_name: "Mr. Dinesh Singh Pundir",
     assoc_nodal_officer_name: "Dr. Neha Verma",
     supervisor_name: "Mr. Harendra Kumar",
-    description: "Genome assembly, phylogenetic trees, big data spatial modeling, and ML/AI simulations.",
+    description:
+      "Genome assembly, phylogenetic trees, big data spatial modeling, and ML/AI simulations.",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -454,7 +457,8 @@ const inMemoryFacilities: InMemoryFacility[] = [
     nodal_officer_name: "Dr. S. K. Gupta",
     assoc_nodal_officer_name: "Dr. Neha Verma",
     supervisor_name: "Dr. R. K. Singh",
-    description: "Stable isotope analysis for animal diet tracing, ecological migration, and food web studies.",
+    description:
+      "Stable isotope analysis for animal diet tracing, ecological migration, and food web studies.",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -466,7 +470,8 @@ const inMemoryFacilities: InMemoryFacility[] = [
     nodal_officer_name: "Dr. Panna Lal",
     assoc_nodal_officer_name: "Dr. Neha Verma",
     supervisor_name: "Dr. R. K. Singh",
-    description: "VHF/GPS Collar calibration, satellite receiver setup, and animal movement analytics.",
+    description:
+      "VHF/GPS Collar calibration, satellite receiver setup, and animal movement analytics.",
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -523,12 +528,23 @@ const inMemoryServices: InMemoryService[] = [
 ];
 
 /* Helper to map in-memory users with roles */
-const SYSTEM_ROLE_MAP: Record<string, { id: number; code: string; name: string }> = {
+const SYSTEM_ROLE_MAP: Record<
+  string,
+  { id: number; code: string; name: string }
+> = {
   admin: { id: 8, code: "administrator", name: "Administrator" },
   applicant: { id: 1, code: "user", name: "User" },
-  supervisor: { id: 2, code: "reporting_manager", name: "Reporting Manager / Supervisor" },
+  supervisor: {
+    id: 2,
+    code: "reporting_manager",
+    name: "Reporting Manager / Supervisor",
+  },
   lab_nodal: { id: 3, code: "nodal_officer", name: "Nodal Officer" },
-  assoc_lab_nodal: { id: 4, code: "associate_nodal_officer", name: "Associate Nodal Officer" },
+  assoc_lab_nodal: {
+    id: 4,
+    code: "associate_nodal_officer",
+    name: "Associate Nodal Officer",
+  },
   it_officer: { id: 5, code: "it_head", name: "IT Head" },
   section_head: { id: 6, code: "manager", name: "Manager" },
   hrms_officer: { id: 7, code: "supervisor", name: "Supervisor" },
@@ -605,12 +621,22 @@ async function verifyPassword(
   const cleanStored = String(storedHash).trim();
 
   // 1. Direct match (plain text credentials e.g. seeded records)
-  if (cleanStored === cleanProvided || cleanStored.toLowerCase() === cleanProvided.toLowerCase()) {
+  if (
+    cleanStored === cleanProvided ||
+    cleanStored.toLowerCase() === cleanProvided.toLowerCase()
+  ) {
     return true;
   }
 
   // 2. Common fallback passwords for seed/demo accounts
-  const commonPasswords = ["password123", "password", "admin", "admin123", "123456", "wii123"];
+  const commonPasswords = [
+    "password123",
+    "password",
+    "admin",
+    "admin123",
+    "123456",
+    "wii123",
+  ];
   if (commonPasswords.includes(cleanProvided.toLowerCase())) {
     try {
       if (await bcrypt.compare("password123", cleanStored)) return true;
@@ -1273,9 +1299,7 @@ app.post("/api/login", async (req, res) => {
 
     // Fallback roles if user_roles in DB is empty or when in fallback mode
     if (roles.length === 0) {
-      roles = [
-        { id: 1, code: "user", name: "User" },
-      ];
+      roles = [{ id: 1, code: "user", name: "User" }];
       const mappedRole = user.role || "applicant";
       if (mappedRole !== "user" && mappedRole !== "applicant") {
         const rCode = mappedRole === "admin" ? "administrator" : mappedRole;
@@ -1291,7 +1315,9 @@ app.post("/api/login", async (req, res) => {
     // 8. SAFETY:
     // Every registered user MUST have "user" role.
     // -----------------------------------------------------
-    let userRole = roles.find((role) => role.code === "user" || role.code === "applicant");
+    let userRole = roles.find(
+      (role) => role.code === "user" || role.code === "applicant",
+    );
 
     if (!userRole) {
       userRole = { id: 1, code: "user", name: "User" };
@@ -1399,6 +1425,264 @@ function authenticateToken(req: any, res: any, next: any) {
     });
   }
 }
+
+/* =========================================================
+   ORGANIZATION BRANDING API
+   ---------------------------------------------------------
+   MySQL is the single source of truth for the organization
+   logo, titles and primary colour.
+
+   GET  /api/branding  -> public read (needed by login page)
+   POST /api/branding  -> administrator only
+
+   IMPORTANT:
+   - Never fall back to localStorage on the server.
+   - Never silently report success if the DB write fails.
+   - Logo is currently stored as a Base64 data URL in LONGTEXT.
+========================================================= */
+
+app.get("/api/branding", async (req, res) => {
+  try {
+    if (!isDbConnected) {
+      return res.status(503).json({
+        success: false,
+        message: "Branding database is unavailable.",
+      });
+    }
+
+    const [rows]: any = await db.query(`
+      SELECT
+        logo_url AS logoUrl,
+        hindi_name AS hindiName,
+        english_name AS englishName,
+        subtitle,
+        primary_color AS primaryColor,
+        updated_at AS updatedAt
+      FROM branding_config
+      WHERE id = 1
+      LIMIT 1
+    `);
+
+    if (!rows || rows.length === 0) {
+      return res.json({
+        success: true,
+        branding: {
+          logoUrl: null,
+          hindiName: "भारतीय वन्यजीव संस्थान",
+          englishName: "Wildlife Institute of India",
+          subtitle: "",
+          primaryColor: "#7A1C1C",
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      branding: rows[0],
+    });
+  } catch (error: any) {
+    console.error("GET /api/branding ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load organization branding.",
+    });
+  }
+});
+
+/* ---------------------------------------------------------
+   BRANDING ADMIN AUTHORIZATION
+   --------------------------------------------------------- */
+
+async function requireBrandingAdministrator(req: any, res: any, next: any) {
+  try {
+    // IMPORTANT: Do not trust req.user.role for authorization.
+    // The login JWT can contain the base/current role, while the
+    // complete set of assigned roles is stored in user_roles.
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user could not be identified.",
+      });
+    }
+
+    if (!isDbConnected) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Branding database is unavailable. Administrator permission cannot be verified.",
+      });
+    }
+
+    // Verify the user's ACTIVE roles directly from MySQL.
+    const [roleRows]: any = await db.query(
+      `SELECT r.role_code, r.role_name
+       FROM user_roles ur
+       INNER JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = ?
+         AND r.is_active = 1`,
+      [userId],
+    );
+
+    const roles = (roleRows || []).map((row: any) =>
+      String(row.role_code || "")
+        .trim()
+        .toLowerCase(),
+    );
+
+    const isAdministrator =
+      roles.includes("administrator") ||
+      roles.includes("admin") ||
+      roles.includes("system_administrator") ||
+      roles.includes("super_admin") ||
+      roles.includes("superadmin");
+
+    if (!isAdministrator) {
+      console.warn("BRANDING AUTHORIZATION DENIED", { userId, roles });
+      return res.status(403).json({
+        success: false,
+        message: "Only System Administrator can modify organization branding.",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("BRANDING AUTHORIZATION ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to verify organization branding permissions.",
+    });
+  }
+}
+
+/* ---------------------------------------------------------
+   SAVE / UPDATE BRANDING
+   --------------------------------------------------------- */
+
+app.post(
+  "/api/branding",
+  authenticateToken,
+  requireBrandingAdministrator,
+  async (req, res) => {
+    try {
+      if (!isDbConnected) {
+        return res.status(503).json({
+          success: false,
+          message: "Branding database is unavailable. Changes were not saved.",
+        });
+      }
+
+      const { logoUrl, hindiName, englishName, subtitle, primaryColor } =
+        req.body || {};
+
+      const cleanHindiName = String(
+        hindiName ?? "भारतीय वन्यजीव संस्थान",
+      ).trim();
+
+      const cleanEnglishName = String(
+        englishName ?? "Wildlife Institute of India",
+      ).trim();
+
+      const cleanSubtitle = String(subtitle ?? "").trim();
+      const cleanPrimaryColor = String(primaryColor ?? "#7A1C1C").trim();
+
+      if (!cleanHindiName || !cleanEnglishName) {
+        return res.status(400).json({
+          success: false,
+          message: "Organization Hindi and English names are required.",
+        });
+      }
+
+      // Logo is sent as a Base64 data URL by the current frontend.
+      // 4 MB source image becomes larger after Base64 encoding, so
+      // allow up to 7 MB for the request value itself.
+      if (logoUrl != null) {
+        if (typeof logoUrl !== "string") {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid logo data.",
+          });
+        }
+
+        if (logoUrl.length > 7 * 1024 * 1024) {
+          return res.status(413).json({
+            success: false,
+            message:
+              "Logo image is too large. Please upload an image under 4MB.",
+          });
+        }
+
+        if (
+          logoUrl &&
+          !/^data:image\/(png|jpe?g|webp|svg\+xml);base64,/i.test(logoUrl)
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Unsupported logo format.",
+          });
+        }
+      }
+
+      if (!/^#[0-9a-fA-F]{6}$/.test(cleanPrimaryColor)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid primary color.",
+        });
+      }
+
+      await db.query(
+        `
+        INSERT INTO branding_config
+          (id, logo_url, hindi_name, english_name, subtitle, primary_color)
+        VALUES
+          (1, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          logo_url = VALUES(logo_url),
+          hindi_name = VALUES(hindi_name),
+          english_name = VALUES(english_name),
+          subtitle = VALUES(subtitle),
+          primary_color = VALUES(primary_color)
+        `,
+        [
+          logoUrl || null,
+          cleanHindiName,
+          cleanEnglishName,
+          cleanSubtitle,
+          cleanPrimaryColor,
+        ],
+      );
+
+      const [rows]: any = await db.query(`
+        SELECT
+          logo_url AS logoUrl,
+          hindi_name AS hindiName,
+          english_name AS englishName,
+          subtitle,
+          primary_color AS primaryColor,
+          updated_at AS updatedAt
+        FROM branding_config
+        WHERE id = 1
+        LIMIT 1
+      `);
+
+      return res.json({
+        success: true,
+        message: "Organization branding saved successfully.",
+        branding: rows[0],
+      });
+    } catch (error: any) {
+      console.error("POST /api/branding ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save organization branding.",
+      });
+    }
+  },
+);
 
 /* =========================================================
    CURRENT LOGGED-IN USER API
@@ -1550,7 +1834,9 @@ app.get("/api/users", async (req, res) => {
           users: formattedUsers,
         });
       } catch (dbErr) {
-        console.warn("MySQL GET /api/users failed, using in-memory fallback store.");
+        console.warn(
+          "MySQL GET /api/users failed, using in-memory fallback store.",
+        );
       }
     }
 
@@ -1620,7 +1906,9 @@ app.put("/api/users/:userId/roles", async (req, res) => {
 
           if (roles.length === cleanRoleIds.length) {
             await connection.beginTransaction();
-            await connection.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+            await connection.query("DELETE FROM user_roles WHERE user_id = ?", [
+              userId,
+            ]);
             for (const roleId of cleanRoleIds) {
               await connection.query(
                 `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
@@ -1687,10 +1975,14 @@ app.put("/api/users/:userId/roles", async (req, res) => {
 /* Ensure workflow_stages column exists on facility_masters and service_masters */
 async function ensureWorkflowColumns() {
   try {
-    await db.query(`ALTER TABLE facility_masters ADD COLUMN workflow_stages TEXT NULL`);
+    await db.query(
+      `ALTER TABLE facility_masters ADD COLUMN workflow_stages TEXT NULL`,
+    );
   } catch (_) {}
   try {
-    await db.query(`ALTER TABLE service_masters ADD COLUMN workflow_stages TEXT NULL`);
+    await db.query(
+      `ALTER TABLE service_masters ADD COLUMN workflow_stages TEXT NULL`,
+    );
   } catch (_) {}
 }
 ensureWorkflowColumns().catch(() => {});
@@ -1742,7 +2034,10 @@ app.get("/api/facilities", async (req, res) => {
           let stages = null;
           if (row.workflow_stages) {
             try {
-              stages = typeof row.workflow_stages === 'string' ? JSON.parse(row.workflow_stages) : row.workflow_stages;
+              stages =
+                typeof row.workflow_stages === "string"
+                  ? JSON.parse(row.workflow_stages)
+                  : row.workflow_stages;
             } catch (_) {}
           }
           return {
@@ -1766,7 +2061,9 @@ app.get("/api/facilities", async (req, res) => {
           facilities,
         });
       } catch (dbErr) {
-        console.warn("MySQL GET /api/facilities error, falling back to in-memory store.");
+        console.warn(
+          "MySQL GET /api/facilities error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -1857,7 +2154,9 @@ app.post("/api/facilities", async (req, res) => {
         }
 
         const facilityId = `FAC-${String(nextNumber).padStart(2, "0")}`;
-        const stagesJson = workflowStages ? JSON.stringify(workflowStages) : null;
+        const stagesJson = workflowStages
+          ? JSON.stringify(workflowStages)
+          : null;
 
         try {
           await db.query(
@@ -1866,7 +2165,17 @@ app.post("/api/facilities", async (req, res) => {
             (id, facility_name, department, nodal_officer_name, assoc_nodal_officer_name, supervisor_name, description, status, workflow_stages)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
-            [facilityId, String(name).trim(), dept || null, String(nodal).trim(), String(assocNodal).trim(), String(supervisor).trim(), desc || null, status, stagesJson],
+            [
+              facilityId,
+              String(name).trim(),
+              dept || null,
+              String(nodal).trim(),
+              String(assocNodal).trim(),
+              String(supervisor).trim(),
+              desc || null,
+              status,
+              stagesJson,
+            ],
           );
         } catch (_) {
           await db.query(
@@ -1875,7 +2184,16 @@ app.post("/api/facilities", async (req, res) => {
             (id, facility_name, department, nodal_officer_name, assoc_nodal_officer_name, supervisor_name, description, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `,
-            [facilityId, String(name).trim(), dept || null, String(nodal).trim(), String(assocNodal).trim(), String(supervisor).trim(), desc || null, status],
+            [
+              facilityId,
+              String(name).trim(),
+              dept || null,
+              String(nodal).trim(),
+              String(assocNodal).trim(),
+              String(supervisor).trim(),
+              desc || null,
+              status,
+            ],
           );
         }
 
@@ -1885,7 +2203,9 @@ app.post("/api/facilities", async (req, res) => {
           id: facilityId,
         });
       } catch (dbErr) {
-        console.warn("MySQL POST /api/facilities error, falling back to in-memory store.");
+        console.warn(
+          "MySQL POST /api/facilities error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -1896,7 +2216,10 @@ app.post("/api/facilities", async (req, res) => {
         return match ? Number(match[1]) : 0;
       })
       .filter((n) => Number.isFinite(n));
-    const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : inMemoryFacilities.length + 1;
+    const nextNum =
+      numbers.length > 0
+        ? Math.max(...numbers) + 1
+        : inMemoryFacilities.length + 1;
     const facilityId = `FAC-${String(nextNum).padStart(2, "0")}`;
 
     const newFac: InMemoryFacility = {
@@ -1934,18 +2257,30 @@ app.post("/api/facilities", async (req, res) => {
 app.put("/api/facilities/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, dept, nodal, assocNodal, supervisor, desc, status, workflowStages } = req.body;
+    const {
+      name,
+      dept,
+      nodal,
+      assocNodal,
+      supervisor,
+      desc,
+      status,
+      workflowStages,
+    } = req.body;
 
     if (!name || !nodal || !assocNodal || !supervisor) {
       return res.status(400).json({
         success: false,
-        message: "Facility name, Nodal Officer, Associate Nodal Officer and Supervisor are required.",
+        message:
+          "Facility name, Nodal Officer, Associate Nodal Officer and Supervisor are required.",
       });
     }
 
     if (isDbConnected) {
       try {
-        const stagesJson = workflowStages ? JSON.stringify(workflowStages) : null;
+        const stagesJson = workflowStages
+          ? JSON.stringify(workflowStages)
+          : null;
         let result: any;
         try {
           const [resRes]: any = await db.query(
@@ -1954,7 +2289,17 @@ app.put("/api/facilities/:id", async (req, res) => {
             SET facility_name = ?, department = ?, nodal_officer_name = ?, assoc_nodal_officer_name = ?, supervisor_name = ?, description = ?, status = ?, workflow_stages = ?
             WHERE id = ?
             `,
-            [String(name).trim(), dept || null, String(nodal).trim(), String(assocNodal).trim(), String(supervisor).trim(), desc || null, status || "active", stagesJson, id],
+            [
+              String(name).trim(),
+              dept || null,
+              String(nodal).trim(),
+              String(assocNodal).trim(),
+              String(supervisor).trim(),
+              desc || null,
+              status || "active",
+              stagesJson,
+              id,
+            ],
           );
           result = resRes;
         } catch (_) {
@@ -1964,7 +2309,16 @@ app.put("/api/facilities/:id", async (req, res) => {
             SET facility_name = ?, department = ?, nodal_officer_name = ?, assoc_nodal_officer_name = ?, supervisor_name = ?, description = ?, status = ?
             WHERE id = ?
             `,
-            [String(name).trim(), dept || null, String(nodal).trim(), String(assocNodal).trim(), String(supervisor).trim(), desc || null, status || "active", id],
+            [
+              String(name).trim(),
+              dept || null,
+              String(nodal).trim(),
+              String(assocNodal).trim(),
+              String(supervisor).trim(),
+              desc || null,
+              status || "active",
+              id,
+            ],
           );
           result = resRes;
         }
@@ -1976,7 +2330,9 @@ app.put("/api/facilities/:id", async (req, res) => {
           });
         }
       } catch (dbErr) {
-        console.warn("MySQL PUT /api/facilities error, falling back to in-memory store.");
+        console.warn(
+          "MySQL PUT /api/facilities error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -2026,7 +2382,9 @@ app.delete("/api/facilities/:id", async (req, res) => {
           });
         }
       } catch (dbErr) {
-        console.warn("MySQL DELETE /api/facilities error, falling back to in-memory store.");
+        console.warn(
+          "MySQL DELETE /api/facilities error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -2094,7 +2452,10 @@ app.get("/api/services", async (req, res) => {
           let stages = null;
           if (row.workflow_stages) {
             try {
-              stages = typeof row.workflow_stages === 'string' ? JSON.parse(row.workflow_stages) : row.workflow_stages;
+              stages =
+                typeof row.workflow_stages === "string"
+                  ? JSON.parse(row.workflow_stages)
+                  : row.workflow_stages;
             } catch (_) {}
           }
           return {
@@ -2115,7 +2476,9 @@ app.get("/api/services", async (req, res) => {
           services,
         });
       } catch (dbErr) {
-        console.warn("MySQL GET /api/services error, falling back to in-memory store.");
+        console.warn(
+          "MySQL GET /api/services error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -2157,7 +2520,13 @@ app.get("/api/services", async (req, res) => {
 /* CREATE SERVICE */
 app.post("/api/services", async (req, res) => {
   try {
-    const { name, manager, quota, status = "active", workflowStages = null } = req.body;
+    const {
+      name,
+      manager,
+      quota,
+      status = "active",
+      workflowStages = null,
+    } = req.body;
 
     if (!name || !manager) {
       return res.status(400).json({
@@ -2190,7 +2559,9 @@ app.post("/api/services", async (req, res) => {
         }
 
         const serviceId = `SRV-${String(nextNumber).padStart(2, "0")}`;
-        const stagesJson = workflowStages ? JSON.stringify(workflowStages) : null;
+        const stagesJson = workflowStages
+          ? JSON.stringify(workflowStages)
+          : null;
 
         try {
           await db.query(
@@ -2198,7 +2569,14 @@ app.post("/api/services", async (req, res) => {
             INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status, workflow_stages)
             VALUES (?, ?, ?, ?, ?, ?)
             `,
-            [serviceId, String(name).trim(), String(manager).trim(), quota || null, status, stagesJson],
+            [
+              serviceId,
+              String(name).trim(),
+              String(manager).trim(),
+              quota || null,
+              status,
+              stagesJson,
+            ],
           );
         } catch (_) {
           await db.query(
@@ -2206,7 +2584,13 @@ app.post("/api/services", async (req, res) => {
             INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status)
             VALUES (?, ?, ?, ?, ?)
             `,
-            [serviceId, String(name).trim(), String(manager).trim(), quota || null, status],
+            [
+              serviceId,
+              String(name).trim(),
+              String(manager).trim(),
+              quota || null,
+              status,
+            ],
           );
         }
 
@@ -2216,7 +2600,9 @@ app.post("/api/services", async (req, res) => {
           id: serviceId,
         });
       } catch (dbErr) {
-        console.warn("MySQL POST /api/services error, falling back to in-memory store.");
+        console.warn(
+          "MySQL POST /api/services error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -2226,7 +2612,10 @@ app.post("/api/services", async (req, res) => {
         return match ? Number(match[1]) : 0;
       })
       .filter((n) => Number.isFinite(n));
-    const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : inMemoryServices.length + 1;
+    const nextNum =
+      numbers.length > 0
+        ? Math.max(...numbers) + 1
+        : inMemoryServices.length + 1;
     const serviceId = `SRV-${String(nextNum).padStart(2, "0")}`;
 
     const newSrv: InMemoryService = {
@@ -2272,7 +2661,9 @@ app.put("/api/services/:id", async (req, res) => {
 
     if (isDbConnected) {
       try {
-        const stagesJson = workflowStages ? JSON.stringify(workflowStages) : null;
+        const stagesJson = workflowStages
+          ? JSON.stringify(workflowStages)
+          : null;
         let result: any;
         try {
           const [resRes]: any = await db.query(
@@ -2281,7 +2672,14 @@ app.put("/api/services/:id", async (req, res) => {
             SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?, workflow_stages = ?
             WHERE id = ?
             `,
-            [String(name).trim(), String(manager).trim(), quota || null, status || "active", stagesJson, id],
+            [
+              String(name).trim(),
+              String(manager).trim(),
+              quota || null,
+              status || "active",
+              stagesJson,
+              id,
+            ],
           );
           result = resRes;
         } catch (_) {
@@ -2291,7 +2689,13 @@ app.put("/api/services/:id", async (req, res) => {
             SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?
             WHERE id = ?
             `,
-            [String(name).trim(), String(manager).trim(), quota || null, status || "active", id],
+            [
+              String(name).trim(),
+              String(manager).trim(),
+              quota || null,
+              status || "active",
+              id,
+            ],
           );
           result = resRes;
         }
@@ -2303,7 +2707,9 @@ app.put("/api/services/:id", async (req, res) => {
           });
         }
       } catch (dbErr) {
-        console.warn("MySQL PUT /api/services error, falling back to in-memory store.");
+        console.warn(
+          "MySQL PUT /api/services error, falling back to in-memory store.",
+        );
       }
     }
 
@@ -2349,7 +2755,9 @@ app.delete("/api/services/:id", async (req, res) => {
           });
         }
       } catch (dbErr) {
-        console.warn("MySQL DELETE /api/services error, falling back to in-memory store.");
+        console.warn(
+          "MySQL DELETE /api/services error, falling back to in-memory store.",
+        );
       }
     }
 

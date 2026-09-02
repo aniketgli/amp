@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   useBranding,
   saveBrandingConfig,
@@ -28,9 +28,11 @@ export const LogoBrandingMasterSection: React.FC = () => {
   const [hindiName, setHindiName] = useState(currentBranding.hindiName);
   const [englishName, setEnglishName] = useState(currentBranding.englishName);
   const [subtitle, setSubtitle] = useState(currentBranding.subtitle);
-  const [primaryColor, setPrimaryColor] = useState(currentBranding.primaryColor);
+  const [primaryColor, setPrimaryColor] = useState(
+    currentBranding.primaryColor,
+  );
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(
-    currentBranding.logoUrl
+    currentBranding.logoUrl,
   );
 
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
@@ -38,6 +40,31 @@ export const LogoBrandingMasterSection: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ---------------------------------------------------------
+  // SERVER SYNC
+  // ---------------------------------------------------------
+  // useBranding() first returns the local cache and then fetches
+  // the latest branding from MySQL. This effect updates the form
+  // when that server value arrives.
+  // ---------------------------------------------------------
+  useEffect(() => {
+    setHindiName(currentBranding.hindiName);
+    setEnglishName(currentBranding.englishName);
+    setSubtitle(currentBranding.subtitle);
+    setPrimaryColor(currentBranding.primaryColor);
+    setLogoPreviewUrl(currentBranding.logoUrl);
+  }, [
+    currentBranding.updatedAt,
+    currentBranding.logoUrl,
+    currentBranding.hindiName,
+    currentBranding.englishName,
+    currentBranding.subtitle,
+    currentBranding.primaryColor,
+  ]);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,13 +79,17 @@ export const LogoBrandingMasterSection: React.FC = () => {
 
     // Validate type
     if (!file.type.startsWith("image/")) {
-      setUploadError("Invalid file type. Please upload a PNG, JPG, WEBP, or SVG image file.");
+      setUploadError(
+        "Invalid file type. Please upload a PNG, JPG, WEBP, or SVG image file.",
+      );
       return;
     }
 
     // Validate size (max 4MB)
     if (file.size > 4 * 1024 * 1024) {
-      setUploadError("Image size exceeds 4MB. Please upload a smaller image file.");
+      setUploadError(
+        "Image size exceeds 4MB. Please upload a smaller image file.",
+      );
       return;
     }
 
@@ -66,7 +97,9 @@ export const LogoBrandingMasterSection: React.FC = () => {
     reader.onload = () => {
       const result = reader.result as string;
       setLogoPreviewUrl(result);
-      setUploadSuccessMsg(`Logo image "${file.name}" loaded for preview. Click "Save Logo & Branding Master" to apply.`);
+      setUploadSuccessMsg(
+        `Logo image "${file.name}" loaded for preview. Click "Save Logo & Branding Master" to apply.`,
+      );
     };
     reader.onerror = () => {
       setUploadError("Failed to read image file.");
@@ -92,38 +125,96 @@ export const LogoBrandingMasterSection: React.FC = () => {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSaving) return;
+
     setUploadError(null);
+    setUploadSuccessMsg(null);
+    setIsSaving(true);
 
-    saveBrandingConfig({
-      logoUrl: logoPreviewUrl,
-      hindiName: hindiName.trim(),
-      englishName: englishName.trim(),
-      subtitle: subtitle.trim(),
-      primaryColor,
-    });
+    try {
+      // IMPORTANT: saveBrandingConfig now writes to MySQL first.
+      // Local cache is updated only after the server confirms success.
+      const saved = await saveBrandingConfig({
+        logoUrl: logoPreviewUrl,
+        hindiName: hindiName.trim(),
+        englishName: englishName.trim(),
+        subtitle: subtitle.trim(),
+        primaryColor,
+      });
 
-    setUploadSuccessMsg("Organization Logo & Branding Master updated successfully! Changes applied system-wide.");
-    setTimeout(() => setUploadSuccessMsg(null), 5000);
+      // Reflect the exact server response in the form.
+      setHindiName(saved.hindiName);
+      setEnglishName(saved.englishName);
+      setSubtitle(saved.subtitle);
+      setPrimaryColor(saved.primaryColor);
+      setLogoPreviewUrl(saved.logoUrl);
+
+      setUploadSuccessMsg(
+        "Organization Logo & Branding Master saved successfully. Changes are now stored centrally and will be available on all devices.",
+      );
+
+      setTimeout(() => setUploadSuccessMsg(null), 5000);
+    } catch (error: any) {
+      console.error("BRANDING SAVE ERROR:", error);
+
+      setUploadError(
+        error?.message ||
+          "Unable to save organization branding. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleReset = () => {
-    if (window.confirm("Are you sure you want to reset to the default official WII logo and titles?")) {
-      const resetConfig = resetBrandingConfig();
+  const handleReset = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to reset to the default official WII logo and titles?",
+      )
+    ) {
+      return;
+    }
+
+    if (isResetting) return;
+
+    setUploadError(null);
+    setUploadSuccessMsg(null);
+    setIsResetting(true);
+
+    try {
+      const resetConfig = await resetBrandingConfig();
+
       setHindiName(resetConfig.hindiName);
       setEnglishName(resetConfig.englishName);
       setSubtitle(resetConfig.subtitle);
       setPrimaryColor(resetConfig.primaryColor);
       setLogoPreviewUrl(resetConfig.logoUrl);
-      setUploadSuccessMsg("Reset to default WII logo and official titles.");
+
+      setUploadSuccessMsg(
+        "Branding has been reset centrally. All devices will receive the default WII branding.",
+      );
+
       setTimeout(() => setUploadSuccessMsg(null), 4000);
+    } catch (error: any) {
+      console.error("BRANDING RESET ERROR:", error);
+
+      setUploadError(
+        error?.message ||
+          "Unable to reset organization branding. Please try again.",
+      );
+    } finally {
+      setIsResetting(false);
     }
   };
 
   const handleRemoveCustomLogo = () => {
     setLogoPreviewUrl(null);
-    setUploadSuccessMsg("Custom logo image removed. Vector emblem will be used.");
+    setUploadSuccessMsg(
+      "Custom logo image removed. Vector emblem will be used.",
+    );
   };
 
   const colorPresets = [
@@ -151,7 +242,8 @@ export const LogoBrandingMasterSection: React.FC = () => {
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Upload company logo, configure institution title and branding colors. Editable strictly by System Administrator.
+                Upload company logo, configure institution title and branding
+                colors. Editable strictly by System Administrator.
               </p>
             </div>
           </div>
@@ -232,7 +324,8 @@ export const LogoBrandingMasterSection: React.FC = () => {
                 Click to browse or drag & drop logo image file
               </p>
               <p className="text-[11px] text-slate-500 mt-1">
-                Supports PNG, JPG, JPEG, WEBP, or SVG (Transparent PNG recommended, Max 4MB)
+                Supports PNG, JPG, JPEG, WEBP, or SVG (Transparent PNG
+                recommended, Max 4MB)
               </p>
 
               {logoPreviewUrl && (
@@ -316,7 +409,9 @@ export const LogoBrandingMasterSection: React.FC = () => {
                   <Palette className="w-3.5 h-3.5 text-purple-600" />
                   Logo & Typography Primary Color
                 </span>
-                <span className="font-mono text-[11px] font-bold text-slate-600">{primaryColor}</span>
+                <span className="font-mono text-[11px] font-bold text-slate-600">
+                  {primaryColor}
+                </span>
               </label>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -355,18 +450,24 @@ export const LogoBrandingMasterSection: React.FC = () => {
             <button
               type="button"
               onClick={handleReset}
+              disabled={isResetting || isSaving}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs flex items-center gap-2 border border-slate-300 transition-all cursor-pointer"
             >
-              <RotateCcw className="w-4 h-4 text-slate-600" />
-              Reset Default WII Logo
+              <RotateCcw
+                className={`w-4 h-4 text-slate-600 ${isResetting ? "animate-spin" : ""}`}
+              />
+              {isResetting ? "Resetting..." : "Reset Default WII Logo"}
             </button>
 
             <button
               type="submit"
+              disabled={isSaving || isResetting}
               className="px-6 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
             >
-              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
-              Save Logo & Branding Master
+              <Sparkles
+                className={`w-4 h-4 text-amber-300 fill-amber-300 ${isSaving ? "animate-pulse" : ""}`}
+              />
+              {isSaving ? "Saving..." : "Save Logo & Branding Master"}
             </button>
           </div>
         </form>
@@ -403,7 +504,9 @@ export const LogoBrandingMasterSection: React.FC = () => {
                   )}
                 </div>
                 <div className="hidden sm:block text-right">
-                  <span className="text-[10px] font-bold text-slate-500">System Admin Portal</span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    System Admin Portal
+                  </span>
                 </div>
               </div>
             </div>
@@ -424,8 +527,12 @@ export const LogoBrandingMasterSection: React.FC = () => {
                   <WiiLogo size="sm" />
                 )}
                 <div className="text-right">
-                  <div className="text-xs font-black text-slate-900">Account Login</div>
-                  <div className="text-[9px] text-slate-500">Access Management</div>
+                  <div className="text-xs font-black text-slate-900">
+                    Account Login
+                  </div>
+                  <div className="text-[9px] text-slate-500">
+                    Access Management
+                  </div>
                 </div>
               </div>
             </div>
@@ -458,9 +565,7 @@ export const LogoBrandingMasterSection: React.FC = () => {
                     Subject: Equipment Access Requisition Approval Form
                   </div>
                   {subtitle && (
-                    <div className="text-[9px] text-slate-500">
-                      {subtitle}
-                    </div>
+                    <div className="text-[9px] text-slate-500">{subtitle}</div>
                   )}
                 </div>
               </div>
@@ -474,7 +579,9 @@ export const LogoBrandingMasterSection: React.FC = () => {
               Editable strictly from Master Admin
             </div>
             <p className="text-[11px] text-purple-800 leading-relaxed">
-              Once saved in this Master section, the uploaded company logo is enforced across all user roles, login cards, navigation headers, email notifications, and printable requisition forms.
+              Once saved in this Master section, the uploaded company logo is
+              enforced across all user roles, login cards, navigation headers,
+              email notifications, and printable requisition forms.
             </p>
           </div>
         </div>
