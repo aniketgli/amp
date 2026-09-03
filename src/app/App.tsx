@@ -20,7 +20,7 @@ import {
 } from "../utils/storage";
 
 import { Navbar } from "../components/layout/Navbar";
-import { Footer } from "../components/Footer";
+import { Footer } from "../components/layout/Footer";
 import { OverviewDashboard } from "../components/dashboard/DashboardPage";
 import { MyAccessHub } from "../components/applicant/AccessHubPage";
 import { ProfileForm } from "../components/applicant/UserProfilePage";

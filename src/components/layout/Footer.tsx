@@ -1,5 +1,5 @@
 import React from 'react';
-import { WiiLogo } from './common/WiiLogo';
+import { WiiLogo } from '../common/WiiLogo';
 import {
   ExternalLink,
   ShieldCheck,
