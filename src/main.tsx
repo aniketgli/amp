@@ -11,7 +11,7 @@ import { BrowserRouter } from "react-router-dom";
 // application component starts making API requests.
 import "./api/apiClient";
 
-import App from "./App.tsx";
+import App from "./app/App.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(

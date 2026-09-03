@@ -6,7 +6,7 @@ import {
   ApplicantProfile,
   RequisitionRecord,
   UserRole,
-} from "./types/requisition";
+} from "../types/requisition";
 
 import {
   createNewRequisition,
@@ -15,19 +15,19 @@ import {
   resetToInitialData,
   saveApplicantProfile,
   updateRequisitionRecord,
-} from "./utils/storage";
+} from "../utils/storage";
 
-import { Navbar } from "./components/Navbar";
-import { Footer } from "./components/Footer";
-import { OverviewDashboard } from "./components/dashboard/DashboardPage";
-import { MyAccessHub } from "./components/applicant/AccessHubPage";
-import { ProfileForm } from "./components/applicant/UserProfilePage";
-import { RequisitionList } from "./components/requisition/RequisitionListPage";
-import { RequisitionDetails } from "./components/requisition/RequisitionDetails";
-import { ApprovalQueue } from "./components/workflow/ApprovalQueuePage";
-import { HelpdeskView } from "./components/helpdesk/HelpdeskPage";
-import { SuperAdminControlPanel } from "./components/admin/AdminControlPage";
-import { AuthPage } from "./components/auth/AuthPage";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
+import { OverviewDashboard } from "../components/dashboard/DashboardPage";
+import { MyAccessHub } from "../components/applicant/AccessHubPage";
+import { ProfileForm } from "../components/applicant/UserProfilePage";
+import { RequisitionList } from "../components/requisition/RequisitionListPage";
+import { RequisitionDetails } from "../components/requisition/RequisitionDetails";
+import { ApprovalQueue } from "../components/workflow/ApprovalQueuePage";
+import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
+import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";
+import { AuthPage } from "../components/auth/AuthPage";
 
 // =========================================================
 // APPLICATION TAB / ROUTE TYPE
