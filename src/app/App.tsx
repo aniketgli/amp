@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { APP_ROUTES, getTabFromPath, type AppTab } from "./routes";
+
 import {
   ApplicantProfile,
   RequisitionRecord,
@@ -28,77 +30,6 @@ import { ApprovalQueue } from "../components/workflow/ApprovalQueuePage";
 import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";
 import { AuthPage } from "../components/auth/AuthPage";
-
-// =========================================================
-// APPLICATION TAB / ROUTE TYPE
-// =========================================================
-// Keep all top-level application destinations in one type.
-// The URL is now the source of truth for page navigation, while
-// activeTab is retained as a compatibility layer for the existing
-// page components.
-// =========================================================
-type AppTab =
-  | "dashboard"
-  | "profile"
-  | "my_requests"
-  | "new_request"
-  | "approval_queue"
-  | "helpdesk"
-  | "super_admin_panel"
-  | "auth";
-
-// =========================================================
-// URL -> APPLICATION TAB
-// =========================================================
-// IMPORTANT: This function MUST live outside App().
-// The previous version declared it below useState(), which means
-// the function was called before its const initialization and could
-// throw a ReferenceError on first render.
-// =========================================================
-const getTabFromPath = (pathname: string): AppTab => {
-  // Authentication
-  if (pathname === "/login" || pathname === "/auth") {
-    return "auth";
-  }
-
-  // Dashboard
-  if (pathname === "/" || pathname === "/dashboard") {
-    return "dashboard";
-  }
-
-  // Profile
-  if (pathname === "/profile") {
-    return "profile";
-  }
-
-  // Requests
-  if (pathname === "/requests") {
-    return "my_requests";
-  }
-
-  // New request
-  if (pathname === "/requests/new" || pathname === "/new-request") {
-    return "new_request";
-  }
-
-  // Approval queue
-  if (pathname === "/approval-queue" || pathname === "/approvals") {
-    return "approval_queue";
-  }
-
-  // Helpdesk
-  if (pathname === "/helpdesk") {
-    return "helpdesk";
-  }
-
-  // Administrator / Master
-  if (pathname === "/admin" || pathname === "/master") {
-    return "super_admin_panel";
-  }
-
-  // Unknown path: fall back to dashboard.
-  return "dashboard";
-};
 
 // =========================================================
 // BACKEND ROLE -> FRONTEND ROLE MAP
@@ -180,17 +111,6 @@ export default function App() {
   // stayed at "/".
   // =========================================================
   const navigateToTab = (tab: AppTab) => {
-    const routeMap: Record<AppTab, string> = {
-      dashboard: "/",
-      profile: "/profile",
-      my_requests: "/requests",
-      new_request: "/requests/new",
-      approval_queue: "/approval-queue",
-      helpdesk: "/helpdesk",
-      super_admin_panel: "/admin",
-      auth: "/login",
-    };
-
     // Keep existing components compatible with activeTab.
     setActiveTab(tab);
 
@@ -200,7 +120,8 @@ export default function App() {
     }
 
     // React Router changes the URL without a full page reload.
-    const targetPath = routeMap[tab];
+    const targetPath = APP_ROUTES[tab];
+
     if (location.pathname !== targetPath) {
       navigate(targetPath);
     }
