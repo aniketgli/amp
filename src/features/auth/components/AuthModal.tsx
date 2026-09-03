@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, ApplicantProfile } from '../../types/requisition';
-import { OFFICIAL_ROLES } from '../../data/initialData';
+import { UserRole, ApplicantProfile } from '../../../types/requisition';
+import { OFFICIAL_ROLES } from '../../../data/initialData';
 import {
   User,
   Lock,
