@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { UserRole, ApplicantProfile } from "../../types/requisition";
-import { WiiLogo } from "../common/WiiLogo";
+import { UserRole, ApplicantProfile } from "../../../types/requisition";
+import { WiiLogo } from "../../../components/common/WiiLogo";
 
-import { EmailInboxModal } from "../common/EmailInboxModal";
+import { EmailInboxModal } from "../../../components/common/EmailInboxModal";
 import {
   User,
   Lock,
@@ -638,8 +638,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 onSubmit={handleLoginSubmit}
                 className="space-y-5 max-w-2xl mx-auto"
               >
-
-
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
                     Personal Email / WII Email ID *

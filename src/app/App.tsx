@@ -29,7 +29,7 @@ import { RequisitionDetails } from "../components/requisition/RequisitionDetails
 import { ApprovalQueue } from "../components/workflow/ApprovalQueuePage";
 import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";
-import { AuthPage } from "../components/auth/AuthPage";
+import { AuthPage } from "../features/auth/pages/AuthPage";
 
 // =========================================================
 // BACKEND ROLE -> FRONTEND ROLE MAP
