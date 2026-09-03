@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { ApplicantProfile } from "../types/requisition";
-import { WiiLogo } from "./common/WiiLogo";
+import { ApplicantProfile } from "../../types/requisition";
+import { WiiLogo } from "../common/WiiLogo";
 
 import {
   FileText,

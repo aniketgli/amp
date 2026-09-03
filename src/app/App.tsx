@@ -19,7 +19,7 @@ import {
   updateRequisitionRecord,
 } from "../utils/storage";
 
-import { Navbar } from "../components/Navbar";
+import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/Footer";
 import { OverviewDashboard } from "../components/dashboard/DashboardPage";
 import { MyAccessHub } from "../components/applicant/AccessHubPage";
