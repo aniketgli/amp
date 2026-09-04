@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { RequisitionRecord, UserRole } from '../../types/requisition';
-import { getRequisitionServiceName, getRequisitionRefId } from '../../utils/storage';
-import { OfficialFormReplica } from './OfficialFormReplica';
+import { RequisitionRecord, UserRole } from '@/types/requisition';
+import { getRequisitionServiceName, getRequisitionRefId } from "@/utils/storage";
+import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
 import {
   Clock,
   CheckCircle2,

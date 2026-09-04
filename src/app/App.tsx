@@ -21,11 +21,11 @@ import {
 
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
-import { OverviewDashboard } from "../components/dashboard/DashboardPage";
-import { MyAccessHub } from "../components/applicant/AccessHubPage";
-import { ProfileForm } from "../components/applicant/UserProfilePage";
-import { RequisitionList } from "../components/requisition/RequisitionListPage";
-import { RequisitionDetails } from "../components/requisition/RequisitionDetails";
+import { OverviewDashboard } from "../features/dashboard/pages/DashboardPage";
+import { MyAccessHub } from "../features/access/pages/AccessHubPage";
+import { ProfileForm } from "../features/profile/pages/UserProfilePage";
+import { RequisitionList } from "@/features/requisition/pages/RequisitionListPage";
+import { RequisitionDetails } from "@/features/requisition/pages/RequisitionDetails";
 import { ApprovalQueue } from "../components/workflow/ApprovalQueuePage";
 import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";

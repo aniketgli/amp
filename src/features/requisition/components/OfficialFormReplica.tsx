@@ -1,5 +1,5 @@
 import React from 'react';
-import { RequisitionRecord } from '../../types/requisition';
+import { RequisitionRecord } from '@/types/requisition';
 import { Printer, Download, X, Building2, CheckCircle2 } from 'lucide-react';
 
 interface OfficialFormReplicaProps {

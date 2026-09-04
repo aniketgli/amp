@@ -1,6 +1,6 @@
 import React from 'react';
 import { RequisitionRecord, UserRole } from '../../types/requisition';
-import { RequisitionList } from '../requisition/RequisitionListPage';
+import { RequisitionList } from '@/features/requisition/pages/RequisitionListPage';
 
 interface ApprovalQueueProps {
   requisitions: RequisitionRecord[];

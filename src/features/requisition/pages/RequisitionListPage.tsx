@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { RequisitionRecord, UserRole, WII_LABS } from '../../types/requisition';
-import { OFFICIAL_ROLES } from '../../data/initialData';
-import { getRequisitionServiceName, isRequisitionVisibleForRole } from '../../utils/storage';
-import { ApprovalActionModal } from '../workflow/ApprovalActionModal';
-import { OfficialFormReplica } from './OfficialFormReplica';
+import { RequisitionRecord, UserRole, WII_LABS } from '@/types/requisition';
+import { OFFICIAL_ROLES } from '@/data/initialData';
+import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/utils/storage';
+import { ApprovalActionModal } from '@/components/workflow/ApprovalActionModal';
+import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
 import {
   FileText,
   Search,
