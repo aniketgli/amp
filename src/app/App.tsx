@@ -26,7 +26,7 @@ import { MyAccessHub } from "../features/access/pages/AccessHubPage";
 import { ProfileForm } from "../features/profile/pages/UserProfilePage";
 import { RequisitionList } from "@/features/requisition/pages/RequisitionListPage";
 import { RequisitionDetails } from "@/features/requisition/pages/RequisitionDetails";
-import { ApprovalQueue } from "../components/workflow/ApprovalQueuePage";
+import { ApprovalQueue } from "@/features/workflow/pages/ApprovalQueuePage";
 import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
 import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";
 import { AuthPage } from "../features/auth/pages/AuthPage";

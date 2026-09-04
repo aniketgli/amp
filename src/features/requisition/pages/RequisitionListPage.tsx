@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { RequisitionRecord, UserRole, WII_LABS } from '@/types/requisition';
 import { OFFICIAL_ROLES } from '@/data/initialData';
 import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/utils/storage';
-import { ApprovalActionModal } from '@/components/workflow/ApprovalActionModal';
+import { ApprovalActionModal } from '@/features/workflow/components/ApprovalActionModal';
 import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
 import {
   FileText,

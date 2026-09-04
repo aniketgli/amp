@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '../../types/requisition';
-import { findFacility } from '../../utils/storage';
+import { findFacility } from '@/utils/storage';
 import { CheckCircle2, XCircle, ShieldCheck, Mail, Lock, X } from 'lucide-react';
 
 interface ApprovalActionModalProps {
