@@ -7,7 +7,7 @@ import {
   RequisitionType,
 } from '../../types/requisition';
 import { generateRequisitionId } from '../../utils/storage';
-import { ProfileForm } from '../applicant/UserProfilePage';
+import { ProfileForm } from "../../features/profile/pages/UserProfilePage";
 import { ITHrmsForm } from './ITHrmsForm';
 import { LabAccessForm } from './LabAccessForm';
 import {
