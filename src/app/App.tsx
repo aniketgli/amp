@@ -28,7 +28,7 @@ import { RequisitionList } from "@/features/requisition/pages/RequisitionListPag
 import { RequisitionDetails } from "@/features/requisition/pages/RequisitionDetails";
 import { ApprovalQueue } from "@/features/workflow/pages/ApprovalQueuePage";
 import { HelpdeskView } from "../components/helpdesk/HelpdeskPage";
-import { SuperAdminControlPanel } from "../components/admin/AdminControlPage";
+import { SuperAdminControlPanel } from "@/features/admin/pages/AdminControlPage";
 import { AuthPage } from "../features/auth/pages/AuthPage";
 
 // =========================================================

@@ -4,8 +4,8 @@ import {
   saveBrandingConfig,
   resetBrandingConfig,
   BrandingConfig,
-} from "../../utils/brandingStore";
-import { WiiLogo } from "../common/WiiLogo";
+} from "@/utils/brandingStore";
+import { WiiLogo } from "@/components/common/WiiLogo";
 import {
   Upload,
   Image as ImageIcon,

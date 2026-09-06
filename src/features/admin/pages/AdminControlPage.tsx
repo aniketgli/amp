@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { RequisitionRecord, UserRole } from "../../types/requisition";
-import { recordSecurityAuditLog } from "../../utils/auditLogger";
-import { SecurityAuditTrailSection } from "./SecurityAuditTrailSection";
-import { DatabaseSchemaSection } from "./DatabaseSchemaSection";
-import { LogoBrandingMasterSection } from "./LogoBrandingMasterSection";
+import { RequisitionRecord, UserRole } from "@/types/requisition";
+import { recordSecurityAuditLog } from "@/utils/auditLogger";
+import { SecurityAuditTrailSection } from "../components/SecurityAuditTrailSection";
+import { DatabaseSchemaSection } from "../components/DatabaseSchemaSection";
+import { LogoBrandingMasterSection } from "../components/LogoBrandingMasterSection";
 
 import {
   Activity,
