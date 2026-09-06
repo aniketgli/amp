@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LabFacilitySelection } from '../../types/requisition';
-import { getStoredFacilities, findFacility } from '../../utils/storage';
+import { LabFacilitySelection } from "@/types/requisition";
+import { getStoredFacilities, findFacility } from "@/utils/storage";
 import { FlaskConical, Calendar, Info, Check, Microchip, Fingerprint } from 'lucide-react';
 
 interface LabAccessFormProps {

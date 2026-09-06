@@ -5,9 +5,9 @@ import {
   LabFacilitySelection,
   RequisitionRecord,
   RequisitionType,
-} from '../../types/requisition';
-import { generateRequisitionId } from '../../utils/storage';
-import { ProfileForm } from "../../features/profile/pages/UserProfilePage";
+} from "@/types/requisition";
+import { generateRequisitionId } from "@/utils/storage";
+import { ProfileForm } from "@/features/profile/pages/UserProfilePage";
 import { ITHrmsForm } from './ITHrmsForm';
 import { LabAccessForm } from './LabAccessForm';
 import {
@@ -249,7 +249,7 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
               onClick={() => setActiveStep(2)}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              Proceed to Service Configuration →
+              Proceed to Service Configuration â†’
             </button>
           </div>
         </div>
@@ -277,13 +277,13 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
               onClick={() => setActiveStep(1)}
               className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
-              ← Back to Profile
+              â† Back to Profile
             </button>
             <button
               onClick={() => setActiveStep(3)}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              Proceed to Review & Declaration →
+              Proceed to Review & Declaration â†’
             </button>
           </div>
         </div>
@@ -409,7 +409,7 @@ export const CombinedWizard: React.FC<CombinedWizardProps> = ({
               onClick={() => setActiveStep(2)}
               className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
-              ← Back to Services
+              â† Back to Services
             </button>
 
             <button

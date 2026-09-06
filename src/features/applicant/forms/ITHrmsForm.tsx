@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ITHrmsDetails } from '../../types/requisition';
+import { ITHrmsDetails } from "@/types/requisition";
 import { Mail, Wifi, ShieldCheck, Fingerprint, Laptop, Check, AlertCircle, Info } from 'lucide-react';
 
 interface ITHrmsFormProps {
@@ -43,7 +43,7 @@ export const ITHrmsForm: React.FC<ITHrmsFormProps> = ({ value, onChange }) => {
             }`}
           >
             <div>
-              <div className="text-xs font-bold">✨ New Service Creation</div>
+              <div className="text-xs font-bold">âœ¨ New Service Creation</div>
               <p className="text-[11px] text-slate-500 font-normal">First-time account creation & MAC registration</p>
             </div>
             {(value.requisitionMode || 'new') === 'new' && <Check className="w-4 h-4 text-blue-600" />}
@@ -59,7 +59,7 @@ export const ITHrmsForm: React.FC<ITHrmsFormProps> = ({ value, onChange }) => {
             }`}
           >
             <div>
-              <div className="text-xs font-bold">🔄 Renewal / Extension of Access</div>
+              <div className="text-xs font-bold">ðŸ”„ Renewal / Extension of Access</div>
               <p className="text-[11px] text-slate-500 font-normal">Extend tenure or renew email/MAC/HRMS credentials</p>
             </div>
             {value.requisitionMode === 'renewal' && <Check className="w-4 h-4 text-purple-600" />}

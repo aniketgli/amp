@@ -10,7 +10,7 @@ import { getRequisitionServiceName } from "@/utils/storage";
 import {
   QuickApplyModal,
   ServiceScope,
-} from "@/components/forms/QuickApplyModal";
+} from "@/features/applicant/forms/QuickApplyModal";
 import {
   Mail,
   Wifi,

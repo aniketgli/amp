@@ -7,7 +7,7 @@ import {
 } from '../../types/requisition';
 import { OFFICIAL_ROLES } from '../../data/initialData';
 import { getRequisitionServiceName } from '../../utils/storage';
-import { QuickApplyModal, ServiceScope } from '../forms/QuickApplyModal';
+import { QuickApplyModal, ServiceScope } from "@/features/applicant/forms/QuickApplyModal";
 import {
   Mail,
   Wifi,

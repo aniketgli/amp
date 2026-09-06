@@ -6,8 +6,8 @@ import {
   LabFacilitySelection,
   RequisitionRecord,
   RequisitionType,
-} from '../../types/requisition';
-import { generateRequisitionId, getStoredFacilities, findFacility } from '../../utils/storage';
+} from "@/types/requisition";
+import { generateRequisitionId, getStoredFacilities, findFacility } from "@/utils/storage";
 import {
   X,
   Send,
@@ -242,7 +242,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                   {mode === 'renewal' ? 'Renewal / Extension' : 'Fresh Application'}
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">Wildlife Institute of India • Access Application Form</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">Wildlife Institute of India â€¢ Access Application Form</p>
             </div>
           </div>
 
@@ -531,9 +531,9 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
 
                       let suffix = '';
                       if (isApproved) {
-                        suffix = ' — [ACCESS ACTIVE / GRANTED]';
+                        suffix = ' â€” [ACCESS ACTIVE / GRANTED]';
                       } else if (isPending) {
-                        suffix = ' — [REQUISITION PENDING REVIEW]';
+                        suffix = ' â€” [REQUISITION PENDING REVIEW]';
                       }
 
                       return (
