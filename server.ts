@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
-import mysql from "mysql2/promise";
+import { db, testDatabaseConnection } from "./server/db/connection";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -268,43 +268,6 @@ const inMemoryServices: InMemoryService[] = [
     updated_at: new Date().toISOString(),
   },
 ];
-
-/* =========================================================
-   MYSQL DATABASE CONNECTION
-========================================================= */
-
-const db = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || "root",
-  password:
-    process.env.DB_PASSWORD ||
-    (() => {
-      throw new Error("DB_PASSWORD environment variable is required.");
-    })(),
-  database: process.env.DB_NAME || "wii_access_portal",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  charset: "utf8mb4",
-});
-
-let isDbConnected = false;
-
-async function testDatabaseConnection() {
-  try {
-    const connection = await db.getConnection();
-    await connection.query("SELECT 1");
-    connection.release();
-    isDbConnected = true;
-    console.log("MySQL Database connected successfully.");
-  } catch (error: any) {
-    isDbConnected = false;
-    console.warn(
-      "MySQL Database connection unavailable. Authentication and protected APIs will remain unavailable.",
-    );
-  }
-}
 
 /* =========================================================
    EMAIL TRANSPORTER
