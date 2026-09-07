@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../config/env";
 
 /**
  * JWT Authentication Middleware
@@ -10,7 +11,7 @@ import jwt from "jsonwebtoken";
  * - Invalid / missing token par 401 return karta hai.
  */
 
-const JWT_SECRET = process.env.JWT_SECRET;
+
 
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required.");

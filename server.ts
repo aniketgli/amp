@@ -2,7 +2,14 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import dotenv from "dotenv";
+import {
+  PORT,
+  JWT_SECRET,
+  EMAIL_USER,
+  EMAIL_PASS,
+  GEMINI_API_KEY,
+} from "./server/config/env";
+import { ADMIN_ROLES } from "./server/config/constants";
 import { db, testDatabaseConnection } from "./server/db/connection";
 import { authenticateToken } from "./server/middleware/auth";
 import { getUserRoles, requireRole } from "./server/middleware/authorization";
@@ -11,28 +18,15 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
-dotenv.config();
-
 const app = express();
 
 /* =========================================================
    SERVER CONFIGURATION
 ========================================================= */
 
-const PORT = Number(process.env.PORT || 3000);
-const JWT_SECRET = process.env.JWT_SECRET;
-
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required.");
 }
-
-const ADMIN_ROLES = [
-  "administrator",
-  "admin",
-  "system_administrator",
-  "super_admin",
-  "superadmin",
-];
 
 async function verifyPassword(
   password: string,
@@ -278,8 +272,8 @@ const inMemoryServices: InMemoryService[] = [
 const mailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
   },
 });
 
@@ -288,7 +282,7 @@ const mailTransporter = nodemailer.createTransport({
 ========================================================= */
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = GEMINI_API_KEY;
   if (!apiKey) return null;
 
   return new GoogleGenAI({
@@ -357,9 +351,7 @@ app.get(
       return res.json({
         success: true,
         message: "Email SMTP connection successful.",
-        emailConfigured: Boolean(
-          process.env.EMAIL_USER && process.env.EMAIL_PASS,
-        ),
+        emailConfigured: Boolean(EMAIL_USER && EMAIL_PASS),
       });
     } catch (error: any) {
       return res.status(200).json({
@@ -554,10 +546,10 @@ app.post("/api/register", async (req, res) => {
     // SEND ACTIVATION EMAIL
     // -----------------------------------------------------
 
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    if (EMAIL_USER && EMAIL_PASS) {
       try {
         await mailTransporter.sendMail({
-          from: `"Wildlife Institute of India" <${process.env.EMAIL_USER}>`,
+          from: `"Wildlife Institute of India" <${EMAIL_USER}>`,
           to: cleanEmail,
           subject: "Activate Your WII Access Management Portal Account",
 
