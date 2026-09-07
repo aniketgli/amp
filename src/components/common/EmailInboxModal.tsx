@@ -4,7 +4,7 @@ import {
   getDispatchedEmails,
   activateUserAccount,
   saveDispatchedEmails,
-} from '../../utils/emailService';
+} from '@/services/emailService';
 import { WiiLogo } from './WiiLogo';
 import {
   Mail,
