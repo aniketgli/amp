@@ -7,7 +7,7 @@ import {
   RequisitionRecord,
   RequisitionType,
 } from "@/types/requisition";
-import { generateRequisitionId, getStoredFacilities, findFacility } from "@/utils/storage";
+import { generateRequisitionId, getStoredFacilities, findFacility } from "@/lib/storage";
 import {
   X,
   Send,

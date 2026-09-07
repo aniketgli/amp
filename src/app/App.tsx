@@ -17,7 +17,7 @@ import {
   resetToInitialData,
   saveApplicantProfile,
   updateRequisitionRecord,
-} from "../utils/storage";
+} from "@/lib/storage";
 
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";

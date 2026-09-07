@@ -6,7 +6,7 @@ import {
   UserRole,
 } from "@/types/requisition";
 import { OFFICIAL_ROLES } from "@/data/initialData";
-import { getRequisitionServiceName } from "@/utils/storage";
+import { getRequisitionServiceName } from "@/lib/storage";
 import {
   QuickApplyModal,
   ServiceScope,

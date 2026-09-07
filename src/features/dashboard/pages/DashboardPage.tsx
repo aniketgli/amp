@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '@/types/requisition';
 import { OFFICIAL_ROLES } from '@/data/initialData';
-import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/utils/storage';
+import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/lib/storage';
 import { ApprovalActionModal } from '@/features/workflow/components/ApprovalActionModal';
 import {
   Clock,

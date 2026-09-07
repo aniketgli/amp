@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '@/types/requisition';
-import { getRequisitionServiceName, getRequisitionRefId } from "@/utils/storage";
+import { getRequisitionServiceName, getRequisitionRefId } from "@/lib/storage";
 import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
 import {
   Clock,

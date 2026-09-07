@@ -6,7 +6,7 @@ import {
   RequisitionRecord,
   RequisitionType,
 } from "@/types/requisition";
-import { generateRequisitionId } from "@/utils/storage";
+import { generateRequisitionId } from "@/lib/storage";
 import { ProfileForm } from "@/features/profile/pages/UserProfilePage";
 import { ITHrmsForm } from './ITHrmsForm';
 import { LabAccessForm } from './LabAccessForm';
