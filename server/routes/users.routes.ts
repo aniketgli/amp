@@ -1,9 +1,14 @@
 import type { Express } from "express";
 
-import { db, isDbConnected } from "../db/connection";
+import { isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
 import { ADMIN_ROLES } from "../config/constants";
+import {
+  getUserById,
+  getAllUsers,
+  updateUserRoles,
+} from "../repositories/user.repository";
 
 export function registerUsersRoutes(app: Express) {
 
@@ -19,19 +24,13 @@ export function registerUsersRoutes(app: Express) {
 
     const userId = req.user.userId;
 
-    const [users]: any = await db.query(
-      `SELECT id, employee_id, full_name, email, phone, intercom_extension, is_activated, status, last_active_at
-       FROM users WHERE id = ? LIMIT 1`,
-      [userId],
-    );
+    const user = await getUserById(userId);
 
-    if (!users || users.length === 0) {
+    if (!user) {
       return res
         .status(401)
         .json({ success: false, message: "User account no longer exists." });
     }
-
-    const user = users[0];
 
     if (
       Number(user.is_activated) !== 1 ||
@@ -80,20 +79,7 @@ export function registerUsersRoutes(app: Express) {
           .json({ success: false, message: "Database is unavailable." });
       }
 
-      const [users]: any = await db.query(`
-      SELECT u.id, u.employee_id, u.full_name, u.email, u.phone,
-             u.intercom_extension, u.status, u.is_activated, u.created_at,
-             GROUP_CONCAT(
-               DISTINCT JSON_OBJECT('id', r.id, 'code', r.role_code, 'name', r.role_name)
-               ORDER BY r.id SEPARATOR '|||'
-             ) AS role_data
-      FROM users u
-      LEFT JOIN user_roles ur ON ur.user_id = u.id
-      LEFT JOIN roles r ON r.id = ur.role_id AND r.is_active = 1
-      GROUP BY u.id, u.employee_id, u.full_name, u.email, u.phone,
-               u.intercom_extension, u.status, u.is_activated, u.created_at
-      ORDER BY u.id ASC
-    `);
+      const users = await getAllUsers();
 
       const formattedUsers = users.map((user: any) => {
         const roles = user.role_data
@@ -165,48 +151,21 @@ export function registerUsersRoutes(app: Express) {
       ];
 
       if (isDbConnected) {
-        let connection: any = null;
         try {
-          connection = await db.getConnection();
+          const updated = await updateUserRoles(userId, cleanRoleIds);
 
-          const [users]: any = await db.query(
-            "SELECT id FROM users WHERE id = ? LIMIT 1",
-            [userId],
-          );
-
-          if (users.length > 0) {
-            const placeholders = cleanRoleIds.map(() => "?").join(",");
-            const [roles]: any = await db.query(
-              `SELECT id FROM roles WHERE id IN (${placeholders}) AND is_active = 1`,
-              cleanRoleIds,
-            );
-
-            if (roles.length === cleanRoleIds.length) {
-              await connection.beginTransaction();
-              await connection.query(
-                "DELETE FROM user_roles WHERE user_id = ?",
-                [userId],
-              );
-              for (const roleId of cleanRoleIds) {
-                await connection.query(
-                  `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
-                  [userId, roleId],
-                );
-              }
-              await connection.commit();
-
-              return res.json({
-                success: true,
-                message: "User roles updated successfully.",
-                userId,
-                roleIds: cleanRoleIds,
-              });
-            }
+          if (updated) {
+            return res.json({
+              success: true,
+              message: "User roles updated successfully.",
+              userId,
+              roleIds: cleanRoleIds,
+            });
           }
         } catch (dbErr) {
-          if (connection) await connection.rollback().catch(() => {});
-        } finally {
-          if (connection) connection.release();
+          console.warn(
+            "MySQL PUT /api/users/:userId/roles error.",
+          );
         }
       }
 
@@ -231,3 +190,5 @@ export function registerUsersRoutes(app: Express) {
   },
 )
 }
+
+

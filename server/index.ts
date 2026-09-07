@@ -442,19 +442,7 @@ const requireBrandingAdministrator = requireRole(...ADMIN_ROLES);
 ========================================================= */
 
 /* Ensure workflow_stages column exists on facility_masters and service_masters */
-async function ensureWorkflowColumns() {
-  try {
-    await db.query(
-      `ALTER TABLE facility_masters ADD COLUMN workflow_stages TEXT NULL`,
-    );
-  } catch (_) {}
-  try {
-    await db.query(
-      `ALTER TABLE service_masters ADD COLUMN workflow_stages TEXT NULL`,
-    );
-  } catch (_) {}
-}
-ensureWorkflowColumns().catch(() => {});
+
 
 /* GET ALL FACILITIES */
 ;
@@ -527,5 +515,7 @@ startServer().catch((error) => {
   console.error("Failed to start server:", error);
   process.exit(1);
 });
+
+
 
 

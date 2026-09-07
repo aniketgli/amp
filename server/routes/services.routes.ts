@@ -1,7 +1,14 @@
 import type { Express } from "express";
 
-import { db, isDbConnected } from "../db/connection";
+import { isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
+import {
+  getAllServices,
+  getNextServiceId,
+  createService,
+  updateService,
+  deleteService,
+} from "../repositories/service.repository";
 
 export function registerServicesRoutes(app: Express) {
 
@@ -10,40 +17,11 @@ export function registerServicesRoutes(app: Express) {
   try {
     if (isDbConnected) {
       try {
-        let rows: any = [];
-        try {
-          const [resRows]: any = await db.query(`
-            SELECT
-              id,
-              service_name,
-              manager_name,
-              quota_access_specs,
-              status,
-              workflow_stages,
-              created_at,
-              updated_at
-            FROM service_masters
-            ORDER BY id
-          `);
-          rows = resRows;
-        } catch (_) {
-          const [resRows]: any = await db.query(`
-            SELECT
-              id,
-              service_name,
-              manager_name,
-              quota_access_specs,
-              status,
-              created_at,
-              updated_at
-            FROM service_masters
-            ORDER BY id
-          `);
-          rows = resRows;
-        }
+        const rows = await getAllServices();
 
         const services = rows.map((row: any) => {
           let stages = null;
+
           if (row.workflow_stages) {
             try {
               stages =
@@ -52,6 +30,7 @@ export function registerServicesRoutes(app: Express) {
                   : row.workflow_stages;
             } catch (_) {}
           }
+
           return {
             id: row.id,
             name: row.service_name,
@@ -135,62 +114,16 @@ export function registerServicesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const [existing]: any = await db.query(`
-          SELECT id
-          FROM service_masters
-          WHERE id LIKE 'SRV-%'
-          ORDER BY id DESC
-        `);
+          const serviceId = await getNextServiceId();
 
-          let nextNumber = 1;
-          if (existing.length > 0) {
-            const numbers = existing
-              .map((row: any) => {
-                const match = String(row.id).match(/SRV-(\d+)/i);
-                return match ? Number(match[1]) : 0;
-              })
-              .filter((n: number) => Number.isFinite(n));
-
-            if (numbers.length > 0) {
-              nextNumber = Math.max(...numbers) + 1;
-            }
-          }
-
-          const serviceId = `SRV-${String(nextNumber).padStart(2, "0")}`;
-          const stagesJson = workflowStages
-            ? JSON.stringify(workflowStages)
-            : null;
-
-          try {
-            await db.query(
-              `
-            INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status, workflow_stages)
-            VALUES (?, ?, ?, ?, ?, ?)
-            `,
-              [
-                serviceId,
-                String(name).trim(),
-                String(manager).trim(),
-                quota || null,
-                status,
-                stagesJson,
-              ],
-            );
-          } catch (_) {
-            await db.query(
-              `
-            INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status)
-            VALUES (?, ?, ?, ?, ?)
-            `,
-              [
-                serviceId,
-                String(name).trim(),
-                String(manager).trim(),
-                quota || null,
-                status,
-              ],
-            );
-          }
+          await createService({
+            serviceId,
+            name: String(name).trim(),
+            manager: String(manager).trim(),
+            quota: quota || null,
+            status,
+            workflowStages,
+          });
 
           return res.status(201).json({
             success: true,
@@ -264,46 +197,16 @@ export function registerServicesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const stagesJson = workflowStages
-            ? JSON.stringify(workflowStages)
-            : null;
-          let result: any;
-          try {
-            const [resRes]: any = await db.query(
-              `
-            UPDATE service_masters
-            SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?, workflow_stages = ?
-            WHERE id = ?
-            `,
-              [
-                String(name).trim(),
-                String(manager).trim(),
-                quota || null,
-                status || "active",
-                stagesJson,
-                id,
-              ],
-            );
-            result = resRes;
-          } catch (_) {
-            const [resRes]: any = await db.query(
-              `
-            UPDATE service_masters
-            SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?
-            WHERE id = ?
-            `,
-              [
-                String(name).trim(),
-                String(manager).trim(),
-                quota || null,
-                status || "active",
-                id,
-              ],
-            );
-            result = resRes;
-          }
+          const updated = await updateService(id, {
+            name: String(name).trim(),
+            manager: String(manager).trim(),
+            quota: quota === undefined ? null : quota,
+            status: status || "active",
+            workflowStages:
+              workflowStages === undefined ? null : workflowStages,
+          });
 
-          if (result && result.affectedRows > 0) {
+          if (updated) {
             return res.json({
               success: true,
               message: "Service updated successfully.",
@@ -352,11 +255,9 @@ export function registerServicesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const [result]: any = await db.query(
-            `DELETE FROM service_masters WHERE id = ?`,
-            [id],
-          );
-          if (result && result.affectedRows > 0) {
+          const deleted = await deleteService(id);
+
+          if (deleted) {
             return res.json({
               success: true,
               message: "Service deleted successfully.",

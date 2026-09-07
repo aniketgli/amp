@@ -1,55 +1,27 @@
-import type { Express } from "express";
+﻿import type { Express } from "express";
 
 import { db, isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
+import {
+  getAllFacilities,
+  getNextFacilityId,
+  createFacility,
+  updateFacility,
+  deleteFacility,
+} from "../repositories/facility.repository";
 
 export function registerFacilitiesRoutes(app: Express) {
 
   // GET /api/facilities
-  app.get("/api/facilities", authenticateToken, async (req, res) => {
+app.get("/api/facilities", authenticateToken, async (req, res) => {
   try {
     if (isDbConnected) {
       try {
-        let rows: any = [];
-        try {
-          const [resRows]: any = await db.query(`
-            SELECT
-              id,
-              facility_name,
-              department,
-              nodal_officer_name,
-              assoc_nodal_officer_name,
-              supervisor_name,
-              description,
-              status,
-              workflow_stages,
-              created_at,
-              updated_at
-            FROM facility_masters
-            ORDER BY id
-          `);
-          rows = resRows;
-        } catch (_) {
-          const [resRows]: any = await db.query(`
-            SELECT
-              id,
-              facility_name,
-              department,
-              nodal_officer_name,
-              assoc_nodal_officer_name,
-              supervisor_name,
-              description,
-              status,
-              created_at,
-              updated_at
-            FROM facility_masters
-            ORDER BY id
-          `);
-          rows = resRows;
-        }
+        const rows = await getAllFacilities();
 
         const facilities = rows.map((row: any) => {
           let stages = null;
+
           if (row.workflow_stages) {
             try {
               stages =
@@ -58,6 +30,7 @@ export function registerFacilitiesRoutes(app: Express) {
                   : row.workflow_stages;
             } catch (_) {}
           }
+
           return {
             id: row.id,
             name: row.facility_name,
@@ -106,6 +79,7 @@ export function registerFacilitiesRoutes(app: Express) {
     });
   } catch (error: any) {
     console.error("GET /api/facilities ERROR:", error);
+
     const facilities = inMemoryFacilities.map((f) => ({
       id: f.id,
       name: f.facility_name,
@@ -116,6 +90,8 @@ export function registerFacilitiesRoutes(app: Express) {
       desc: f.description || "",
       status: f.status || "active",
       workflowStages: f.workflow_stages || null,
+      createdAt: f.created_at,
+      updatedAt: f.updated_at,
     }));
 
     return res.json({
@@ -126,7 +102,7 @@ export function registerFacilitiesRoutes(app: Express) {
   }
 })
 
-  // POST /api/facilities
+// POST /api/facilities
   app.post(
   "/api/facilities",
   authenticateToken,
@@ -154,70 +130,19 @@ export function registerFacilitiesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const [existing]: any = await db.query(`
-          SELECT id
-          FROM facility_masters
-          WHERE id LIKE 'FAC-%'
-          ORDER BY id DESC
-        `);
+          const facilityId = await getNextFacilityId();
 
-          let nextNumber = 1;
-          if (existing.length > 0) {
-            const numbers = existing
-              .map((row: any) => {
-                const match = String(row.id).match(/FAC-(\d+)/i);
-                return match ? Number(match[1]) : 0;
-              })
-              .filter((n: number) => Number.isFinite(n));
-
-            if (numbers.length > 0) {
-              nextNumber = Math.max(...numbers) + 1;
-            }
-          }
-
-          const facilityId = `FAC-${String(nextNumber).padStart(2, "0")}`;
-          const stagesJson = workflowStages
-            ? JSON.stringify(workflowStages)
-            : null;
-
-          try {
-            await db.query(
-              `
-            INSERT INTO facility_masters
-            (id, facility_name, department, nodal_officer_name, assoc_nodal_officer_name, supervisor_name, description, status, workflow_stages)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-              [
-                facilityId,
-                String(name).trim(),
-                dept || null,
-                String(nodal).trim(),
-                String(assocNodal).trim(),
-                String(supervisor).trim(),
-                desc || null,
-                status,
-                stagesJson,
-              ],
-            );
-          } catch (_) {
-            await db.query(
-              `
-            INSERT INTO facility_masters
-            (id, facility_name, department, nodal_officer_name, assoc_nodal_officer_name, supervisor_name, description, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-              [
-                facilityId,
-                String(name).trim(),
-                dept || null,
-                String(nodal).trim(),
-                String(assocNodal).trim(),
-                String(supervisor).trim(),
-                desc || null,
-                status,
-              ],
-            );
-          }
+          await createFacility({
+            facilityId,
+            name: String(name).trim(),
+            dept: dept || null,
+            nodal: String(nodal).trim(),
+            assocNodal: String(assocNodal).trim(),
+            supervisor: String(supervisor).trim(),
+            desc: desc || null,
+            status,
+            workflowStages,
+          });
 
           return res.status(201).json({
             success: true,
@@ -305,52 +230,19 @@ export function registerFacilitiesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const stagesJson = workflowStages
-            ? JSON.stringify(workflowStages)
-            : null;
-          let result: any;
-          try {
-            const [resRes]: any = await db.query(
-              `
-            UPDATE facility_masters
-            SET facility_name = ?, department = ?, nodal_officer_name = ?, assoc_nodal_officer_name = ?, supervisor_name = ?, description = ?, status = ?, workflow_stages = ?
-            WHERE id = ?
-            `,
-              [
-                String(name).trim(),
-                dept || null,
-                String(nodal).trim(),
-                String(assocNodal).trim(),
-                String(supervisor).trim(),
-                desc || null,
-                status || "active",
-                stagesJson,
-                id,
-              ],
-            );
-            result = resRes;
-          } catch (_) {
-            const [resRes]: any = await db.query(
-              `
-            UPDATE facility_masters
-            SET facility_name = ?, department = ?, nodal_officer_name = ?, assoc_nodal_officer_name = ?, supervisor_name = ?, description = ?, status = ?
-            WHERE id = ?
-            `,
-              [
-                String(name).trim(),
-                dept || null,
-                String(nodal).trim(),
-                String(assocNodal).trim(),
-                String(supervisor).trim(),
-                desc || null,
-                status || "active",
-                id,
-              ],
-            );
-            result = resRes;
-          }
+          const updated = await updateFacility(id, {
+            name: String(name).trim(),
+            dept: dept || null,
+            nodal: String(nodal).trim(),
+            assocNodal: String(assocNodal).trim(),
+            supervisor: String(supervisor).trim(),
+            desc: desc === undefined ? null : desc,
+            status: status || "active",
+            workflowStages:
+              workflowStages === undefined ? null : workflowStages,
+          });
 
-          if (result && result.affectedRows > 0) {
+          if (updated) {
             return res.json({
               success: true,
               message: "Facility updated successfully.",
@@ -403,11 +295,9 @@ export function registerFacilitiesRoutes(app: Express) {
 
       if (isDbConnected) {
         try {
-          const [result]: any = await db.query(
-            `DELETE FROM facility_masters WHERE id = ?`,
-            [id],
-          );
-          if (result && result.affectedRows > 0) {
+          const deleted = await deleteFacility(id);
+
+          if (deleted) {
             return res.json({
               success: true,
               message: "Facility deleted successfully.",
@@ -440,3 +330,4 @@ export function registerFacilitiesRoutes(app: Express) {
   },
 )
 }
+
