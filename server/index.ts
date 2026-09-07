@@ -8,21 +8,21 @@ import {
   EMAIL_USER,
   EMAIL_PASS,
   GEMINI_API_KEY,
-} from "./server/config/env";
-import { ADMIN_ROLES } from "./server/config/constants";
-import { db, testDatabaseConnection } from "./server/db/connection";
-import { authenticateToken } from "./server/middleware/auth";
-import { getUserRoles, requireRole } from "./server/middleware/authorization";
+} from "./config/env";
+import { ADMIN_ROLES } from "./config/constants";
+import { db, testDatabaseConnection } from "./db/connection";
+import { authenticateToken } from "./middleware/auth";
+import { getUserRoles, requireRole } from "./middleware/authorization";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
-import { registerAuthRoutes } from "./server/routes/auth.routes";
-import { registerUsersRoutes } from "./server/routes/users.routes";
-import { registerFacilitiesRoutes } from "./server/routes/facilities.routes";
-import { registerServicesRoutes } from "./server/routes/services.routes";
-import { registerAdminRoutes } from "./server/routes/admin.routes";
-import { registerOfficeOrderRoutes } from "./server/routes/office-order.routes";
+import { registerAuthRoutes } from "./routes/auth.routes";
+import { registerUsersRoutes } from "./routes/users.routes";
+import { registerFacilitiesRoutes } from "./routes/facilities.routes";
+import { registerServicesRoutes } from "./routes/services.routes";
+import { registerAdminRoutes } from "./routes/admin.routes";
+import { registerOfficeOrderRoutes } from "./routes/office-order.routes";
 
 const app = express();
 
@@ -527,4 +527,5 @@ startServer().catch((error) => {
   console.error("Failed to start server:", error);
   process.exit(1);
 });
+
 
