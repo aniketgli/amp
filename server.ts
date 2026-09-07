@@ -4,6 +4,8 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { db, testDatabaseConnection } from "./server/db/connection";
+import { authenticateToken } from "./server/middleware/auth";
+import { getUserRoles, requireRole } from "./server/middleware/authorization";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -876,105 +878,6 @@ app.post("/api/login", async (req, res) => {
     });
   }
 });
-
-/* =========================================================
-   JWT AUTHENTICATION MIDDLEWARE
-========================================================= */
-
-function authenticateToken(req: any, res: any, next: any) {
-  try {
-    const authHeader = String(req.headers.authorization || "");
-    const match = authHeader.match(/^Bearer\s+([^\s]+)$/);
-
-    if (!match) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication token is required.",
-      });
-    }
-
-    const decoded = jwt.verify(match[1], JWT_SECRET, {
-      algorithms: ["HS256"],
-    });
-
-    if (typeof decoded !== "object" || !decoded || !decoded.userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid authentication token.",
-      });
-    }
-
-    req.user = decoded;
-    next();
-  } catch {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired authentication token.",
-    });
-  }
-}
-
-async function getUserRoles(userId: number | string): Promise<string[]> {
-  if (!isDbConnected) return [];
-
-  const [rows]: any = await db.query(
-    `SELECT r.role_code
-     FROM user_roles ur
-     INNER JOIN roles r ON r.id = ur.role_id
-     WHERE ur.user_id = ? AND r.is_active = 1`,
-    [userId],
-  );
-
-  return (rows || [])
-    .map((row: any) =>
-      String(row.role_code || "")
-        .trim()
-        .toLowerCase(),
-    )
-    .filter(Boolean);
-}
-
-function requireRole(...allowedRoles: string[]) {
-  const allowed = new Set(allowedRoles.map((role) => role.toLowerCase()));
-
-  return async (req: any, res: any, next: any) => {
-    try {
-      const userId = req.user?.userId;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "Authenticated user could not be identified.",
-        });
-      }
-
-      if (!isDbConnected) {
-        return res.status(503).json({
-          success: false,
-          message: "Database is unavailable. Authorization cannot be verified.",
-        });
-      }
-
-      const roles = await getUserRoles(userId);
-
-      if (!roles.some((role) => allowed.has(role))) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied.",
-        });
-      }
-
-      req.userRoles = roles;
-      next();
-    } catch (error) {
-      console.error("AUTHORIZATION ERROR:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Unable to verify authorization.",
-      });
-    }
-  };
-}
 
 /* =========================================================
    ORGANIZATION BRANDING API
