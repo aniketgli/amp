@@ -4,7 +4,7 @@ import {
   RequisitionRecord,
   RequisitionType,
   UserRole,
-} from "@/types/requisition";
+} from "@/types";
 import { OFFICIAL_ROLES } from "@/data/initialData";
 import { getRequisitionServiceName } from "@/lib/storage";
 import {

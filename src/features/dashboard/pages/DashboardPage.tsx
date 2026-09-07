@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RequisitionRecord, UserRole } from '@/types/requisition';
+import { RequisitionRecord, UserRole } from '@/types';
 import { OFFICIAL_ROLES } from '@/data/initialData';
 import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/lib/storage';
 import { ApprovalActionModal } from '@/features/workflow/components/ApprovalActionModal';

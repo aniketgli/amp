@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserRole, ApplicantProfile } from "@/types/requisition";
+import { UserRole, ApplicantProfile } from "@/types";
 import { WiiLogo } from "../../../components/common/WiiLogo";
 
 import { EmailInboxModal } from "../../../components/common/EmailInboxModal";

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { RequisitionRecord, UserRole } from "@/types/requisition";
+import { RequisitionRecord, UserRole } from "@/types";
 import { recordSecurityAuditLog } from "@/services/auditLogger";
 import { SecurityAuditTrailSection } from "../components/SecurityAuditTrailSection";
 import { DatabaseSchemaSection } from "../components/DatabaseSchemaSection";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ApplicantProfile, UserRole } from "@/types/requisition";
+import { ApplicantProfile, UserRole } from "@/types";
 import { OFFICIAL_ROLES } from "@/data/initialData";
 import { recordSecurityAuditLog } from "@/services/auditLogger";
 import {

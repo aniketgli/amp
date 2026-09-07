@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ITHrmsDetails } from "@/types/requisition";
+import { ITHrmsDetails } from "@/types";
 import { Mail, Wifi, ShieldCheck, Fingerprint, Laptop, Check, AlertCircle, Info } from 'lucide-react';
 
 interface ITHrmsFormProps {

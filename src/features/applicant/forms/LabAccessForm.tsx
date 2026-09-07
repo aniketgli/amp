@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LabFacilitySelection } from "@/types/requisition";
+import { LabFacilitySelection } from "@/types";
 import { getStoredFacilities, findFacility } from "@/lib/storage";
 import { FlaskConical, Calendar, Info, Check, Microchip, Fingerprint } from 'lucide-react';
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RequisitionRecord, UserRole } from '@/types/requisition';
+import { RequisitionRecord, UserRole } from '@/types';
 import { getRequisitionServiceName, getRequisitionRefId } from "@/lib/storage";
 import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
 import {

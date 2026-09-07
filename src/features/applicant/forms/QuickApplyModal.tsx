@@ -6,7 +6,7 @@ import {
   LabFacilitySelection,
   RequisitionRecord,
   RequisitionType,
-} from "@/types/requisition";
+} from "@/types";
 import { generateRequisitionId, getStoredFacilities, findFacility } from "@/lib/storage";
 import {
   X,

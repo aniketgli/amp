@@ -5,7 +5,7 @@ import {
   LabFacilitySelection,
   RequisitionRecord,
   RequisitionType,
-} from "@/types/requisition";
+} from "@/types";
 import { generateRequisitionId } from "@/lib/storage";
 import { ProfileForm } from "@/features/profile/pages/UserProfilePage";
 import { ITHrmsForm } from './ITHrmsForm';
