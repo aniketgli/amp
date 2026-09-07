@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ApplicantProfile, UserRole } from "@/types/requisition";
 import { OFFICIAL_ROLES } from "@/data/initialData";
-import { recordSecurityAuditLog } from "@/utils/auditLogger";
+import { recordSecurityAuditLog } from "@/services/auditLogger";
 import {
   User,
   Save,

@@ -5,7 +5,7 @@ import {
   saveAuditLogs,
   recordSecurityAuditLog,
   getRoleHumanLabel,
-} from '@/utils/auditLogger';
+} from '@/services/auditLogger';
 import {
   Activity,
   Shield,

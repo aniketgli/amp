@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RequisitionRecord, UserRole } from "@/types/requisition";
-import { recordSecurityAuditLog } from "@/utils/auditLogger";
+import { recordSecurityAuditLog } from "@/services/auditLogger";
 import { SecurityAuditTrailSection } from "../components/SecurityAuditTrailSection";
 import { DatabaseSchemaSection } from "../components/DatabaseSchemaSection";
 import { LogoBrandingMasterSection } from "../components/LogoBrandingMasterSection";
