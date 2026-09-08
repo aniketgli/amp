@@ -5,6 +5,7 @@ import { db, isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
 import { ADMIN_ROLES } from "../config/constants";
+import { EMAIL_USER, EMAIL_PASS } from "../config/env";
 
 
 const mailTransporter = nodemailer.createTransport({
@@ -112,7 +113,7 @@ export function registerAdminRoutes(app: Express) {
   app.post(
   "/api/branding",
   authenticateToken,
-  requireBrandingAdministrator,
+  requireRole(...ADMIN_ROLES),
   async (req, res) => {
     try {
       if (!isDbConnected) {
@@ -232,3 +233,6 @@ export function registerAdminRoutes(app: Express) {
 )
   // Existing server.ts functionality will be preserved during extraction.
 }
+
+
+

@@ -47,10 +47,7 @@ export function installAuthenticatedFetch(): void {
 
   const originalFetch = window.fetch.bind(window);
 
-  window.fetch = async (
-    input: RequestInfo | URL,
-    init: RequestInit = {},
-  ) => {
+  window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url =
       typeof input === "string"
         ? input
@@ -123,3 +120,46 @@ export async function validateStoredSession(): Promise<boolean> {
 }
 
 installAuthenticatedFetch();
+
+// ============================================================
+// Generic JSON API helper
+// ============================================================
+
+export async function apiRequest<T>(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await window.fetch(input, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.headers || {}),
+    },
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    const message =
+      typeof data === "object" && data !== null && "message" in data
+        ? String((data as any).message)
+        : `API request failed with status ${response.status}.`;
+
+    const error = new Error(message) as Error & {
+      status?: number;
+      data?: unknown;
+    };
+
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
+  }
+
+  return data as T;
+}

@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -10,7 +10,7 @@ import {
   GEMINI_API_KEY,
 } from "./config/env";
 import { ADMIN_ROLES } from "./config/constants";
-import { db, testDatabaseConnection } from "./db/connection";
+import { db, isDbConnected, testDatabaseConnection } from "./db/connection";
 import { authenticateToken } from "./middleware/auth";
 import { getUserRoles, requireRole } from "./middleware/authorization";
 import bcrypt from "bcryptjs";
@@ -23,6 +23,8 @@ import { registerFacilitiesRoutes } from "./routes/facilities.routes";
 import { registerServicesRoutes } from "./routes/services.routes";
 import { registerAdminRoutes } from "./routes/admin.routes";
 import { registerOfficeOrderRoutes } from "./routes/office-order.routes";
+import { registerRequisitionRoutes } from "./routes/requisition.routes";
+import { registerWorkflowRoutes } from "./routes/workflow.routes";
 
 const app = express();
 
@@ -61,6 +63,8 @@ registerFacilitiesRoutes(app);
 registerServicesRoutes(app);
 registerAdminRoutes(app);
 registerOfficeOrderRoutes(app);
+registerRequisitionRoutes(app);
+registerWorkflowRoutes(app);
 
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
@@ -505,7 +509,7 @@ async function startServer() {
     console.log("============================================");
     console.log(" WII Requisition Portal Server Running");
     console.log("============================================");
-    console.log(` Server URL: http://localhost:${PORT}`);
+    console.log(` Server URL: http://192.168.205.75:${PORT}`);
     console.log(` Port: ${PORT}`);
     console.log("============================================");
   });
@@ -515,6 +519,10 @@ startServer().catch((error) => {
   console.error("Failed to start server:", error);
   process.exit(1);
 });
+
+
+
+
 
 
 

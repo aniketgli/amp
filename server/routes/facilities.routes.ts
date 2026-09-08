@@ -1,7 +1,9 @@
-﻿import type { Express } from "express";
+import type { Express } from "express";
 
 import { db, isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
+import { requireRole } from "../middleware/authorization";
+import { ADMIN_ROLES } from "../config/constants";
 import {
   getAllFacilities,
   getNextFacilityId,
@@ -330,4 +332,5 @@ app.get("/api/facilities", authenticateToken, async (req, res) => {
   },
 )
 }
+
 

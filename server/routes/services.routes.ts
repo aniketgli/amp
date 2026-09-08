@@ -2,6 +2,8 @@ import type { Express } from "express";
 
 import { isDbConnected } from "../db/connection";
 import { authenticateToken } from "../middleware/auth";
+import { requireRole } from "../middleware/authorization";
+import { ADMIN_ROLES } from "../config/constants";
 import {
   getAllServices,
   getNextServiceId,
@@ -290,3 +292,4 @@ export function registerServicesRoutes(app: Express) {
   },
 )
 }
+

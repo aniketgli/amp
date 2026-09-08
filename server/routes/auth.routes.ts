@@ -453,17 +453,87 @@ Wildlife Institute of India
       });
     }
 
-    const userRole = roles.find(
-      (role: any) =>
-        role.code.toLowerCase() === "user" ||
-        role.code.toLowerCase() === "applicant",
-    );
+    const bodyRequestedRole = String(
+      req.body?.requestedRole || "",
+    ).trim().toLowerCase();
+
+    const roleCodeMap: Record<string, string> = {
+      user: "user",
+      applicant: "user",
+
+      reporting_manager: "supervisor",
+      supervisor: "supervisor",
+
+      nodal_officer: "lab_nodal",
+      lab_nodal: "lab_nodal",
+
+      associate_nodal_officer: "assoc_lab_nodal",
+      assoc_lab_nodal: "assoc_lab_nodal",
+
+      it_head: "it_officer",
+      it_officer: "it_officer",
+
+      manager: "section_head",
+      section_head: "section_head",
+
+      hrms_officer: "hrms_officer",
+
+      administrator: "admin",
+      admin: "admin",
+
+      super_admin: "super_admin",
+    };
+
+    const requestedWorkflowRole =
+      bodyRequestedRole
+        ? roleCodeMap[bodyRequestedRole]
+        : undefined;
+
+    const userRole =
+      requestedWorkflowRole
+        ? roles.find(
+            (role: any) =>
+              roleCodeMap[
+                String(role.code || "")
+                  .trim()
+                  .toLowerCase()
+              ] === requestedWorkflowRole,
+          )
+        : roles.find(
+            (role: any) => {
+              const normalizedCode =
+                String(role.code || "")
+                  .trim()
+                  .toLowerCase();
+
+              return (
+                normalizedCode === "user" ||
+                normalizedCode === "applicant"
+              );
+            },
+          );
 
     if (!userRole) {
       return res.status(403).json({
         success: false,
+        message: requestedWorkflowRole
+          ? "Requested role is not assigned to this account."
+          : "Account is missing the required User role. Please contact an administrator.",
+      });
+    }
+
+    const workflowRole =
+      roleCodeMap[
+        String(userRole.code || "")
+          .trim()
+          .toLowerCase()
+      ];
+
+    if (!workflowRole) {
+      return res.status(403).json({
+        success: false,
         message:
-          "Account is missing the required User role. Please contact an administrator.",
+          "Assigned role is not supported by the application.",
       });
     }
 
@@ -471,7 +541,7 @@ Wildlife Institute of India
       {
         userId: user.id,
         email: user.email,
-        role: userRole.code,
+        role: workflowRole,
         roleId: userRole.id,
       },
       JWT_SECRET,
@@ -504,3 +574,5 @@ Wildlife Institute of India
   }
 })
 }
+
+
