@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '../../types/requisition';
 import { findFacility } from '@/lib/storage';
+import {
+  executeWorkflowAction,
+} from '@/api/workflow.api';
+import {
+  getRequisition,
+} from '@/api/requisitions.api';
 import { CheckCircle2, XCircle, ShieldCheck, Mail, Lock, X } from 'lucide-react';
 
 interface ApprovalActionModalProps {
@@ -38,157 +44,146 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
   // Lab Nodal state per lab
   const [labComments, setLabComments] = useState<Record<string, string>>({});
 
-  const handleExecuteAction = (e: React.FormEvent) => {
+  const handleExecuteAction = async (
+    e: React.FormEvent,
+  ) => {
     e.preventDefault();
-    const now = new Date().toISOString();
-    const copy: RequisitionRecord = JSON.parse(JSON.stringify(requisition));
 
-    let effectiveRole = currentRole;
-    if (currentRole === 'admin') {
-      if (requisition.status === 'submitted_pending_pi') effectiveRole = 'supervisor';
-      else if (requisition.status === 'in_lab_review') effectiveRole = 'lab_nodal';
-      else if (requisition.status === 'pending_section_head') effectiveRole = 'section_head';
-      else if (requisition.status === 'in_tech_verification') effectiveRole = 'it_officer';
-      else effectiveRole = 'it_officer';
+    try {
+      const selectedLabs =
+        requisition.labAccessDetails || [];
+
+      const labFacilities =
+        currentRole === "lab_nodal" ||
+        currentRole === "assoc_lab_nodal"
+          ? selectedLabs
+              .filter((lab) => lab.selected)
+              .map((lab) => ({
+                facilityId: lab.labId,
+                facilityName: lab.labName,
+                purposeEquipment:
+                  lab.purposeEquipment || null,
+                fromDate:
+                  lab.fromDate || null,
+                toDate:
+                  lab.toDate || null,
+                hasBiometricId:
+                  lab.hasBiometricId || false,
+                biometricIdNumber:
+                  lab.biometricIdNumber || null,
+                assignedLabPassId:
+                  lab.assignedLabPassId || null,
+                nodalApprovalStatus:
+                  decision === "approve"
+                    ? "approved" as const
+                    : "rejected" as const,
+                remarks:
+                  labComments[lab.labId] ||
+                  comments ||
+                  null,
+                reviewedById: null,
+                reviewedBy:
+                  currentRole === "assoc_lab_nodal"
+                    ? "Associate Nodal Officer"
+                    : "Lab Nodal Officer",
+                reviewedAt:
+                  new Date().toISOString(),
+                nodalOfficerName:
+                  lab.nodalOfficerName || null,
+                actionDate:
+                  new Date()
+                    .toISOString()
+                    .split("T")[0],
+              }))
+          : undefined;
+
+      const result =
+        await executeWorkflowAction(
+          requisition.id,
+          {
+            action:
+              decision === "approve"
+                ? "approve"
+                : decision === "reject"
+                ? "reject"
+                : "deactivate",
+
+            comments:
+              comments ||
+              null,
+
+            labFacilities,
+
+            provisionedEmail:
+              decision === "approve" &&
+              (
+                currentRole === "it_officer" ||
+                currentRole === "hrms_officer" ||
+                currentRole === "admin"
+              )
+                ? assignedEmail
+                : undefined,
+
+            provisionedMac:
+              decision === "approve" &&
+              (
+                currentRole === "it_officer" ||
+                currentRole === "hrms_officer" ||
+                currentRole === "admin"
+              )
+                ? verifiedMac
+                : undefined,
+
+            provisionedHrmsId:
+              decision === "approve" &&
+              (
+                currentRole === "it_officer" ||
+                currentRole === "hrms_officer" ||
+                currentRole === "admin"
+              )
+                ? undefined
+                : undefined,
+
+            provisionedBiometricId:
+              decision === "approve" &&
+              (
+                currentRole === "it_officer" ||
+                currentRole === "hrms_officer" ||
+                currentRole === "admin"
+              )
+                ? assignedBioId
+                : undefined,
+          },
+        );
+
+      // Reload the authoritative DB record after workflow action.
+      const refreshed =
+        await getRequisition(
+          requisition.id,
+        );
+
+      onSaveAction(
+        refreshed.requisition,
+      );
+
+      window.alert(
+        result.message ||
+          "Workflow action completed successfully.",
+      );
+
+      onClose();
+    } catch (error) {
+      console.error(
+        "Workflow action failed:",
+        error,
+      );
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to complete workflow action.",
+      );
     }
-
-    if (decision === 'deactivate') {
-      copy.status = 'deactivated';
-      copy.history.push({
-        id: `h_${Date.now()}`,
-        actorRole: currentRole,
-        actorName: currentRole === 'admin' ? 'System Administrator' : 'Access Manager',
-        actionType: 'deactivate',
-        comments: comments || 'Access deactivated by Manager.',
-        timestamp: now,
-      });
-    } else if (effectiveRole === 'supervisor') {
-      copy.piApproval = {
-        status: decision === 'approve' ? 'approved' : 'rejected',
-        officerName: currentRole === 'admin' ? 'System Administrator (Override)' : 'Dr. R. K. Singh',
-        comments: comments || (decision === 'approve' ? 'Approved as PI.' : 'Rejected by PI.'),
-        timestamp: now,
-        signature: currentRole === 'admin' ? 'Administrator Override Sign' : 'Dr. R. K. Singh (Digital Sign)',
-      };
-
-      if (decision === 'approve') {
-        const hasLab = copy.type === 'LAB_FACILITY' || (copy.type === 'COMBINED' && copy.labAccessDetails && copy.labAccessDetails.some((l) => l.selected));
-        copy.status = hasLab ? 'in_lab_review' : 'pending_section_head';
-      } else {
-        copy.status = 'rejected';
-      }
-
-      copy.history.push({
-        id: `h_${Date.now()}`,
-        actorRole: currentRole,
-        actorName: currentRole === 'admin' ? 'System Administrator' : 'Dr. R. K. Singh',
-        actionType: decision === 'approve' ? 'pi_approve' : 'pi_reject',
-        comments,
-        timestamp: now,
-      });
-    } else if (effectiveRole === 'lab_nodal' || effectiveRole === 'assoc_lab_nodal') {
-      if (copy.labAccessDetails) {
-        copy.labAccessDetails = copy.labAccessDetails.map((lab) => {
-          if (lab.selected) {
-            const fac = findFacility(lab.labId) || findFacility(lab.labName);
-            return {
-              ...lab,
-              nodalApprovalStatus: decision === 'approve' ? 'approved' : 'rejected',
-              nodalComments: labComments[lab.labId] || comments || 'Lab access granted.',
-              nodalOfficerName:
-                currentRole === 'admin'
-                  ? 'System Admin (Lab Override)'
-                  : currentRole === 'assoc_lab_nodal'
-                  ? 'Dr. Associate Nodal Officer (ANO)'
-                  : fac?.nodal || lab.nodalOfficerName || 'Dr. S. K. Gupta (Lab Nodal Officer)',
-              actionDate: now,
-            };
-          }
-          return lab;
-        });
-      }
-
-      if (decision === 'approve') {
-        copy.status = 'pending_section_head';
-      } else {
-        copy.status = 'rejected';
-      }
-
-      const labActorName =
-        currentRole === 'admin'
-          ? 'System Administrator'
-          : currentRole === 'assoc_lab_nodal'
-          ? 'Dr. Associate Nodal Officer (ANO)'
-          : 'Dr. S. K. Gupta (Lab Nodal Officer)';
-
-      copy.history.push({
-        id: `h_${Date.now()}`,
-        actorRole: currentRole,
-        actorName: labActorName,
-        actionType: decision === 'approve' ? 'lab_approve' : 'lab_reject',
-        comments: comments || `Research lab request ${decision === 'approve' ? 'forwarded to IT Head' : 'rejected'} by ${currentRole === 'assoc_lab_nodal' ? 'ANO' : 'NO'}.`,
-        timestamp: now,
-      });
-    } else if (effectiveRole === 'section_head') {
-      copy.sectionHeadApproval = {
-        status: decision === 'approve' ? 'approved' : 'rejected',
-        officerName: currentRole === 'admin' ? 'System Admin (Override)' : 'Dr. Panna Lal',
-        comments: comments || (decision === 'approve' ? 'Authorized by Section Head.' : 'Rejected.'),
-        timestamp: now,
-        signature: currentRole === 'admin' ? 'System Admin Digital Sign' : 'Dr. Panna Lal (Section Head, IT Cell)',
-      };
-
-      if (decision === 'approve') {
-        const hasIT = copy.type === 'IT_HRMS' || copy.type === 'COMBINED';
-        copy.status = hasIT ? 'in_tech_verification' : 'approved_provisioned';
-      } else {
-        copy.status = 'rejected';
-      }
-
-      copy.history.push({
-        id: `h_${Date.now()}`,
-        actorRole: currentRole,
-        actorName: currentRole === 'admin' ? 'System Administrator' : 'Dr. Panna Lal',
-        actionType: decision === 'approve' ? 'section_head_authorize' : 'reject',
-        comments,
-        timestamp: now,
-      });
-    } else {
-      // it_officer / hrms_officer / manager
-      if (!copy.itCellVerification) copy.itCellVerification = {};
-      copy.itCellVerification.emailNetOfficer = {
-        officerName: 'Mr. Dinesh Singh Pundir',
-        status: decision === 'approve' ? 'verified' : 'rejected',
-        comments: comments || 'Email & Internet verified and provisioned.',
-        timestamp: now,
-      };
-
-      if (copy.itHrmsDetails) {
-        copy.itHrmsDetails.assignedWiiEmail = assignedEmail;
-        copy.itHrmsDetails.verifiedMacAddress = verifiedMac;
-        copy.itHrmsDetails.assignedBiometricId = assignedBioId;
-        copy.itHrmsDetails.hrmsAccessGranted = decision === 'approve';
-      }
-
-      if (decision === 'reject') {
-        copy.status = 'rejected';
-      } else {
-        copy.status = 'approved_provisioned';
-      }
-
-      copy.history.push({
-        id: `h_${Date.now()}`,
-        actorRole: currentRole,
-        actorName: currentRole === 'admin' ? 'System Administrator' : 'Mr. Dinesh Singh Pundir',
-        actionType: 'tech_provision',
-        comments: `Assigned Email: ${assignedEmail}, Verified MAC: ${verifiedMac}, Bio ID: ${assignedBioId}. ${comments}`,
-        timestamp: now,
-      });
-    }
-
-    copy.updatedAt = now;
-    onSaveAction(copy);
-    onClose();
   };
 
   return (

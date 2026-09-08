@@ -175,153 +175,105 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
   };
 
   // Workflow action handlers for Officers
-  const handleOfficerAction = (action: 'approve' | 'reject' | 'provision') => {
-    const updated: RequisitionRecord = { ...requisition };
-    const now = new Date().toISOString();
-    const actorName =
-      currentRole === 'supervisor'
-        ? requisition.applicant.supervisingOfficerName || 'Dr. R. K. Singh (Supervising Officer)'
-        : currentRole === 'lab_nodal'
-        ? 'Dr. S. K. Gupta (Lab Nodal Officer - NO)'
-        : currentRole === 'assoc_lab_nodal'
-        ? 'Dr. Associate Nodal Officer (ANO - Lab Cell)'
-        : currentRole === 'section_head'
-        ? 'Dr. Panna Lal (Section Head IT)'
-        : currentRole === 'it_officer'
-        ? 'Mr. Dinesh Singh Pundir (Senior Technical Officer - IT)'
-        : currentRole === 'hrms_officer'
-        ? 'Mr. Harendra Kumar (Senior Technical Officer - HRMS)'
-        : 'System Admin';
+  const handleOfficerAction = async (
+    action: "approve" | "reject" | "provision",
+  ) => {
+    try {
+      const workflowPayload: any = {
+        action:
+          action === "provision"
+            ? "provision"
+            : action,
+        comments:
+          officerComments || null,
+      };
 
-    if (action === 'reject') {
-      updated.status = 'rejected';
-      updated.history = [
-        ...updated.history,
-        {
-          id: `hist-${Date.now()}`,
-          actorRole: currentRole,
-          actorName,
-          actionType: 'reject',
-          comments: officerComments || 'Requisition rejected with official remarks.',
-          timestamp: now,
-          digitalSignature: officerSign || actorName,
-        },
-      ];
-    } else if (currentRole === 'supervisor') {
-      updated.piApproval = {
-        status: 'approved',
-        officerName: actorName,
-        comments: officerComments || 'Endorsed by Supervising Officer.',
-        timestamp: now,
-        signature: officerSign || actorName,
-      };
-      // Services request goes directly to IT Head; Lab request goes to NO/ANO Lab
-      updated.status = hasLab ? 'in_lab_review' : 'pending_section_head';
-      updated.history = [
-        ...updated.history,
-        {
-          id: `hist-${Date.now()}`,
-          actorRole: 'supervisor',
-          actorName,
-          actionType: 'pi_approve',
-          comments: officerComments || 'Supervising Officer endorsement completed.',
-          timestamp: now,
-          digitalSignature: officerSign || actorName,
-        },
-      ];
-    } else if (currentRole === 'lab_nodal' || currentRole === 'assoc_lab_nodal') {
-      if (updated.labAccessDetails) {
-        updated.labAccessDetails = updated.labAccessDetails.map((lab) => {
-          if (lab.selected) {
-            return {
-              ...lab,
-              nodalApprovalStatus: 'approved',
-              nodalComments: officerComments || 'Lab facility access approved.',
-              nodalOfficerName: actorName,
-              actionDate: now.split('T')[0],
-              assignedLabPassId: lab.assignedLabPassId || `LAB-PASS-${lab.labId.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-            };
-          }
-          return lab;
-        });
+      if (
+        currentRole === "lab_nodal" ||
+        currentRole === "assoc_lab_nodal"
+      ) {
+        workflowPayload.labFacilities =
+          (requisition.labAccessDetails || [])
+            .filter((lab) => lab.selected)
+            .map((lab) => ({
+              facilityId: lab.labId,
+              facilityName: lab.labName,
+              purposeEquipment:
+                lab.purposeEquipment || null,
+              fromDate:
+                lab.fromDate || null,
+              toDate:
+                lab.toDate || null,
+              hasBiometricId:
+                lab.hasBiometricId || false,
+              biometricIdNumber:
+                lab.biometricIdNumber || null,
+              assignedLabPassId:
+                lab.assignedLabPassId || null,
+              nodalApprovalStatus:
+                action === "approve"
+                  ? "approved"
+                  : "rejected",
+              remarks:
+                officerComments || null,
+              reviewedById: null,
+              reviewedBy:
+                actorName,
+              reviewedAt:
+                new Date().toISOString(),
+              nodalOfficerName:
+                actorName,
+              actionDate:
+                new Date()
+                  .toISOString()
+                  .split("T")[0],
+            }));
       }
-      // Either NO or ANO can forward to IT Head
-      updated.status = 'pending_section_head';
-      updated.history = [
-        ...updated.history,
-        {
-          id: `hist-${Date.now()}`,
-          actorRole: currentRole,
-          actorName,
-          actionType: 'lab_approve',
-          comments: officerComments || `Research laboratory access pass cleared by ${currentRole === 'assoc_lab_nodal' ? 'ANO' : 'NO'}.`,
-          timestamp: now,
-          digitalSignature: officerSign || actorName,
-        },
-      ];
-    } else if (currentRole === 'section_head') {
-      updated.sectionHeadApproval = {
-        status: 'approved',
-        officerName: actorName,
-        comments: officerComments || 'Authorized by Section Head IT.',
-        timestamp: now,
-        signature: officerSign || actorName,
-      };
-      const hasIT = updated.type === 'IT_HRMS' || updated.type === 'COMBINED';
-      updated.status = hasIT ? 'in_tech_verification' : 'approved_provisioned';
-      updated.history = [
-        ...updated.history,
-        {
-          id: `hist-${Date.now()}`,
-          actorRole: 'section_head',
-          actorName,
-          actionType: 'section_head_authorize',
-          comments: officerComments || 'Section Head IT clearance granted.',
-          timestamp: now,
-          digitalSignature: officerSign || actorName,
-        },
-      ];
-    } else if (currentRole === 'it_officer' || currentRole === 'hrms_officer' || currentRole === 'admin' || action === 'provision') {
-      if (!updated.itHrmsDetails) {
-        updated.itHrmsDetails = {
-          requestEmail: true,
-          requestedEmailGroups: ['research-scholars'],
-          requestInternet: true,
-          deviceType: 'Laptop / PC',
-          macAddress: provMac,
-          requestHrmsPms: true,
-          requestBiometric: true,
-        };
+
+      if (
+        action === "provision" ||
+        currentRole === "it_officer" ||
+        currentRole === "hrms_officer"
+      ) {
+        workflowPayload.provisionedEmail =
+          provWiiEmail || null;
+
+        workflowPayload.provisionedMac =
+          provMac || null;
+
+        workflowPayload.provisionedHrmsId =
+          provHrmsCode || null;
+
+        workflowPayload.provisionedBiometricId =
+          provBioId || null;
       }
-      updated.itHrmsDetails = {
-        ...updated.itHrmsDetails,
-        assignedWiiEmail: provWiiEmail,
-        assignedEmailPassword: provEmailPassword,
-        verifiedMacAddress: provMac,
-        wifiAccessKey: provWifiKey,
-        assignedBiometricId: provBioId,
-        biometricPin: provBioPin,
-        hrmsAccessGranted: true,
-        assignedHrmsEmpCode: provHrmsCode,
-        hrmsPassword: provHrmsPassword,
-      };
-      updated.status = 'approved_provisioned';
-      updated.history = [
-        ...updated.history,
-        {
-          id: `hist-${Date.now()}`,
-          actorRole: currentRole,
-          actorName,
-          actionType: 'tech_provision',
-          comments: officerComments || 'Technical identifiers provisioned and activated in core systems by Manager.',
-          timestamp: now,
-          digitalSignature: officerSign || actorName,
-        },
-      ];
+
+      await executeWorkflowAction(
+        requisition.id,
+        workflowPayload,
+      );
+
+      // Always reload the authoritative DB state.
+      const refreshed =
+        await getRequisition(
+          requisition.id,
+        );
+
+      onUpdateRequisition(
+        refreshed.requisition,
+      );
+    } catch (error) {
+      console.error(
+        "Officer workflow action failed:",
+        error,
+      );
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to complete workflow action.",
+      );
     }
-
-    updated.updatedAt = now;
-    onUpdateRequisition(updated);
   };
 
   // Extract created IDs for display

@@ -11,13 +11,14 @@ import {
 } from "../types/requisition";
 
 import {
-  createNewRequisition,
   getSavedApplicantProfile,
-  getStoredRequisitions,
   resetToInitialData,
   saveApplicantProfile,
-  updateRequisitionRecord,
 } from "@/lib/storage";
+
+import { getRequisitions, getRequisition } from "@/api/requisitions.api";
+
+import { createRequisition, updateRequisition } from "@/api/requisitions.api";
 
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
@@ -390,10 +391,35 @@ export default function App() {
   // =========================================================
 
   useEffect(() => {
-    const loaded = getStoredRequisitions();
+  if (!isAuthenticated) {
+    setRequisitions([]);
+    return;
+  }
 
-    setRequisitions(loaded);
-  }, []);
+  let cancelled = false;
+
+  const loadRequisitions = async () => {
+    try {
+      const response = await getRequisitions();
+
+      if (!cancelled) {
+        setRequisitions(response.requisitions || []);
+      }
+    } catch (error) {
+      console.error("Failed to load requisitions from API:", error);
+
+      if (!cancelled) {
+        setRequisitions([]);
+      }
+    }
+  };
+
+  loadRequisitions();
+
+  return () => {
+    cancelled = true;
+  };
+}, [isAuthenticated]);
 
   // =========================================================
   // TAB PROTECTION
@@ -438,14 +464,96 @@ export default function App() {
   // CREATE REQUISITION
   // =========================================================
 
-  const handleCreateRequisition = (newRecord: RequisitionRecord) => {
-    const updated = createNewRequisition(newRecord);
+  const handleCreateRequisition = async (
+    newRecord: RequisitionRecord,
+  ) => {
+    try {
+      const response = await createRequisition({
+        requisitionType: newRecord.type,
+        requisitionMode:
+          newRecord.itHrmsDetails?.requisitionMode || "new",
+        renewalReason:
+          newRecord.itHrmsDetails?.renewalReason || null,
+        remarks:
+          newRecord.history?.[newRecord.history.length - 1]
+            ?.comments || null,
 
-    setRequisitions(updated);
+        itHrmsDetails:
+          newRecord.itHrmsDetails
+            ? {
+                requestEmail:
+                  newRecord.itHrmsDetails.requestEmail,
+                requestedEmailGroups:
+                  newRecord.itHrmsDetails.requestedEmailGroups,
+                requestInternet:
+                  newRecord.itHrmsDetails.requestInternet,
+                deviceType:
+                  newRecord.itHrmsDetails.deviceType,
+                macAddress:
+                  newRecord.itHrmsDetails.macAddress,
+                requestHrmsPms:
+                  newRecord.itHrmsDetails.requestHrmsPms,
+                requestBiometric:
+                  newRecord.itHrmsDetails.requestBiometric,
+              }
+            : undefined,
 
-    setSelectedRequisition(newRecord);
+        labFacilities:
+          newRecord.labAccessDetails?.map((lab) => ({
+            facilityId: lab.labId,
+            facilityName: lab.labName,
+            purposeEquipment:
+              lab.purposeEquipment || null,
+            fromDate: lab.fromDate || null,
+            toDate: lab.toDate || null,
+            hasBiometricId:
+              lab.hasBiometricId || false,
+            biometricIdNumber:
+              lab.biometricIdNumber || null,
+            assignedLabPassId:
+              lab.assignedLabPassId || null,
+            nodalApprovalStatus:
+              lab.nodalApprovalStatus || "pending",
+            remarks:
+              lab.nodalComments || null,
+            reviewedById: null,
+            reviewedBy:
+              lab.nodalOfficerName || null,
+            reviewedAt:
+              lab.actionDate
+                ? `${lab.actionDate} 00:00:00`
+                : null,
+            nodalOfficerName:
+              lab.nodalOfficerName || null,
+            actionDate:
+              lab.actionDate || null,
+          })),
+      });
 
-    navigateToTab("my_requests");
+      const refreshed = await getRequisitions();
+
+      setRequisitions(refreshed.requisitions || []);
+
+      const created =
+        refreshed.requisitions?.find(
+          (item) => item.id === response.id,
+        ) || null;
+
+      setSelectedRequisition(created);
+
+      navigateToTab("my_requests");
+    } catch (error) {
+      console.error(
+        "Failed to create requisition through API:",
+        error,
+      );
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to create requisition.",
+      );
+    }
   };
 
   // =========================================================
