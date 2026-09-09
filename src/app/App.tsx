@@ -16,9 +16,13 @@ import {
   saveApplicantProfile,
 } from "@/lib/storage";
 
-import { getRequisitions, getRequisition } from "@/api/requisitions.api";
+import { createRequisition, getRequisitions } from "@/api/requisitions.api";
 
-import { createRequisition, updateRequisition } from "@/api/requisitions.api";
+import {
+  getLoginSession,
+  setStoredCurrentRole,
+  clearLoginSession,
+} from "@/api/auth.api";
 
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
@@ -215,31 +219,28 @@ export default function App() {
   // =========================================================
   // RESTORE LOGIN SESSION
   // =========================================================
-  // AuthPage stores the JWT and raw API user in localStorage.
-  // Restore them after refresh so the user does not get logged out visually.
+  // Authentication persistence is centralized in auth.api.ts.
   useEffect(() => {
     try {
-      const token = localStorage.getItem("wii_auth_token");
-      const storedUser = localStorage.getItem("wii_user");
+      const session = getLoginSession();
 
-      if (!token || !storedUser) {
+      if (!session) {
         return;
       }
 
-      const user = JSON.parse(storedUser);
+      const user = session.user;
 
       setLoggedInUser({
-        fullName: user.fullName || user.full_name || "User",
+        fullName: user.fullName || "User",
         email: user.email || "",
         phone: user.phone || "",
       });
 
-      // Convert database role codes to the application's UserRole values.
       const rawRoles = Array.isArray(user.roles)
         ? user.roles
-            .map((role: any) => role?.code)
+            .map((role) => role?.code)
             .filter(Boolean)
-            .map((code: string) => ROLE_META[code]?.code)
+            .map((code) => ROLE_META[String(code)]?.code)
             .filter(Boolean)
         : [];
 
@@ -249,23 +250,18 @@ export default function App() {
 
       setAssignedRoles(restoredRoles);
 
-      // Restore the last selected persona if it is still assigned.
-      const savedCurrentRole = localStorage.getItem(
-        "wii_current_role",
-      ) as UserRole | null;
+      const savedCurrentRole = session.currentRole as UserRole | null;
 
       const restoredCurrentRole =
         savedCurrentRole && restoredRoles.includes(savedCurrentRole)
           ? savedCurrentRole
-          : restoredRoles[0] || "applicant";
+          : "applicant";
 
       setCurrentRole(restoredCurrentRole);
       setIsAuthenticated(true);
     } catch (error) {
       console.warn("Unable to restore saved login session:", error);
-      localStorage.removeItem("wii_auth_token");
-      localStorage.removeItem("wii_user");
-      localStorage.removeItem("wii_current_role");
+      clearLoginSession();
     }
   }, []);
 
@@ -391,35 +387,35 @@ export default function App() {
   // =========================================================
 
   useEffect(() => {
-  if (!isAuthenticated) {
-    setRequisitions([]);
-    return;
-  }
-
-  let cancelled = false;
-
-  const loadRequisitions = async () => {
-    try {
-      const response = await getRequisitions();
-
-      if (!cancelled) {
-        setRequisitions(response.requisitions || []);
-      }
-    } catch (error) {
-      console.error("Failed to load requisitions from API:", error);
-
-      if (!cancelled) {
-        setRequisitions([]);
-      }
+    if (!isAuthenticated) {
+      setRequisitions([]);
+      return;
     }
-  };
 
-  loadRequisitions();
+    let cancelled = false;
 
-  return () => {
-    cancelled = true;
-  };
-}, [isAuthenticated]);
+    const loadRequisitions = async () => {
+      try {
+        const response = await getRequisitions();
+
+        if (!cancelled) {
+          setRequisitions(response.requisitions || []);
+        }
+      } catch (error) {
+        console.error("Failed to load requisitions from API:", error);
+
+        if (!cancelled) {
+          setRequisitions([]);
+        }
+      }
+    };
+
+    loadRequisitions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   // =========================================================
   // TAB PROTECTION
@@ -464,70 +460,45 @@ export default function App() {
   // CREATE REQUISITION
   // =========================================================
 
-  const handleCreateRequisition = async (
-    newRecord: RequisitionRecord,
-  ) => {
+  const handleCreateRequisition = async (newRecord: RequisitionRecord) => {
     try {
       const response = await createRequisition({
         requisitionType: newRecord.type,
-        requisitionMode:
-          newRecord.itHrmsDetails?.requisitionMode || "new",
-        renewalReason:
-          newRecord.itHrmsDetails?.renewalReason || null,
+        requisitionMode: newRecord.itHrmsDetails?.requisitionMode || "new",
+        renewalReason: newRecord.itHrmsDetails?.renewalReason || null,
         remarks:
-          newRecord.history?.[newRecord.history.length - 1]
-            ?.comments || null,
+          newRecord.history?.[newRecord.history.length - 1]?.comments || null,
 
-        itHrmsDetails:
-          newRecord.itHrmsDetails
-            ? {
-                requestEmail:
-                  newRecord.itHrmsDetails.requestEmail,
-                requestedEmailGroups:
-                  newRecord.itHrmsDetails.requestedEmailGroups,
-                requestInternet:
-                  newRecord.itHrmsDetails.requestInternet,
-                deviceType:
-                  newRecord.itHrmsDetails.deviceType,
-                macAddress:
-                  newRecord.itHrmsDetails.macAddress,
-                requestHrmsPms:
-                  newRecord.itHrmsDetails.requestHrmsPms,
-                requestBiometric:
-                  newRecord.itHrmsDetails.requestBiometric,
-              }
-            : undefined,
+        itHrmsDetails: newRecord.itHrmsDetails
+          ? {
+              requestEmail: newRecord.itHrmsDetails.requestEmail,
+              requestedEmailGroups:
+                newRecord.itHrmsDetails.requestedEmailGroups,
+              requestInternet: newRecord.itHrmsDetails.requestInternet,
+              deviceType: newRecord.itHrmsDetails.deviceType,
+              macAddress: newRecord.itHrmsDetails.macAddress,
+              requestHrmsPms: newRecord.itHrmsDetails.requestHrmsPms,
+              requestBiometric: newRecord.itHrmsDetails.requestBiometric,
+            }
+          : undefined,
 
-        labFacilities:
-          newRecord.labAccessDetails?.map((lab) => ({
-            facilityId: lab.labId,
-            facilityName: lab.labName,
-            purposeEquipment:
-              lab.purposeEquipment || null,
-            fromDate: lab.fromDate || null,
-            toDate: lab.toDate || null,
-            hasBiometricId:
-              lab.hasBiometricId || false,
-            biometricIdNumber:
-              lab.biometricIdNumber || null,
-            assignedLabPassId:
-              lab.assignedLabPassId || null,
-            nodalApprovalStatus:
-              lab.nodalApprovalStatus || "pending",
-            remarks:
-              lab.nodalComments || null,
-            reviewedById: null,
-            reviewedBy:
-              lab.nodalOfficerName || null,
-            reviewedAt:
-              lab.actionDate
-                ? `${lab.actionDate} 00:00:00`
-                : null,
-            nodalOfficerName:
-              lab.nodalOfficerName || null,
-            actionDate:
-              lab.actionDate || null,
-          })),
+        labFacilities: newRecord.labAccessDetails?.map((lab) => ({
+          facilityId: lab.labId,
+          facilityName: lab.labName,
+          purposeEquipment: lab.purposeEquipment || null,
+          fromDate: lab.fromDate || null,
+          toDate: lab.toDate || null,
+          hasBiometricId: lab.hasBiometricId || false,
+          biometricIdNumber: lab.biometricIdNumber || null,
+          assignedLabPassId: lab.assignedLabPassId || null,
+          nodalApprovalStatus: lab.nodalApprovalStatus || "pending",
+          remarks: lab.nodalComments || null,
+          reviewedById: null,
+          reviewedBy: lab.nodalOfficerName || null,
+          reviewedAt: lab.actionDate ? `${lab.actionDate} 00:00:00` : null,
+          nodalOfficerName: lab.nodalOfficerName || null,
+          actionDate: lab.actionDate || null,
+        })),
       });
 
       const refreshed = await getRequisitions();
@@ -535,18 +506,13 @@ export default function App() {
       setRequisitions(refreshed.requisitions || []);
 
       const created =
-        refreshed.requisitions?.find(
-          (item) => item.id === response.id,
-        ) || null;
+        refreshed.requisitions?.find((item) => item.id === response.id) || null;
 
       setSelectedRequisition(created);
 
       navigateToTab("my_requests");
     } catch (error) {
-      console.error(
-        "Failed to create requisition through API:",
-        error,
-      );
+      console.error("Failed to create requisition through API:", error);
 
       window.alert(
         error instanceof Error
@@ -561,9 +527,14 @@ export default function App() {
   // =========================================================
 
   const handleUpdateRequisition = (updatedRecord: RequisitionRecord) => {
-    const updated = updateRequisitionRecord(updatedRecord);
-
-    setRequisitions(updated);
+    // Keep React state synchronized with the authoritative record returned
+    // by the API/workflow layer. Database persistence is handled by the
+    // relevant API endpoint before this callback is invoked.
+    setRequisitions((previous) =>
+      previous.map((record) =>
+        record.id === updatedRecord.id ? updatedRecord : record,
+      ),
+    );
 
     if (selectedRequisition && selectedRequisition.id === updatedRecord.id) {
       setSelectedRequisition(updatedRecord);
@@ -746,25 +717,17 @@ export default function App() {
               const loginRole: UserRole = "applicant";
 
               setCurrentRole(loginRole);
-              localStorage.setItem("wii_current_role", loginRole);
+              setStoredCurrentRole(loginRole);
 
-              // AuthPage stores the raw API user in localStorage.
-              // Read it so Navbar can display the person's real name/email.
-              try {
-                const storedUser = localStorage.getItem("wii_user");
+              // Read the authenticated user through the centralized session helper.
+              const session = getLoginSession();
 
-                if (storedUser) {
-                  const parsedUser = JSON.parse(storedUser);
-
-                  setLoggedInUser({
-                    fullName:
-                      parsedUser.fullName || parsedUser.full_name || "User",
-                    email: parsedUser.email || "",
-                    phone: parsedUser.phone || "",
-                  });
-                }
-              } catch (error) {
-                console.warn("Unable to read logged-in user data:", error);
+              if (session?.user) {
+                setLoggedInUser({
+                  fullName: session.user.fullName || "User",
+                  email: session.user.email || "",
+                  phone: session.user.phone || "",
+                });
               }
 
               if (updatedProfileData) {
@@ -807,7 +770,7 @@ export default function App() {
         assignedRoles={toAssignedRoleObjects(assignedRoles)}
         onRoleChange={(role) => {
           setCurrentRole(role);
-          localStorage.setItem("wii_current_role", role);
+          setStoredCurrentRole(role);
 
           // Switching persona always starts from that persona's dashboard.
           setSelectedRequisition(null);
@@ -831,10 +794,7 @@ export default function App() {
         onSearch={(query) => setSearchQuery(query)}
         onOpenAuth={() => navigateToTab("auth")}
         onLogout={() => {
-          // Clear all client-side authentication/session data.
-          localStorage.removeItem("wii_auth_token");
-          localStorage.removeItem("wii_user");
-          localStorage.removeItem("wii_current_role");
+          clearLoginSession();
 
           setLoggedInUser(null);
           setIsAuthenticated(false);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { loginUser, saveLoginSession } from "@/api/auth.api";
 import { UserRole, ApplicantProfile } from "@/types";
 import { WiiLogo } from "../../../components/common/WiiLogo";
 
@@ -206,53 +207,44 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       // CALL BACKEND LOGIN API
       // -----------------------------------------
 
-      const response = await fetch("/api/login", {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-
-        body: JSON.stringify({
-          email: loginEmail.trim(),
-          password: loginPassword,
-        }),
+      const data = await loginUser({
+        email: loginEmail.trim(),
+        password: loginPassword,
       });
 
-      const data = await response.json();
-
-      console.log("LOGIN API STATUS:", response.status);
       console.log("LOGIN API RESPONSE:", data);
 
       // -----------------------------------------
       // LOGIN FAILED
       // -----------------------------------------
 
-      if (!response.ok || !data.success) {
-        if (response.status === 403) {
-          setIsInactiveUserError(true);
-        }
-
+      if (!data.success) {
         setFormError(data.message || "Invalid email or password.");
-
         return;
       }
 
       // -----------------------------------------
-      // SAVE JWT TOKEN
+      // ACTIVE USER VALIDATION
       // -----------------------------------------
 
-      localStorage.setItem("wii_auth_token", data.token);
+      if (String(data.user.status).toLowerCase() !== "active") {
+        setIsInactiveUserError(true);
+        setFormError(
+          data.message ||
+            "Your account is inactive. Please contact the administrator.",
+        );
+        return;
+      }
 
       // -----------------------------------------
-      // SAVE USER DATA
+      // CENTRALIZED SESSION PERSISTENCE
       // -----------------------------------------
 
-      localStorage.setItem("wii_user", JSON.stringify(data.user));
+      saveLoginSession(data);
 
-      // IMPORTANT: Every fresh login starts in the normal User persona.
-      // Any previous Admin/other persona stored by an earlier session is cleared.
+      // IMPORTANT:
+      // Every fresh login starts in the normal User persona.
+      // Other assigned roles remain available for later switching.
       localStorage.setItem("wii_current_role", "applicant");
 
       // -----------------------------------------
@@ -266,123 +258,60 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       };
 
       // -----------------------------------------
-      // LOGIN SUCCESS
+      // BUILD ASSIGNED ROLES
       // -----------------------------------------
 
       const roleCodeMap: Record<string, UserRole> = {
-        applicant: "applicant",
         user: "applicant",
+        applicant: "applicant",
+
         administrator: "admin",
         admin: "admin",
+
         reporting_manager: "supervisor",
         supervisor: "supervisor",
+
         nodal_officer: "lab_nodal",
         lab_nodal: "lab_nodal",
+
         associate_nodal_officer: "assoc_lab_nodal",
         assoc_lab_nodal: "assoc_lab_nodal",
+
         it_head: "it_officer",
         it_officer: "it_officer",
+
         manager: "section_head",
         section_head: "section_head",
+
         hrms_officer: "hrms_officer",
       };
 
-      /* =========================================================
-   BUILD ASSIGNED ROLES
-   ---------------------------------------------------------
-   Backend se jo roles milenge unko frontend roles me map
-   kiya ja raha hai.
-
-   IMPORTANT:
-   - User role har account ka default role hai.
-   - Agar Administrator assigned hai to wo dropdown me rahega.
-   - Lekin login ke time Administrator automatically active
-     NAHI hoga.
-========================================================= */
-
       const assignedRoles: UserRole[] = (data.user.roles || [])
-        .map((role: any) => {
+        .map((role) => {
           const code = String(role?.code || "").toLowerCase();
-
-          const roleCodeMap: Record<string, UserRole> = {
-            user: "applicant",
-            applicant: "applicant",
-
-            administrator: "admin",
-            admin: "admin",
-
-            reporting_manager: "supervisor",
-            supervisor: "supervisor",
-
-            nodal_officer: "lab_nodal",
-            lab_nodal: "lab_nodal",
-
-            associate_nodal_officer: "assoc_lab_nodal",
-            assoc_lab_nodal: "assoc_lab_nodal",
-
-            it_head: "it_officer",
-            it_officer: "it_officer",
-
-            manager: "section_head",
-            section_head: "section_head",
-
-            hrms_officer: "hrms_officer",
-          };
-
           return roleCodeMap[code];
         })
-        .filter(Boolean);
+        .filter((role): role is UserRole => Boolean(role));
 
-      /* =========================================================
-   ENSURE USER ROLE EXISTS
-   ---------------------------------------------------------
-   Every registered/login account must have User persona.
-
-   IMPORTANT:
-   "applicant" is only the INTERNAL frontend code.
-   UI me iska naam "User" rahega.
-========================================================= */
+      // -----------------------------------------
+      // ENSURE USER ROLE ALWAYS EXISTS
+      // -----------------------------------------
 
       const uniqueRoles: UserRole[] = [
         ...new Set<UserRole>(["applicant", ...assignedRoles]),
       ];
 
-      /* =========================================================
-   DEFAULT LOGIN ROLE
-   ---------------------------------------------------------
-   VERY IMPORTANT:
+      // -----------------------------------------
+      // DEFAULT LOGIN ROLE
+      // -----------------------------------------
 
-   Login ke baad hamesha User role active hoga.
-
-   Even if user has:
-      User
-      Administrator
-
-   Login ke baad:
-      ACTIVE = User
-
-   Administrator dropdown me available rahega.
-========================================================= */
-
-      // Fresh login ALWAYS starts as User.
-      // Administrator remains assigned and can be selected from Navbar later.
+      // Every fresh login starts as User.
       const activeRole: UserRole = "applicant";
 
-      /* =========================================================
-   DEBUG LOG
-========================================================= */
+      // -----------------------------------------
+      // LOGIN SUCCESS
+      // -----------------------------------------
 
-      console.log("========================================");
-      console.log("LOGIN USER:", data.user.fullName);
-      console.log("ASSIGNED ROLES:", uniqueRoles);
-      console.log("DEFAULT ACTIVE ROLE:", activeRole);
-      console.log("========================================");
-
-      /* =========================================================
-   SEND LOGIN SUCCESS TO APP
-========================================================= */
-
-      // IMPORTANT: Call the App callback exactly once.
       onLoginSuccess(activeRole, uniqueRoles, updatedProfile);
     } catch (error) {
       console.error("LOGIN FRONTEND ERROR:", error);
