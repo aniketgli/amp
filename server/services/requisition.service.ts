@@ -9,13 +9,9 @@ import {
   replaceLabFacilities,
 } from "../repositories/requisition.repository";
 
-import {
-  insertWorkflowAudit,
-} from "../repositories/workflow.repository";
+import { insertWorkflowAudit } from "../repositories/workflow.repository";
 
-import {
-  getUserById,
-} from "../repositories/user.repository";
+import { getUserById } from "../repositories/user.repository";
 
 export type RequisitionRole =
   | "applicant"
@@ -29,10 +25,7 @@ export type RequisitionRole =
   | "admin"
   | "super_admin";
 
-const ADMIN_ROLES: RequisitionRole[] = [
-  "admin",
-  "super_admin",
-];
+const ADMIN_ROLES: RequisitionRole[] = ["admin", "super_admin"];
 
 const ACTIVE_STATUSES = [
   "draft",
@@ -47,10 +40,7 @@ const ACTIVE_STATUSES = [
 ];
 
 export interface CreateRequisitionServiceInput {
-  requisitionType:
-    | "IT_HRMS"
-    | "LAB_FACILITY"
-    | "COMBINED";
+  requisitionType: "IT_HRMS" | "LAB_FACILITY" | "COMBINED";
 
   requisitionMode?: "new" | "renewal";
   renewalReason?: string | null;
@@ -80,10 +70,10 @@ export interface CreateRequisitionServiceInput {
   }>;
 }
 
-export function normalizeRole(
-  role: unknown,
-): RequisitionRole {
-  const value = String(role || "").trim().toLowerCase();
+export function normalizeRole(role: unknown): RequisitionRole {
+  const value = String(role || "")
+    .trim()
+    .toLowerCase();
 
   if (value === "user") {
     return "applicant";
@@ -121,17 +111,11 @@ export function canViewRequisition(
 
   // Supervisor / PI
   if (actorRole === "supervisor") {
-    return (
-      status !== "draft" &&
-      status !== "deactivated"
-    );
+    return status !== "draft" && status !== "deactivated";
   }
 
   // Lab Nodal / Associate Nodal
-  if (
-    actorRole === "lab_nodal" ||
-    actorRole === "assoc_lab_nodal"
-  ) {
+  if (actorRole === "lab_nodal" || actorRole === "assoc_lab_nodal") {
     const hasLab =
       requisition.requisition_type === "LAB_FACILITY" ||
       requisition.requisition_type === "COMBINED";
@@ -160,10 +144,7 @@ export function canViewRequisition(
   }
 
   // IT Officer / HRMS Officer
-  if (
-    actorRole === "it_officer" ||
-    actorRole === "hrms_officer"
-  ) {
+  if (actorRole === "it_officer" || actorRole === "hrms_officer") {
     const hasIT =
       requisition.requisition_type === "IT_HRMS" ||
       requisition.requisition_type === "COMBINED";
@@ -189,11 +170,7 @@ export async function listRequisitionsForActor(
   const all = await getAllRequisitions();
 
   return all.filter((requisition: any) =>
-    canViewRequisition(
-      requisition,
-      actorId,
-      actorRole,
-    ),
+    canViewRequisition(requisition, actorId, actorRole),
   );
 }
 
@@ -206,21 +183,13 @@ export async function findRequisitionForActor(
     throw new Error("Requisition ID is required.");
   }
 
-  const requisition = await getRequisitionById(
-    requisitionId.trim(),
-  );
+  const requisition = await getRequisitionById(requisitionId.trim());
 
   if (!requisition) {
     return null;
   }
 
-  if (
-    !canViewRequisition(
-      requisition,
-      actorId,
-      actorRole,
-    )
-  ) {
+  if (!canViewRequisition(requisition, actorId, actorRole)) {
     return null;
   }
 
@@ -257,30 +226,26 @@ export async function createNewRequisition(
   const details = input.itHrmsDetails || {};
 
   const requisitionMode =
-    input.requisitionMode ||
-    details.requisitionMode ||
-    "new";
+    input.requisitionMode || details.requisitionMode || "new";
 
-  const renewalReason =
-    input.renewalReason ||
-    details.renewalReason ||
-    null;
+  const renewalReason = input.renewalReason || details.renewalReason || null;
 
-  if (
-    requisitionMode === "renewal" &&
-    !renewalReason?.trim()
-  ) {
-    throw new Error(
-      "Renewal reason is required for renewal requisitions.",
-    );
+  if (requisitionMode === "renewal" && !renewalReason?.trim()) {
+    throw new Error("Renewal reason is required for renewal requisitions.");
   }
 
   // The applicant ID comes ONLY from the authenticated JWT.
   const applicantId = actorId.trim();
 
-  const applicant = await getUserById(
-    applicantId,
-  );
+  const applicantUserId = Number(applicantId);
+
+  if (!Number.isInteger(applicantUserId) || applicantUserId <= 0) {
+    const error: any = new Error("Authenticated user ID is invalid.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const applicant = await getUserById(applicantUserId);
 
   if (!applicant) {
     const error: any = new Error(
@@ -295,17 +260,14 @@ export async function createNewRequisition(
     Number(applicant.is_activated) !== 1 ||
     String(applicant.status).toLowerCase() !== "active"
   ) {
-    const error: any = new Error(
-      "User account is inactive.",
-    );
+    const error: any = new Error("User account is inactive.");
 
     error.statusCode = 403;
     throw error;
   }
 
   // Generate ID on the server.
-  const requisitionId =
-    await generateNextRequisitionId();
+  const requisitionId = await generateNextRequisitionId();
 
   await createRequisition({
     id: requisitionId,
@@ -325,24 +287,16 @@ export async function createNewRequisition(
     input.requisitionType === "IT_HRMS" ||
     input.requisitionType === "COMBINED"
   ) {
-    await upsertITHrmsDetails(
-      requisitionId,
-      {
-        requestEmail: details.requestEmail,
-        requestedEmailPrefix:
-          details.requestedEmailPrefix,
-        requestedEmailGroups:
-          details.requestedEmailGroups,
-        requestInternet:
-          details.requestInternet,
-        deviceType: details.deviceType,
-        macAddress: details.macAddress,
-        requestHrmsPms:
-          details.requestHrmsPms,
-        requestBiometric:
-          details.requestBiometric,
-      },
-    );
+    await upsertITHrmsDetails(requisitionId, {
+      requestEmail: details.requestEmail,
+      requestedEmailPrefix: details.requestedEmailPrefix,
+      requestedEmailGroups: details.requestedEmailGroups,
+      requestInternet: details.requestInternet,
+      deviceType: details.deviceType,
+      macAddress: details.macAddress,
+      requestHrmsPms: details.requestHrmsPms,
+      requestBiometric: details.requestBiometric,
+    });
   }
 
   // Save selected lab facilities.
@@ -350,25 +304,19 @@ export async function createNewRequisition(
     input.requisitionType === "LAB_FACILITY" ||
     input.requisitionType === "COMBINED"
   ) {
-    await replaceLabFacilities(
-      requisitionId,
-      input.labFacilities || [],
-    );
+    await replaceLabFacilities(requisitionId, input.labFacilities || []);
   }
 
   // Permanent SUBMIT audit record.
   await insertWorkflowAudit({
     requisitionId,
     actorId,
-    actorName:
-      applicant.full_name || actorId,
+    actorName: applicant.full_name || actorId,
     actorRole,
     actionType: "SUBMIT",
     stageFrom: "draft",
     stageTo: "submitted_pending_pi",
-    remarks:
-      input.remarks?.trim() ||
-      "Requisition submitted electronically.",
+    remarks: input.remarks?.trim() || "Requisition submitted electronically.",
   });
 
   return requisitionId;
@@ -410,9 +358,7 @@ export async function updateExistingRequisition(
     }>;
   },
 ) {
-  const existing = await getRequisitionById(
-    requisitionId.trim(),
-  );
+  const existing = await getRequisitionById(requisitionId.trim());
 
   if (!existing) {
     return false;
@@ -420,9 +366,7 @@ export async function updateExistingRequisition(
 
   // Only the applicant owning the requisition or an admin
   // can use this generic update endpoint.
-  const isOwner =
-    String(existing.applicant_id) ===
-    String(actorId);
+  const isOwner = String(existing.applicant_id) === String(actorId);
 
   if (!isOwner && !ADMIN_ROLES.includes(actorRole)) {
     const error: any = new Error(
@@ -435,53 +379,34 @@ export async function updateExistingRequisition(
 
   // Applicant cannot directly manipulate workflow status.
   // Workflow status changes must happen through /actions.
-  const safeStatus =
-    ADMIN_ROLES.includes(actorRole)
-      ? input.status
-      : undefined;
+  const safeStatus = ADMIN_ROLES.includes(actorRole) ? input.status : undefined;
 
   if (
     input.requisitionMode === "renewal" &&
     input.renewalReason !== undefined &&
     !input.renewalReason?.trim()
   ) {
-    throw new Error(
-      "Renewal reason is required for renewal requisitions.",
-    );
+    throw new Error("Renewal reason is required for renewal requisitions.");
   }
 
-  const updated =
-    await updateRequisitionMaster(
-      requisitionId.trim(),
-      {
-        status: safeStatus,
-        requisitionMode:
-          input.requisitionMode,
-        renewalReason:
-          input.renewalReason === undefined
-            ? undefined
-            : input.renewalReason?.trim() || null,
-        remarks:
-          input.remarks === undefined
-            ? undefined
-            : input.remarks?.trim() || null,
-      },
-    );
+  const updated = await updateRequisitionMaster(requisitionId.trim(), {
+    status: safeStatus,
+    requisitionMode: input.requisitionMode,
+    renewalReason:
+      input.renewalReason === undefined
+        ? undefined
+        : input.renewalReason?.trim() || null,
+    remarks:
+      input.remarks === undefined ? undefined : input.remarks?.trim() || null,
+  });
 
   if (input.itHrmsDetails) {
-    await upsertITHrmsDetails(
-      requisitionId.trim(),
-      input.itHrmsDetails,
-    );
+    await upsertITHrmsDetails(requisitionId.trim(), input.itHrmsDetails);
   }
 
   if (input.labFacilities) {
-    await replaceLabFacilities(
-      requisitionId.trim(),
-      input.labFacilities,
-    );
+    await replaceLabFacilities(requisitionId.trim(), input.labFacilities);
   }
 
   return updated;
 }
-

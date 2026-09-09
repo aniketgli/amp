@@ -325,18 +325,28 @@ export const Navbar: React.FC<NavbarProps> = ({
      Name DB/profile se aayega.
   ======================================================= */
 
-  const displayName = userProfile?.fullName || "User";
+  const displayName =
+    (
+      userProfile as ApplicantProfile & {
+        fullName?: string;
+      }
+    )?.fullName || "User";
 
-  /* Email display ke liye profile fields */
   const displayEmail =
-    userProfile?.personalEmail || userProfile?.wiiOfficialEmail || "";
+    userProfile?.personalEmail ||
+    (
+      userProfile as ApplicantProfile & {
+        wiiOfficialEmail?: string;
+      }
+    )?.wiiOfficialEmail ||
+    "";
 
   /* =======================================================
      CURRENT ROLE CAPABILITIES
   ======================================================= */
 
   const capabilities = ROLE_CAPABILITIES[currentRole] || {
-    access: currentRole === "applicant" || currentRole === "user",
+    access: currentRole === "applicant",
     requests: true,
     master: currentRole === "admin" || currentRole === "administrator",
   };

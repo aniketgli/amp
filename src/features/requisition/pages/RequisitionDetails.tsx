@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { RequisitionRecord, UserRole } from '@/types';
+import React, { useState } from "react";
+import { RequisitionRecord, UserRole } from "@/types";
 import { getRequisitionServiceName, getRequisitionRefId } from "@/lib/storage";
-import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
+import { OfficialFormReplica } from "@/features/requisition/components/OfficialFormReplica";
+import { executeWorkflowAction } from "@/api/workflow.api";
+import { getRequisition } from "@/api/requisitions.api";
 import {
   Clock,
   CheckCircle2,
@@ -33,7 +35,7 @@ import {
   KeyRound,
   Shield,
   FileCheck,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface RequisitionDetailsProps {
   requisition: RequisitionRecord;
@@ -58,37 +60,51 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
   const [showHrmsPass, setShowHrmsPass] = useState(false);
 
   // Officer Action Form States
-  const [officerComments, setOfficerComments] = useState('');
-  const [officerSign, setOfficerSign] = useState('');
-  
+  const [officerComments, setOfficerComments] = useState("");
+  const [officerSign, setOfficerSign] = useState("");
+
   // IT / HRMS Provisioning form fields for IT/HRMS Officers
   const [provWiiEmail, setProvWiiEmail] = useState(
     requisition.itHrmsDetails?.assignedWiiEmail ||
-      `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, '.')}@wii.gov.in`
+      `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, ".")}@wii.gov.in`,
   );
   const [provEmailPassword, setProvEmailPassword] = useState(
-    requisition.itHrmsDetails?.assignedEmailPassword || `WII@2026#${requisition.id.slice(-4)}`
+    requisition.itHrmsDetails?.assignedEmailPassword ||
+      `WII@2026#${requisition.id.slice(-4)}`,
   );
   const [provMac, setProvMac] = useState(
-    requisition.itHrmsDetails?.verifiedMacAddress || requisition.itHrmsDetails?.macAddress || 'FC:FB:FB:12:34:56'
+    requisition.itHrmsDetails?.verifiedMacAddress ||
+      requisition.itHrmsDetails?.macAddress ||
+      "FC:FB:FB:12:34:56",
   );
   const [provWifiKey, setProvWifiKey] = useState(
-    requisition.itHrmsDetails?.wifiAccessKey || 'WII-WiFi#Sec8912'
+    requisition.itHrmsDetails?.wifiAccessKey || "WII-WiFi#Sec8912",
   );
   const [provBioId, setProvBioId] = useState(
-    requisition.itHrmsDetails?.assignedBiometricId || requisition.applicant.biometricId || 'WII-BIO-1088'
+    requisition.itHrmsDetails?.assignedBiometricId ||
+      requisition.applicant.biometricId ||
+      "WII-BIO-1088",
   );
   const [provBioPin, setProvBioPin] = useState(
-    requisition.itHrmsDetails?.biometricPin || '4091'
+    requisition.itHrmsDetails?.biometricPin || "4091",
   );
   const [provHrmsCode, setProvHrmsCode] = useState(
-    requisition.itHrmsDetails?.assignedHrmsEmpCode || `WII-EMP-2026-${Math.floor(100 + Math.random() * 900)}`
+    requisition.itHrmsDetails?.assignedHrmsEmpCode ||
+      `WII-EMP-2026-${Math.floor(100 + Math.random() * 900)}`,
   );
   const [provHrmsPassword, setProvHrmsPassword] = useState(
-    requisition.itHrmsDetails?.hrmsPassword || 'Hrms#2026Secret'
+    requisition.itHrmsDetails?.hrmsPassword || "Hrms#2026Secret",
   );
 
-  const isApplicantView = currentRole === 'applicant';
+  const isApplicantView = currentRole === "applicant";
+
+  // Display actor name for UI/workflow metadata. The backend remains the
+  // authoritative source for the authenticated actor identity.
+  const actorName =
+    officerSign.trim() ||
+    (currentRole === "applicant"
+      ? requisition.applicant.applicantName || "User"
+      : currentRole.replace(/_/g, " "));
 
   const handleCopy = (text: string, keyName: string) => {
     navigator.clipboard.writeText(text);
@@ -97,54 +113,56 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
   };
 
   const hasLab =
-    requisition.type === 'LAB_FACILITY' ||
-    (requisition.type === 'COMBINED' &&
+    requisition.type === "LAB_FACILITY" ||
+    (requisition.type === "COMBINED" &&
       requisition.labAccessDetails &&
       requisition.labAccessDetails.some((l) => l.selected));
 
   // Determine workflow step list
   const steps = [
     {
-      key: 'submitted_pending_pi',
-      title: 'PI Endorsement',
-      actor: requisition.applicant.supervisingOfficerName || 'Supervisor / PI',
+      key: "submitted_pending_pi",
+      title: "PI Endorsement",
+      actor: requisition.applicant.supervisingOfficerName || "Supervisor / PI",
     },
     {
-      key: 'in_lab_review',
-      title: 'Lab NO & ANO Review',
-      actor: hasLab ? 'Lab NO & ANO Officers' : 'N/A (Services Request Direct to IT Head)',
+      key: "in_lab_review",
+      title: "Lab NO & ANO Review",
+      actor: hasLab
+        ? "Lab NO & ANO Officers"
+        : "N/A (Services Request Direct to IT Head)",
     },
     {
-      key: 'pending_section_head',
-      title: 'IT Head Clearance',
-      actor: 'Dr. Panna Lal (Section Head IT)',
+      key: "pending_section_head",
+      title: "IT Head Clearance",
+      actor: "Dr. Panna Lal (Section Head IT)",
     },
     {
-      key: 'in_tech_verification',
-      title: 'Manager Action',
-      actor: 'IT & HRMS Technical Managers',
+      key: "in_tech_verification",
+      title: "Manager Action",
+      actor: "IT & HRMS Technical Managers",
     },
     {
-      key: 'approved_provisioned',
-      title: 'Active & Provisioned',
-      actor: 'All Systems Ready & Supervisor Informed',
+      key: "approved_provisioned",
+      title: "Active & Provisioned",
+      actor: "All Systems Ready & Supervisor Informed",
     },
   ];
 
   const getStepIndex = (status: string) => {
     switch (status) {
-      case 'submitted_pending_pi':
+      case "submitted_pending_pi":
         return 0;
-      case 'in_lab_review':
+      case "in_lab_review":
         return 1;
-      case 'pending_section_head':
+      case "pending_section_head":
         return 2;
-      case 'in_tech_verification':
+      case "in_tech_verification":
         return 3;
-      case 'approved_provisioned':
+      case "approved_provisioned":
         return 4;
-      case 'rejected':
-      case 'deactivated':
+      case "rejected":
+      case "deactivated":
         return -1;
       default:
         return 0;
@@ -154,22 +172,39 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
   const currentStepIdx = getStepIndex(requisition.status);
 
   // Helper to test if it's the active role's turn to take action
-  const canCurrentRoleAct = (req: RequisitionRecord, role: UserRole): boolean => {
-    if (req.status === 'rejected' || req.status === 'approved_provisioned' || req.status === 'deactivated') {
+  const canCurrentRoleAct = (
+    req: RequisitionRecord,
+    role: UserRole,
+  ): boolean => {
+    if (
+      req.status === "rejected" ||
+      req.status === "approved_provisioned" ||
+      req.status === "deactivated"
+    ) {
       return false;
     }
-    if (role === 'admin' || role === 'super_admin') return true;
-    if (role === 'supervisor') {
-      return req.status === 'submitted_pending_pi' || req.piApproval?.status === 'pending';
+    if (role === "admin" || role === "super_admin") return true;
+    if (role === "supervisor") {
+      return (
+        req.status === "submitted_pending_pi" ||
+        req.piApproval?.status === "pending"
+      );
     }
-    if (role === 'lab_nodal' || role === 'assoc_lab_nodal') {
-      return req.status === 'in_lab_review' && Boolean(req.labAccessDetails?.some((l) => l.selected && l.nodalApprovalStatus === 'pending'));
+    if (role === "lab_nodal" || role === "assoc_lab_nodal") {
+      return (
+        req.status === "in_lab_review" &&
+        Boolean(
+          req.labAccessDetails?.some(
+            (l) => l.selected && l.nodalApprovalStatus === "pending",
+          ),
+        )
+      );
     }
-    if (role === 'section_head') {
-      return req.status === 'pending_section_head';
+    if (role === "section_head") {
+      return req.status === "pending_section_head";
     }
-    if (role === 'it_officer' || role === 'hrms_officer') {
-      return req.status === 'in_tech_verification';
+    if (role === "it_officer" || role === "hrms_officer") {
+      return req.status === "in_tech_verification";
     }
     return false;
   };
@@ -180,54 +215,30 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
   ) => {
     try {
       const workflowPayload: any = {
-        action:
-          action === "provision"
-            ? "provision"
-            : action,
-        comments:
-          officerComments || null,
+        action: action === "provision" ? "provision" : action,
+        comments: officerComments || null,
       };
 
-      if (
-        currentRole === "lab_nodal" ||
-        currentRole === "assoc_lab_nodal"
-      ) {
-        workflowPayload.labFacilities =
-          (requisition.labAccessDetails || [])
-            .filter((lab) => lab.selected)
-            .map((lab) => ({
-              facilityId: lab.labId,
-              facilityName: lab.labName,
-              purposeEquipment:
-                lab.purposeEquipment || null,
-              fromDate:
-                lab.fromDate || null,
-              toDate:
-                lab.toDate || null,
-              hasBiometricId:
-                lab.hasBiometricId || false,
-              biometricIdNumber:
-                lab.biometricIdNumber || null,
-              assignedLabPassId:
-                lab.assignedLabPassId || null,
-              nodalApprovalStatus:
-                action === "approve"
-                  ? "approved"
-                  : "rejected",
-              remarks:
-                officerComments || null,
-              reviewedById: null,
-              reviewedBy:
-                actorName,
-              reviewedAt:
-                new Date().toISOString(),
-              nodalOfficerName:
-                actorName,
-              actionDate:
-                new Date()
-                  .toISOString()
-                  .split("T")[0],
-            }));
+      if (currentRole === "lab_nodal" || currentRole === "assoc_lab_nodal") {
+        workflowPayload.labFacilities = (requisition.labAccessDetails || [])
+          .filter((lab) => lab.selected)
+          .map((lab) => ({
+            facilityId: lab.labId,
+            facilityName: lab.labName,
+            purposeEquipment: lab.purposeEquipment || null,
+            fromDate: lab.fromDate || null,
+            toDate: lab.toDate || null,
+            hasBiometricId: lab.hasBiometricId || false,
+            biometricIdNumber: lab.biometricIdNumber || null,
+            assignedLabPassId: lab.assignedLabPassId || null,
+            nodalApprovalStatus: action === "approve" ? "approved" : "rejected",
+            remarks: officerComments || null,
+            reviewedById: null,
+            reviewedBy: actorName,
+            reviewedAt: new Date().toISOString(),
+            nodalOfficerName: actorName,
+            actionDate: new Date().toISOString().split("T")[0],
+          }));
       }
 
       if (
@@ -235,38 +246,23 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
         currentRole === "it_officer" ||
         currentRole === "hrms_officer"
       ) {
-        workflowPayload.provisionedEmail =
-          provWiiEmail || null;
+        workflowPayload.provisionedEmail = provWiiEmail || null;
 
-        workflowPayload.provisionedMac =
-          provMac || null;
+        workflowPayload.provisionedMac = provMac || null;
 
-        workflowPayload.provisionedHrmsId =
-          provHrmsCode || null;
+        workflowPayload.provisionedHrmsId = provHrmsCode || null;
 
-        workflowPayload.provisionedBiometricId =
-          provBioId || null;
+        workflowPayload.provisionedBiometricId = provBioId || null;
       }
 
-      await executeWorkflowAction(
-        requisition.id,
-        workflowPayload,
-      );
+      await executeWorkflowAction(requisition.id, workflowPayload);
 
       // Always reload the authoritative DB state.
-      const refreshed =
-        await getRequisition(
-          requisition.id,
-        );
+      const refreshed = await getRequisition(requisition.id);
 
-      onUpdateRequisition(
-        refreshed.requisition,
-      );
+      onUpdateRequisition(refreshed.requisition);
     } catch (error) {
-      console.error(
-        "Officer workflow action failed:",
-        error,
-      );
+      console.error("Officer workflow action failed:", error);
 
       window.alert(
         error instanceof Error
@@ -278,74 +274,96 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
   // Extract created IDs for display
   const createdEmail = requisition.itHrmsDetails?.assignedWiiEmail;
-  const createdMac = requisition.itHrmsDetails?.verifiedMacAddress || requisition.itHrmsDetails?.macAddress;
-  const createdBioId = requisition.itHrmsDetails?.assignedBiometricId || requisition.applicant.biometricId;
-  const createdHrmsCode = requisition.itHrmsDetails?.assignedHrmsEmpCode || (requisition.status === 'approved_provisioned' ? 'WII-EMP-2026-894' : undefined);
-  const approvedLabPasses = requisition.labAccessDetails?.filter((l) => l.selected && l.nodalApprovalStatus === 'approved') || [];
+  const createdMac =
+    requisition.itHrmsDetails?.verifiedMacAddress ||
+    requisition.itHrmsDetails?.macAddress;
+  const createdBioId =
+    requisition.itHrmsDetails?.assignedBiometricId ||
+    requisition.applicant.biometricId;
+  const createdHrmsCode =
+    requisition.itHrmsDetails?.assignedHrmsEmpCode ||
+    (requisition.status === "approved_provisioned"
+      ? "WII-EMP-2026-894"
+      : undefined);
+  const approvedLabPasses =
+    requisition.labAccessDetails?.filter(
+      (l) => l.selected && l.nodalApprovalStatus === "approved",
+    ) || [];
 
   // Determine requested service scope flags
   const hasItHrmsDetails = Boolean(requisition.itHrmsDetails);
   const selectedKey = requisition.selectedServiceKey;
 
+  // Backward-compatible read for older requisition records.
+  // `serviceScope` is not part of the current RequisitionRecord type, so
+  // access it safely without weakening the main record type.
+  const legacyServiceScope = (
+    requisition as RequisitionRecord & { serviceScope?: string }
+  ).serviceScope;
+
   const isEmailRequested = selectedKey
-    ? selectedKey === 'email'
+    ? selectedKey === "email"
     : hasItHrmsDetails
-    ? Boolean(requisition.itHrmsDetails?.requestEmail)
-    : Boolean(
-        requisition.serviceScope === 'email' ||
-        requisition.serviceScope === 'combined' ||
-        (requisition.serviceName && requisition.serviceName.toLowerCase().includes('email'))
-      );
+      ? Boolean(requisition.itHrmsDetails?.requestEmail)
+      : Boolean(
+          legacyServiceScope === "email" ||
+          legacyServiceScope === "combined" ||
+          (requisition.serviceName &&
+            requisition.serviceName.toLowerCase().includes("email")),
+        );
 
   const isInternetRequested = selectedKey
-    ? selectedKey === 'internet'
+    ? selectedKey === "internet"
     : hasItHrmsDetails
-    ? Boolean(requisition.itHrmsDetails?.requestInternet)
-    : Boolean(
-        requisition.serviceScope === 'mac' ||
-        requisition.serviceScope === 'combined' ||
-        (requisition.serviceName &&
-          (requisition.serviceName.toLowerCase().includes('wifi') ||
-            requisition.serviceName.toLowerCase().includes('internet') ||
-            requisition.serviceName.toLowerCase().includes('mac')))
-      );
+      ? Boolean(requisition.itHrmsDetails?.requestInternet)
+      : Boolean(
+          legacyServiceScope === "mac" ||
+          legacyServiceScope === "combined" ||
+          (requisition.serviceName &&
+            (requisition.serviceName.toLowerCase().includes("wifi") ||
+              requisition.serviceName.toLowerCase().includes("internet") ||
+              requisition.serviceName.toLowerCase().includes("mac"))),
+        );
 
   const isBiometricRequested = selectedKey
-    ? selectedKey === 'biometric'
+    ? selectedKey === "biometric"
     : hasItHrmsDetails
-    ? Boolean(requisition.itHrmsDetails?.requestBiometric)
-    : Boolean(
-        requisition.serviceName && requisition.serviceName.toLowerCase().includes('biometric')
-      );
+      ? Boolean(requisition.itHrmsDetails?.requestBiometric)
+      : Boolean(
+          requisition.serviceName &&
+          requisition.serviceName.toLowerCase().includes("biometric"),
+        );
 
   const isHrmsRequested = selectedKey
-    ? selectedKey === 'hrms'
+    ? selectedKey === "hrms"
     : hasItHrmsDetails
-    ? Boolean(requisition.itHrmsDetails?.requestHrmsPms)
-    : Boolean(
-        requisition.serviceScope === 'hrms' ||
-        requisition.serviceScope === 'combined' ||
-        (requisition.serviceName &&
-          (requisition.serviceName.toLowerCase().includes('hrms') ||
-            requisition.serviceName.toLowerCase().includes('pms')))
-      );
+      ? Boolean(requisition.itHrmsDetails?.requestHrmsPms)
+      : Boolean(
+          legacyServiceScope === "hrms" ||
+          legacyServiceScope === "combined" ||
+          (requisition.serviceName &&
+            (requisition.serviceName.toLowerCase().includes("hrms") ||
+              requisition.serviceName.toLowerCase().includes("pms"))),
+        );
 
   const hasLabDetails = selectedKey
-    ? selectedKey === 'lab' || selectedKey.startsWith('lab-')
+    ? selectedKey === "lab" || selectedKey.startsWith("lab-")
     : Boolean(
         requisition.labAccessDetails &&
         requisition.labAccessDetails.length > 0 &&
-        requisition.labAccessDetails.some((l) => l.selected)
+        requisition.labAccessDetails.some((l) => l.selected),
       );
 
   // Check if this is an HRMS/PMS Fresh Registration forwarded from IT Head to Manager stage
   const isHrmsPmsRequest =
     Boolean(requisition.itHrmsDetails?.requestHrmsPms) ||
     Boolean(requisition.itHrmsDetails?.requestBiometric) ||
-    requisition.type === 'IT_HRMS';
-  const isFreshRegistration = requisition.itHrmsDetails?.requisitionMode !== 'renewal';
-  const isAtManagerStage = requisition.status === 'in_tech_verification';
-  const showManagerStageNotice = isHrmsPmsRequest && isFreshRegistration && isAtManagerStage;
+    requisition.type === "IT_HRMS";
+  const isFreshRegistration =
+    requisition.itHrmsDetails?.requisitionMode !== "renewal";
+  const isAtManagerStage = requisition.status === "in_tech_verification";
+  const showManagerStageNotice =
+    isHrmsPmsRequest && isFreshRegistration && isAtManagerStage;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -369,7 +387,12 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              Applicant: <strong className="text-white font-semibold">{requisition.applicant.applicantName}</strong> ({requisition.applicant.designation}) • Submitted {new Date(requisition.createdAt).toLocaleDateString()}
+              Applicant:{" "}
+              <strong className="text-white font-semibold">
+                {requisition.applicant.applicantName}
+              </strong>{" "}
+              ({requisition.applicant.designation}) • Submitted{" "}
+              {new Date(requisition.createdAt).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -378,31 +401,31 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
         <div className="flex items-center gap-2.5">
           <span
             className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider border shadow-2xs ${
-              requisition.status === 'approved_provisioned'
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : requisition.status === 'rejected'
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              requisition.status === "approved_provisioned"
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                : requisition.status === "rejected"
+                  ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                  : "bg-amber-500/20 text-amber-300 border-amber-500/40"
             }`}
           >
-            {requisition.status === 'approved_provisioned' ? (
+            {requisition.status === "approved_provisioned" ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            ) : requisition.status === 'rejected' ? (
+            ) : requisition.status === "rejected" ? (
               <XCircle className="w-4 h-4 text-rose-400" />
             ) : (
               <Clock className="w-4 h-4 text-amber-400" />
             )}
-            {requisition.status === 'submitted_pending_pi'
-              ? 'Pending PI Approval'
-              : requisition.status === 'in_lab_review'
-              ? 'Lab Nodal Clearance'
-              : requisition.status === 'pending_section_head'
-              ? 'Section Head Review'
-              : requisition.status === 'in_tech_verification'
-              ? 'Technical Provisioning'
-              : requisition.status === 'approved_provisioned'
-              ? 'Active & Provisioned'
-              : requisition.status.replace(/_/g, ' ')}
+            {requisition.status === "submitted_pending_pi"
+              ? "Pending PI Approval"
+              : requisition.status === "in_lab_review"
+                ? "Lab Nodal Clearance"
+                : requisition.status === "pending_section_head"
+                  ? "Section Head Review"
+                  : requisition.status === "in_tech_verification"
+                    ? "Technical Provisioning"
+                    : requisition.status === "approved_provisioned"
+                      ? "Active & Provisioned"
+                      : requisition.status.replace(/_/g, " ")}
           </span>
         </div>
       </div>
@@ -419,21 +442,25 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
         {/* Stepper Progress Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {steps.map((step, idx) => {
-            const isCompleted = currentStepIdx > idx || requisition.status === 'approved_provisioned';
-            const isCurrent = currentStepIdx === idx && requisition.status !== 'approved_provisioned';
-            const isRejected = requisition.status === 'rejected';
+            const isCompleted =
+              currentStepIdx > idx ||
+              requisition.status === "approved_provisioned";
+            const isCurrent =
+              currentStepIdx === idx &&
+              requisition.status !== "approved_provisioned";
+            const isRejected = requisition.status === "rejected";
 
             return (
               <div
                 key={step.key}
                 className={`p-3 rounded-xl border transition-all ${
                   isCompleted
-                    ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    ? "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
                     : isCurrent
-                    ? 'bg-blue-50/70 dark:bg-blue-950/50 border-blue-300 dark:border-blue-800 ring-2 ring-blue-500/20 text-blue-950 dark:text-blue-100'
-                    : isRejected
-                    ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-800'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500'
+                      ? "bg-blue-50/70 dark:bg-blue-950/50 border-blue-300 dark:border-blue-800 ring-2 ring-blue-500/20 text-blue-950 dark:text-blue-100"
+                      : isRejected
+                        ? "bg-rose-50/50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-800"
+                        : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500"
                 }`}
               >
                 <div className="flex items-center justify-between text-[11px] font-bold mb-1">
@@ -450,8 +477,12 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="font-semibold text-xs leading-tight">{step.title}</div>
-                <div className="text-[10px] opacity-80 mt-1 truncate">{step.actor}</div>
+                <div className="font-semibold text-xs leading-tight">
+                  {step.title}
+                </div>
+                <div className="text-[10px] opacity-80 mt-1 truncate">
+                  {step.actor}
+                </div>
               </div>
             );
           })}
@@ -466,17 +497,23 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
             <strong className="font-bold text-amber-950 dark:text-amber-100 text-sm block mb-0.5">
               Action Required at Manager Stage:
             </strong>
-            When your requisition status reaches the <strong className="font-bold text-amber-950 dark:text-amber-100">Manager stage</strong>, please visit the <strong className="font-bold text-amber-950 dark:text-amber-100">IT Cell in person</strong> for Face Registration & Biometric Enrollment.
+            When your requisition status reaches the{" "}
+            <strong className="font-bold text-amber-950 dark:text-amber-100">
+              Manager stage
+            </strong>
+            , please visit the{" "}
+            <strong className="font-bold text-amber-950 dark:text-amber-100">
+              IT Cell in person
+            </strong>{" "}
+            for Face Registration & Biometric Enrollment.
           </div>
         </div>
       )}
 
       {/* 3. TWO-COLUMN ROW matching image.png design */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
         {/* LEFT COLUMN (lg:col-span-7): Applicant Personal Record */}
         <div className="lg:col-span-7 space-y-6">
-          
           {/* APPLICANT PERSONAL & INSTITUTIONAL MASTER RECORD */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
             <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -525,7 +562,8 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                   <span>Supervising Officer / PI</span>
                 </div>
                 <div className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-                  {requisition.applicant.supervisingOfficerName || 'Dr. R. K. Singh'}
+                  {requisition.applicant.supervisingOfficerName ||
+                    "Dr. R. K. Singh"}
                 </div>
               </div>
 
@@ -550,7 +588,7 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                   <span>Valid Up To</span>
                 </div>
                 <div className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs">
-                  {requisition.applicant.validUpTo || '2028-01-31'}
+                  {requisition.applicant.validUpTo || "2028-01-31"}
                 </div>
                 <div className="text-[10px] text-slate-400">
                   Official WII Pass Validity
@@ -579,7 +617,8 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                       </span>
                     ) : (
                       <span className="text-slate-600 dark:text-slate-400 font-medium">
-                        {currentRole.toUpperCase()} View: User ID Only (Passwords Protected)
+                        {currentRole.toUpperCase()} View: User ID Only
+                        (Passwords Protected)
                       </span>
                     )}
                   </div>
@@ -594,56 +633,97 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                           <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                           Official WII Email Account
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          createdEmail ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {createdEmail ? 'Active' : 'Requested'}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            createdEmail
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {createdEmail ? "Active" : "Requested"}
                         </span>
                       </div>
 
                       <div className="space-y-1.5">
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">User ID / Allotted Email:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            User ID / Allotted Email:
+                          </span>
                           <div className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 mt-0.5">
                             <span className="truncate">
-                              {createdEmail || `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, '.')}@wii.gov.in`}
+                              {createdEmail ||
+                                `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, ".")}@wii.gov.in`}
                             </span>
                             <button
-                              onClick={() => handleCopy(createdEmail || `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, '.')}@wii.gov.in`, 'email')}
+                              onClick={() =>
+                                handleCopy(
+                                  createdEmail ||
+                                    `${requisition.applicant.applicantName.toLowerCase().replace(/[^a-z]/g, ".")}@wii.gov.in`,
+                                  "email",
+                                )
+                              }
                               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                               title="Copy User ID"
                             >
-                              {copiedKey === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedKey === "email" ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Mailbox Password:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Mailbox Password:
+                          </span>
                           <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs mt-0.5">
                             {isApplicantView ? (
                               <>
                                 <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                                  {showEmailPass ? (requisition.itHrmsDetails?.assignedEmailPassword || 'WII@2026#PassKey') : '••••••••••••'}
+                                  {showEmailPass
+                                    ? requisition.itHrmsDetails
+                                        ?.assignedEmailPassword ||
+                                      "WII@2026#PassKey"
+                                    : "••••••••••••"}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <button
-                                    onClick={() => setShowEmailPass(!showEmailPass)}
+                                    onClick={() =>
+                                      setShowEmailPass(!showEmailPass)
+                                    }
                                     className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {showEmailPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    {showEmailPass ? (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                   <button
-                                    onClick={() => handleCopy(requisition.itHrmsDetails?.assignedEmailPassword || 'WII@2026#PassKey', 'emailPass')}
+                                    onClick={() =>
+                                      handleCopy(
+                                        requisition.itHrmsDetails
+                                          ?.assignedEmailPassword ||
+                                          "WII@2026#PassKey",
+                                        "emailPass",
+                                      )
+                                    }
                                     className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {copiedKey === 'emailPass' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copiedKey === "emailPass" ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </>
                             ) : (
                               <span className="font-mono text-slate-400 text-[11px] flex items-center gap-1.5 italic">
-                                <Lock className="w-3 h-3 text-amber-500" /> Protected (Visible to Applicant Only)
+                                <Lock className="w-3 h-3 text-amber-500" />{" "}
+                                Protected (Visible to Applicant Only)
                               </span>
                             )}
                           </div>
@@ -660,54 +740,89 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                           <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           LAN / Wi-Fi Registered MAC
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          createdMac ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {createdMac ? 'Whitelisted' : 'Requested'}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            createdMac
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {createdMac ? "Whitelisted" : "Requested"}
                         </span>
                       </div>
 
                       <div className="space-y-1.5">
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Whitelisted MAC Address / ID:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Whitelisted MAC Address / ID:
+                          </span>
                           <div className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 mt-0.5">
-                            <span>{createdMac || 'FC:FB:FB:12:34:56'}</span>
+                            <span>{createdMac || "FC:FB:FB:12:34:56"}</span>
                             <button
-                              onClick={() => handleCopy(createdMac || 'FC:FB:FB:12:34:56', 'mac')}
+                              onClick={() =>
+                                handleCopy(
+                                  createdMac || "FC:FB:FB:12:34:56",
+                                  "mac",
+                                )
+                              }
                               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                               title="Copy MAC Address"
                             >
-                              {copiedKey === 'mac' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedKey === "mac" ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Wi-Fi WPA2 Security Key:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Wi-Fi WPA2 Security Key:
+                          </span>
                           <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs mt-0.5">
                             {isApplicantView ? (
                               <>
                                 <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                                  {showWifiKey ? (requisition.itHrmsDetails?.wifiAccessKey || 'WII-WiFi#Sec8912') : '••••••••••••'}
+                                  {showWifiKey
+                                    ? requisition.itHrmsDetails
+                                        ?.wifiAccessKey || "WII-WiFi#Sec8912"
+                                    : "••••••••••••"}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     onClick={() => setShowWifiKey(!showWifiKey)}
                                     className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {showWifiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    {showWifiKey ? (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                   <button
-                                    onClick={() => handleCopy(requisition.itHrmsDetails?.wifiAccessKey || 'WII-WiFi#Sec8912', 'wifiKey')}
+                                    onClick={() =>
+                                      handleCopy(
+                                        requisition.itHrmsDetails
+                                          ?.wifiAccessKey || "WII-WiFi#Sec8912",
+                                        "wifiKey",
+                                      )
+                                    }
                                     className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {copiedKey === 'wifiKey' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copiedKey === "wifiKey" ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </>
                             ) : (
                               <span className="font-mono text-slate-400 text-[11px] flex items-center gap-1.5 italic">
-                                <Lock className="w-3 h-3 text-amber-500" /> Protected (Visible to Applicant Only)
+                                <Lock className="w-3 h-3 text-amber-500" />{" "}
+                                Protected (Visible to Applicant Only)
                               </span>
                             )}
                           </div>
@@ -724,54 +839,91 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                           <Fingerprint className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                           Biometric Attendance ID
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          createdBioId ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {createdBioId ? 'Enrolled' : 'Requested'}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            createdBioId
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {createdBioId ? "Enrolled" : "Requested"}
                         </span>
                       </div>
 
                       <div className="space-y-1.5">
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Allotted Biometric Punch ID:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Allotted Biometric Punch ID:
+                          </span>
                           <div className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 mt-0.5">
-                            <span>{createdBioId || 'WII-BIO-1088'}</span>
+                            <span>{createdBioId || "WII-BIO-1088"}</span>
                             <button
-                              onClick={() => handleCopy(createdBioId || 'WII-BIO-1088', 'bio')}
+                              onClick={() =>
+                                handleCopy(
+                                  createdBioId || "WII-BIO-1088",
+                                  "bio",
+                                )
+                              }
                               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                               title="Copy Punch ID"
                             >
-                              {copiedKey === 'bio' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedKey === "bio" ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Biometric Security PIN:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Biometric Security PIN:
+                          </span>
                           <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs mt-0.5">
                             {isApplicantView ? (
                               <>
                                 <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                                  {showBiometricPin ? (requisition.itHrmsDetails?.biometricPin || '4091') : '••••'}
+                                  {showBiometricPin
+                                    ? requisition.itHrmsDetails?.biometricPin ||
+                                      "4091"
+                                    : "••••"}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <button
-                                    onClick={() => setShowBiometricPin(!showBiometricPin)}
+                                    onClick={() =>
+                                      setShowBiometricPin(!showBiometricPin)
+                                    }
                                     className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {showBiometricPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    {showBiometricPin ? (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                   <button
-                                    onClick={() => handleCopy(requisition.itHrmsDetails?.biometricPin || '4091', 'bioPin')}
+                                    onClick={() =>
+                                      handleCopy(
+                                        requisition.itHrmsDetails
+                                          ?.biometricPin || "4091",
+                                        "bioPin",
+                                      )
+                                    }
                                     className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {copiedKey === 'bioPin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copiedKey === "bioPin" ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </>
                             ) : (
                               <span className="font-mono text-slate-400 text-[11px] flex items-center gap-1.5 italic">
-                                <Lock className="w-3 h-3 text-amber-500" /> Protected (Visible to Applicant Only)
+                                <Lock className="w-3 h-3 text-amber-500" />{" "}
+                                Protected (Visible to Applicant Only)
                               </span>
                             )}
                           </div>
@@ -788,54 +940,91 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                           <Briefcase className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                           HRMS ERP Portal Code
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          createdHrmsCode ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {createdHrmsCode ? 'Active' : 'Requested'}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            createdHrmsCode
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {createdHrmsCode ? "Active" : "Requested"}
                         </span>
                       </div>
 
                       <div className="space-y-1.5">
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">Allotted HRMS Emp Code / User ID:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            Allotted HRMS Emp Code / User ID:
+                          </span>
                           <div className="font-mono font-bold text-slate-900 dark:text-slate-100 text-xs bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 mt-0.5">
-                            <span>{createdHrmsCode || 'WII-EMP-2026-894'}</span>
+                            <span>{createdHrmsCode || "WII-EMP-2026-894"}</span>
                             <button
-                              onClick={() => handleCopy(createdHrmsCode || 'WII-EMP-2026-894', 'hrmsCode')}
+                              onClick={() =>
+                                handleCopy(
+                                  createdHrmsCode || "WII-EMP-2026-894",
+                                  "hrmsCode",
+                                )
+                              }
                               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                               title="Copy Emp Code"
                             >
-                              {copiedKey === 'hrmsCode' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedKey === "hrmsCode" ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">HRMS ERP Passcode:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                            HRMS ERP Passcode:
+                          </span>
                           <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs mt-0.5">
                             {isApplicantView ? (
                               <>
                                 <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                                  {showHrmsPass ? (requisition.itHrmsDetails?.hrmsPassword || 'Hrms#2026Secret') : '••••••••••••'}
+                                  {showHrmsPass
+                                    ? requisition.itHrmsDetails?.hrmsPassword ||
+                                      "Hrms#2026Secret"
+                                    : "••••••••••••"}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <button
-                                    onClick={() => setShowHrmsPass(!showHrmsPass)}
+                                    onClick={() =>
+                                      setShowHrmsPass(!showHrmsPass)
+                                    }
                                     className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {showHrmsPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    {showHrmsPass ? (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                   <button
-                                    onClick={() => handleCopy(requisition.itHrmsDetails?.hrmsPassword || 'Hrms#2026Secret', 'hrmsPass')}
+                                    onClick={() =>
+                                      handleCopy(
+                                        requisition.itHrmsDetails
+                                          ?.hrmsPassword || "Hrms#2026Secret",
+                                        "hrmsPass",
+                                      )
+                                    }
                                     className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                                   >
-                                    {copiedKey === 'hrmsPass' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copiedKey === "hrmsPass" ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </>
                             ) : (
                               <span className="font-mono text-slate-400 text-[11px] flex items-center gap-1.5 italic">
-                                <Lock className="w-3 h-3 text-amber-500" /> Protected (Visible to Applicant Only)
+                                <Lock className="w-3 h-3 text-amber-500" />{" "}
+                                Protected (Visible to Applicant Only)
                               </span>
                             )}
                           </div>
@@ -845,11 +1034,17 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                   )}
 
                   {/* Fallback Notice if no IT/HRMS cards match */}
-                  {!isEmailRequested && !isInternetRequested && !isBiometricRequested && !isHrmsRequested && !hasLabDetails && (
-                    <div className="col-span-full p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs italic text-center">
-                      No specific technical specifications or lab access requested for this requisition scope ({getRequisitionServiceName(requisition)}).
-                    </div>
-                  )}
+                  {!isEmailRequested &&
+                    !isInternetRequested &&
+                    !isBiometricRequested &&
+                    !isHrmsRequested &&
+                    !hasLabDetails && (
+                      <div className="col-span-full p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs italic text-center">
+                        No specific technical specifications or lab access
+                        requested for this requisition scope (
+                        {getRequisitionServiceName(requisition)}).
+                      </div>
+                    )}
                 </div>
 
                 {/* Research Lab Facilities if present */}
@@ -861,16 +1056,26 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                     </span>
                     <div className="space-y-2">
                       {requisition.labAccessDetails.map((lab) => (
-                        <div key={lab.labId} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap justify-between items-center gap-2">
+                        <div
+                          key={lab.labId}
+                          className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap justify-between items-center gap-2"
+                        >
                           <div>
-                            <div className="font-bold text-slate-900 dark:text-slate-100">{lab.labName}</div>
+                            <div className="font-bold text-slate-900 dark:text-slate-100">
+                              {lab.labName}
+                            </div>
                             <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">
-                              Equipment: {lab.purposeEquipment} • Tenure: {lab.fromDate} to {lab.toDate}
+                              Equipment: {lab.purposeEquipment} • Tenure:{" "}
+                              {lab.fromDate} to {lab.toDate}
                             </div>
                           </div>
-                          <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
-                            lab.nodalApprovalStatus === 'approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                          }`}>
+                          <span
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                              lab.nodalApprovalStatus === "approved"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            }`}
+                          >
                             {lab.nodalApprovalStatus}
                           </span>
                         </div>
@@ -885,27 +1090,49 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
         {/* RIGHT COLUMN (lg:col-span-5): Officer Action Desk + Audit Trail & Workflow History */}
         <div className="lg:col-span-5 space-y-6">
-          
           {/* OFFICER ACTION DESK (Only shown to Officers when action is required for their active stage) */}
-          {currentRole !== 'applicant' && requisition.status !== 'approved_provisioned' && requisition.status !== 'rejected' && (
-            canCurrentRoleAct(requisition, currentRole) ? (
+          {currentRole !== "applicant" &&
+            requisition.status !== "approved_provisioned" &&
+            requisition.status !== "rejected" &&
+            (canCurrentRoleAct(requisition, currentRole) ? (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Officer Approval & Review Desk</h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Action required for <strong className="text-emerald-600 dark:text-emerald-400 uppercase">{currentRole}</strong></p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      Officer Approval & Review Desk
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Action required for{" "}
+                      <strong className="text-emerald-600 dark:text-emerald-400 uppercase">
+                        {currentRole}
+                      </strong>
+                    </p>
                   </div>
                 </div>
 
                 {/* Technical Provisioning Inputs if IT or HRMS Manager and service is requested */}
                 {(() => {
-                  const showEmailInput = (currentRole === 'it_officer' || currentRole === 'admin') && isEmailRequested;
-                  const showMacInput = (currentRole === 'it_officer' || currentRole === 'admin') && isInternetRequested;
-                  const showBioInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isBiometricRequested;
-                  const showHrmsInput = (currentRole === 'hrms_officer' || currentRole === 'admin') && isHrmsRequested;
+                  const showEmailInput =
+                    (currentRole === "it_officer" || currentRole === "admin") &&
+                    isEmailRequested;
+                  const showMacInput =
+                    (currentRole === "it_officer" || currentRole === "admin") &&
+                    isInternetRequested;
+                  const showBioInput =
+                    (currentRole === "hrms_officer" ||
+                      currentRole === "admin") &&
+                    isBiometricRequested;
+                  const showHrmsInput =
+                    (currentRole === "hrms_officer" ||
+                      currentRole === "admin") &&
+                    isHrmsRequested;
 
-                  const showProvisioningSection = showEmailInput || showMacInput || showBioInput || showHrmsInput;
+                  const showProvisioningSection =
+                    showEmailInput ||
+                    showMacInput ||
+                    showBioInput ||
+                    showHrmsInput;
 
                   if (!showProvisioningSection) return null;
 
@@ -917,7 +1144,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                       {showEmailInput && (
                         <div>
-                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Assigned WII Email</label>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">
+                            Assigned WII Email
+                          </label>
                           <input
                             type="text"
                             value={provWiiEmail}
@@ -929,7 +1158,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                       {showMacInput && (
                         <div>
-                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Verified Hardware MAC</label>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">
+                            Verified Hardware MAC
+                          </label>
                           <input
                             type="text"
                             value={provMac}
@@ -941,7 +1172,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                       {showBioInput && (
                         <div>
-                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">Biometric Attendance ID</label>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">
+                            Biometric Attendance ID
+                          </label>
                           <input
                             type="text"
                             value={provBioId}
@@ -953,7 +1186,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                       {showHrmsInput && (
                         <div>
-                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">HRMS Employee Code</label>
+                          <label className="text-[10px] text-slate-600 dark:text-slate-300 font-medium block mb-0.5">
+                            HRMS Employee Code
+                          </label>
                           <input
                             type="text"
                             value={provHrmsCode}
@@ -968,7 +1203,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                 {/* Remarks Input */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Officer Remarks & Findings</label>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                    Officer Remarks & Findings
+                  </label>
                   <textarea
                     value={officerComments}
                     onChange={(e) => setOfficerComments(e.target.value)}
@@ -980,7 +1217,9 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
 
                 {/* Digital Signature Input */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">Digital Signature Sign-off</label>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                    Digital Signature Sign-off
+                  </label>
                   <input
                     type="text"
                     value={officerSign}
@@ -993,13 +1232,13 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-1">
                   <button
-                    onClick={() => handleOfficerAction('reject')}
+                    onClick={() => handleOfficerAction("reject")}
                     className="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <XCircle className="w-4 h-4" /> Reject
                   </button>
                   <button
-                    onClick={() => handleOfficerAction('approve')}
+                    onClick={() => handleOfficerAction("approve")}
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" /> Endorse & Advance
@@ -1013,11 +1252,15 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                   Read-Only Workflow Tracking Mode
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  This requisition is currently at stage: <strong className="text-blue-600 dark:text-blue-400 uppercase">{requisition.status.replace(/_/g, ' ')}</strong>. Action is currently pending with the designated officer for that stage.
+                  This requisition is currently at stage:{" "}
+                  <strong className="text-blue-600 dark:text-blue-400 uppercase">
+                    {requisition.status.replace(/_/g, " ")}
+                  </strong>
+                  . Action is currently pending with the designated officer for
+                  that stage.
                 </p>
               </div>
-            )
-          )}
+            ))}
 
           {/* AUDIT TRAIL & WORKFLOW HISTORY CARD */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
@@ -1034,7 +1277,10 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
                     {new Date(event.timestamp).toLocaleString()}
                   </div>
                   <div className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                    {event.actorName} <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">({event.actorRole})</span>
+                    {event.actorName}{" "}
+                    <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                      ({event.actorRole})
+                    </span>
                   </div>
                   <p className="text-slate-600 dark:text-slate-400 leading-relaxed mt-1 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/80">
                     {event.comments || event.actionType}
@@ -1048,14 +1294,15 @@ export const RequisitionDetails: React.FC<RequisitionDetailsProps> = ({
               ))}
             </div>
           </div>
-
         </div>
-
       </div>
 
       {/* Official Form Replica Modal */}
       {showReplicaModal && (
-        <OfficialFormReplica requisition={requisition} onClose={() => setShowReplicaModal(false)} />
+        <OfficialFormReplica
+          requisition={requisition}
+          onClose={() => setShowReplicaModal(false)}
+        />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { ADMIN_ROLES } from "../config/constants";
 import {
   getUserById,
   getAllUsers,
+  getUserRoles,
   updateUserRoles,
 } from "../repositories/user.repository";
 
@@ -22,7 +23,14 @@ export function registerUsersRoutes(app: Express) {
       });
     }
 
-    const userId = req.user.userId;
+    const userId = Number(req.user.userId);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user ID is invalid.",
+      });
+    }
 
     const user = await getUserById(userId);
 

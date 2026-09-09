@@ -11,22 +11,22 @@ export async function executeWorkflow(
   res: Response,
 ) {
   try {
-    const actorId = String(
-      req.user?.userId || "",
-    ).trim();
+    const actorId = String(req.user?.userId || "").trim();
 
-    const actorRole = String(
-      req.user?.role || "",
-    ).trim().toLowerCase() as WorkflowRole;
+    const actorUserId = Number(actorId);
 
-    if (!actorId || !actorRole) {
+    const actorRole = String(req.user?.role || "")
+      .trim()
+      .toLowerCase() as WorkflowRole;
+
+    if (!Number.isInteger(actorUserId) || actorUserId <= 0 || !actorRole) {
       return res.status(401).json({
         success: false,
         message: "Authenticated user and role are required.",
       });
     }
 
-    const actor = await getUserById(actorId);
+    const actor = await getUserById(actorUserId);
 
     if (!actor) {
       return res.status(401).json({
@@ -47,19 +47,14 @@ export async function executeWorkflow(
 
     // Always trust the role from the verified JWT/database identity.
     // Never accept actorRole / actorName from request body.
-    if (
-      actor.role &&
-      String(actor.role).toLowerCase() !== actorRole
-    ) {
+    if (actor.role && String(actor.role).toLowerCase() !== actorRole) {
       return res.status(403).json({
         success: false,
         message: "Authentication role mismatch.",
       });
     }
 
-    const requisitionId = String(
-      req.params.id || "",
-    ).trim();
+    const requisitionId = String(req.params.id || "").trim();
 
     if (!requisitionId) {
       return res.status(400).json({
@@ -76,53 +71,36 @@ export async function executeWorkflow(
       actorName: actor.full_name,
       actorRole,
       action: body.action,
-      comments:
-        body.comments === undefined
-          ? null
-          : String(body.comments),
+      comments: body.comments === undefined ? null : String(body.comments),
 
-      ipAddress:
-        req.ip ||
-        req.socket.remoteAddress ||
-        "127.0.0.1",
+      ipAddress: req.ip || req.socket.remoteAddress || "127.0.0.1",
 
       labFacilities: body.labFacilities,
 
-      provisionedEmail:
-        body.provisionedEmail,
+      provisionedEmail: body.provisionedEmail,
 
-      provisionedMac:
-        body.provisionedMac,
+      provisionedMac: body.provisionedMac,
 
-      provisionedHrmsId:
-        body.provisionedHrmsId,
+      provisionedHrmsId: body.provisionedHrmsId,
 
-      provisionedBiometricId:
-        body.provisionedBiometricId,
+      provisionedBiometricId: body.provisionedBiometricId,
     });
 
     return res.json({
       success: true,
-      message:
-        "Workflow action completed successfully.",
+      message: "Workflow action completed successfully.",
       result,
     });
   } catch (error: any) {
-    console.error(
-      "POST /api/requisitions/:id/actions ERROR:",
-      error,
-    );
+    console.error("POST /api/requisitions/:id/actions ERROR:", error);
 
-    const statusCode =
-      Number.isInteger(error?.statusCode)
-        ? error.statusCode
-        : 400;
+    const statusCode = Number.isInteger(error?.statusCode)
+      ? error.statusCode
+      : 400;
 
     return res.status(statusCode).json({
       success: false,
-      message:
-        error?.message ||
-        "Unable to execute workflow action.",
+      message: error?.message || "Unable to execute workflow action.",
     });
   }
 }

@@ -130,10 +130,7 @@ export const isApplicantRoute = (tab: AppTab): boolean => {
   return tab === "new_request";
 };
 
-export const canAccessRoute = (
-  tab: AppTab,
-  currentRole: UserRole,
-): boolean => {
+export const canAccessRoute = (tab: AppTab, currentRole: UserRole): boolean => {
   // Admin route
   if (isAdminRoute(tab)) {
     return currentRole === "admin";
@@ -141,7 +138,7 @@ export const canAccessRoute = (
 
   // New request is available only to the User/Applicant persona.
   if (isApplicantRoute(tab)) {
-    return currentRole === "applicant" || currentRole === "user";
+    return currentRole === "applicant";
   }
 
   // Other top-level routes remain available to authenticated

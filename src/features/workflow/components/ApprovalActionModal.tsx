@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RequisitionRecord, UserRole } from '../../types/requisition';
+import { RequisitionRecord, UserRole } from "@/types";
 import { findFacility } from '@/lib/storage';
 import {
   executeWorkflowAction,

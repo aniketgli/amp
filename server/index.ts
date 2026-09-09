@@ -25,6 +25,7 @@ import { registerAdminRoutes } from "./routes/admin.routes";
 import { registerOfficeOrderRoutes } from "./routes/office-order.routes";
 import { registerRequisitionRoutes } from "./routes/requisition.routes";
 import { registerWorkflowRoutes } from "./routes/workflow.routes";
+import { registerProfileRoutes } from "./routes/profile.routes";
 
 const app = express();
 
@@ -330,13 +331,9 @@ app.get("/api/health", (req, res) => {
 
 /* =========================================================
    DATABASE TEST API
-========================================================= */;
-
-/* =========================================================
+========================================================= */ /* =========================================================
    EMAIL TEST API
-========================================================= */;
-
-/* =========================================================
+========================================================= */ /* =========================================================
    STRING CLEANING / SIMILARITY HELPERS
 ========================================================= */
 
@@ -365,14 +362,10 @@ function checkSimilarity(a?: string, b?: string): boolean {
 /* =========================================================
    REGISTRATION API
 ========================================================= */
-
-;
-
+registerProfileRoutes(app);
 /* =========================================================
    ACTIVATION API
 ========================================================= */
-
-;
 
 /* =========================================================
    LOGIN API
@@ -383,8 +376,6 @@ function checkSimilarity(a?: string, b?: string): boolean {
    3. Login ke time ALWAYS "user" role currentRole hoga.
    4. Baaki roles roles[] me available rahengi.
 ========================================================= */
-
-;
 
 /* =========================================================
    ORGANIZATION BRANDING API
@@ -401,8 +392,6 @@ function checkSimilarity(a?: string, b?: string): boolean {
    - Logo is currently stored as a Base64 data URL in LONGTEXT.
 ========================================================= */
 
-;
-
 /* ---------------------------------------------------------
    BRANDING ADMIN AUTHORIZATION
    --------------------------------------------------------- */
@@ -413,13 +402,9 @@ const requireBrandingAdministrator = requireRole(...ADMIN_ROLES);
    SAVE / UPDATE BRANDING
    --------------------------------------------------------- */
 
-;
-
 /* =========================================================
    CURRENT LOGGED-IN USER API
 ========================================================= */
-
-;
 
 /* =========================================================
    GET ALL USERS
@@ -430,14 +415,11 @@ const requireBrandingAdministrator = requireRole(...ADMIN_ROLES);
    - Roles user_roles + roles se fetch honge
 ========================================================= */
 
-;
-
 /* =========================================================
    UPDATE USER ROLES
    Admin assigns/replaces multiple roles for a user.
 ========================================================= */
 
-;
 /* =========================================================
    FACILITIES MASTER API
    =========================================================
@@ -447,35 +429,18 @@ const requireBrandingAdministrator = requireRole(...ADMIN_ROLES);
 
 /* Ensure workflow_stages column exists on facility_masters and service_masters */
 
-
 /* GET ALL FACILITIES */
-;
-
 /* CREATE FACILITY */
-;
-
 /* UPDATE FACILITY */
-;
-
 /* DELETE FACILITY */
-;
-
 /* =========================================================
    SERVICES MASTER API
 ========================================================= */
 
 /* GET ALL SERVICES */
-;
-
 /* CREATE SERVICE */
-;
-
 /* UPDATE SERVICE */
-;
-
 /* DELETE SERVICE */
-;
-
 /* =========================================================
    VITE DEVELOPMENT SERVER & STATIC SERVING
 ========================================================= */
@@ -519,11 +484,3 @@ startServer().catch((error) => {
   console.error("Failed to start server:", error);
   process.exit(1);
 });
-
-
-
-
-
-
-
-

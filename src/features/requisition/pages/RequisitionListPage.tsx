@@ -353,7 +353,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
           </div>
 
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
-            {initialTab === 'pending'
+            {false
               ? 'Approval Queue & Pending Access Requests'
               : currentRole === 'applicant'
               ? 'Access Requests & Application Status'
@@ -371,7 +371,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
           </h1>
 
           <p className="text-xs text-slate-300 leading-relaxed max-w-xl block">
-            {initialTab === 'pending'
+            {false
               ? 'Review and process pending digital access requests awaiting clearance in your active workflow stage.'
               : currentRole === 'applicant'
               ? 'Track, filter, and monitor the multi-tier approval progress of all your service applications.'

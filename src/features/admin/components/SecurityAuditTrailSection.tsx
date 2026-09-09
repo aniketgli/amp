@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { SecurityAuditLogEntry, UserRole } from '../../types/requisition';
+import { SecurityAuditLogEntry, UserRole } from "@/types";
 import {
   getStoredAuditLogs,
   saveAuditLogs,

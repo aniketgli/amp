@@ -1,5 +1,5 @@
 import React from 'react';
-import { RequisitionRecord, UserRole } from '../../types/requisition';
+import { RequisitionRecord, UserRole } from "@/types";
 import { RequisitionList } from '@/features/requisition/pages/RequisitionListPage';
 
 interface ApprovalQueueProps {
@@ -27,7 +27,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
       onUpdateRequisition={onUpdateRequisition}
       onCreateNew={onCreateNew}
       searchQuery={searchQuery}
-      initialTab="pending"
+      initialTab="in_progress"
     />
   );
 };

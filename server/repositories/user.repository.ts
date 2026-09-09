@@ -72,6 +72,24 @@ export async function getAllUsers() {
   return users || [];
 }
 
+export async function getUserRoles(userId: number) {
+  const [roles]: any = await db.query(
+    `SELECT
+       r.id,
+       r.role_code AS code,
+       r.role_name AS name
+     FROM user_roles ur
+     INNER JOIN roles r
+       ON r.id = ur.role_id
+     WHERE ur.user_id = ?
+       AND r.is_active = 1
+     ORDER BY r.id ASC`,
+    [userId],
+  );
+
+  return roles || [];
+}
+
 export async function updateUserRoles(
   userId: number,
   roleIds: number[],
@@ -106,10 +124,9 @@ export async function updateUserRoles(
 
     await connection.beginTransaction();
 
-    await connection.query(
-      "DELETE FROM user_roles WHERE user_id = ?",
-      [userId],
-    );
+    await connection.query("DELETE FROM user_roles WHERE user_id = ?", [
+      userId,
+    ]);
 
     for (const roleId of roleIds) {
       await connection.query(

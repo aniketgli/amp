@@ -62,7 +62,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     }
 
     if (currentRole === 'admin') {
-      return req.status !== 'approved_provisioned' && req.status !== 'rejected';
+      return true;
     }
 
     if (currentRole === 'supervisor') {

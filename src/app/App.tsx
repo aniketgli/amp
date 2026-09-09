@@ -437,11 +437,7 @@ export default function App() {
     }
 
     // New requests are available only to the User/Applicant persona.
-    if (
-      activeTab === "new_request" &&
-      currentRole !== "applicant" &&
-      currentRole !== "user"
-    ) {
+    if (activeTab === "new_request" && currentRole !== "applicant") {
       navigateToTab("dashboard");
     }
   }, [currentRole, activeTab, isAuthenticated]);
@@ -769,8 +765,10 @@ export default function App() {
         // Navbar expects complete role objects, not only role strings.
         assignedRoles={toAssignedRoleObjects(assignedRoles)}
         onRoleChange={(role) => {
-          setCurrentRole(role);
-          setStoredCurrentRole(role);
+          const nextRole = role as UserRole;
+
+          setCurrentRole(nextRole);
+          setStoredCurrentRole(nextRole);
 
           // Switching persona always starts from that persona's dashboard.
           setSelectedRequisition(null);

@@ -498,9 +498,9 @@ export const DatabaseSchemaSection: React.FC<DatabaseSchemaSectionProps> = ({
               {currentTable.columns.map((col, idx) => (
                 <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="p-3 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    {col.key === 'PK' && <Key className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Primary Key" />}
-                    {col.key === 'FK' && <Layers className="w-3.5 h-3.5 text-blue-500 shrink-0" title="Foreign Key" />}
-                    {col.key === 'UNI' && <Shield className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Unique Index" />}
+                    {col.key === 'PK' && <span title="Primary Key"><Key className="w-3.5 h-3.5 text-amber-500 shrink-0" /></span>}
+                    {col.key === 'FK' && <span title="Foreign Key"><Layers className="w-3.5 h-3.5 text-blue-500 shrink-0" /></span>}
+                    {col.key === 'UNI' && <span title="Unique Index"><Shield className="w-3.5 h-3.5 text-emerald-500 shrink-0" /></span>}
                     {col.name}
                   </td>
                   <td className="p-3 font-semibold text-purple-700 dark:text-purple-400">{col.type}</td>
