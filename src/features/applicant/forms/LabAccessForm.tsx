@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LabFacilitySelection } from "@/types";
-import { getStoredFacilities, findFacility } from "@/lib/storage";
+import { getFacilities } from "@/api/facilities.api";
 import { FlaskConical, Calendar, Info, Check, Microchip, Fingerprint } from 'lucide-react';
 
 interface LabAccessFormProps {
@@ -11,16 +11,37 @@ interface LabAccessFormProps {
 export const LabAccessForm: React.FC<LabAccessFormProps> = ({ labs, onChange }) => {
   const [hasBiometricId, setHasBiometricId] = useState<'yes' | 'no'>('no');
   const [biometricIdNumber, setBiometricIdNumber] = useState<string>('WII-BIO-1048');
-  const [storedFacilities, setStoredFacilities] = useState(() =>
-    getStoredFacilities().filter((f) => f.status === 'active')
-  );
+  const [storedFacilities, setStoredFacilities] = useState<any[]>([]);
 
   useEffect(() => {
-    const handleUpdate = () => {
-      setStoredFacilities(getStoredFacilities().filter((f) => f.status === 'active'));
+    let cancelled = false;
+
+    const loadFacilities = async () => {
+      try {
+        const response = await getFacilities();
+
+        if (!cancelled) {
+          setStoredFacilities(
+            (response.facilities || []).filter(
+              (facility) =>
+                String(facility.status || "active").toLowerCase() === "active",
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load facilities:", error);
+
+        if (!cancelled) {
+          setStoredFacilities([]);
+        }
+      }
     };
-    window.addEventListener('wii_masters_updated', handleUpdate);
-    return () => window.removeEventListener('wii_masters_updated', handleUpdate);
+
+    loadFacilities();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Ensure all active stored facilities exist in state
@@ -164,7 +185,11 @@ export const LabAccessForm: React.FC<LabAccessFormProps> = ({ labs, onChange }) 
 
       <div className="space-y-4">
         {currentLabs.map((lab) => {
-          const facInfo = findFacility(lab.labId) || findFacility(lab.labName);
+          const facInfo = storedFacilities.find((facility) =>
+            facility.id === lab.labId ||
+            String(facility.name || "").toLowerCase() ===
+              String(lab.labName || "").toLowerCase()
+          );
           return (
             <div
               key={lab.labId}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   ApplicantProfile,
   FacilityMasterItem,
@@ -7,7 +7,8 @@ import {
   RequisitionRecord,
   RequisitionType,
 } from "@/types";
-import { generateRequisitionId, getStoredFacilities, findFacility } from "@/lib/storage";
+import { generateRequisitionId } from "@/lib/storage";
+import { getFacilities } from "@/api/facilities.api";
 import {
   X,
   Send,
@@ -52,17 +53,49 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // Facilities list from storage
-  const [facilities, setFacilities] = useState<FacilityMasterItem[]>(() =>
-    getStoredFacilities().filter((f) => f.status === 'active')
-  );
+  // Facilities are loaded from the backend/MySQL source of truth.
+  const [facilities, setFacilities] = useState<FacilityMasterItem[]>([]);
 
   useEffect(() => {
-    const handleUpdate = () => {
-      setFacilities(getStoredFacilities().filter((f) => f.status === 'active'));
+    let cancelled = false;
+
+    const loadFacilities = async () => {
+      try {
+        const response = await getFacilities();
+
+        if (!cancelled) {
+          setFacilities(
+            (response.facilities || [])
+              .filter(
+                (facility) =>
+                  String(facility.status || "active").toLowerCase() ===
+                  "active",
+              )
+              .map((facility) => ({
+                id: facility.id,
+                name: facility.name,
+                nodal: facility.nodal || "",
+                assocNodal: facility.assocNodal || "",
+                supervisor: facility.supervisor || "",
+                desc: facility.description || "",
+                status: "active",
+              })) as FacilityMasterItem[],
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load facilities:", error);
+
+        if (!cancelled) {
+          setFacilities([]);
+        }
+      }
     };
-    window.addEventListener('wii_masters_updated', handleUpdate);
-    return () => window.removeEventListener('wii_masters_updated', handleUpdate);
+
+    loadFacilities();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Derive initial RequisitionType based on scope
@@ -98,11 +131,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
   const [reqBio, setReqBio] = useState<boolean>(true);
 
   // Lab State
-  const [selectedLabId, setSelectedLabId] = useState<string>(() => {
-    if (initialLabId) return initialLabId;
-    const activeFacs = getStoredFacilities().filter((f) => f.status === 'active');
-    return activeFacs[0]?.id || 'FAC-01';
-  });
+  const [selectedLabId, setSelectedLabId] = useState<string>(initialLabId || "FAC-01");
   const [fromDate, setFromDate] = useState<string>('2026-09-01');
   const [toDate, setToDate] = useState<string>('2027-08-31');
   const [researchPurpose, setResearchPurpose] = useState<string>(
@@ -152,7 +181,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
     // Prepare Lab Access Details
     let labAccessDetails: LabFacilitySelection[] | undefined = undefined;
     if (serviceScope === 'lab' || serviceScope === 'combined') {
-      const chosenLab = facilities.find((l) => l.id === selectedLabId) || findFacility(selectedLabId) || facilities[0];
+      const chosenLab = facilities.find((l) => l.id === selectedLabId) || facilities[0];
       labAccessDetails = [
         {
           labId: chosenLab?.id || selectedLabId,
@@ -169,7 +198,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
       ];
     }
 
-    const chosenLabInfo = facilities.find((l) => l.id === selectedLabId) || findFacility(selectedLabId);
+    const chosenLabInfo = facilities.find((l) => l.id === selectedLabId);
     const titleService =
       serviceScope === 'email'
         ? 'Official WII Email ID'
@@ -242,7 +271,7 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
                   {mode === 'renewal' ? 'Renewal / Extension' : 'Fresh Application'}
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">Wildlife Institute of India â€¢ Access Application Form</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">Wildlife Institute of India Ã¢â‚¬Â¢ Access Application Form</p>
             </div>
           </div>
 
@@ -531,9 +560,9 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
 
                       let suffix = '';
                       if (isApproved) {
-                        suffix = ' â€” [ACCESS ACTIVE / GRANTED]';
+                        suffix = ' Ã¢â‚¬â€ [ACCESS ACTIVE / GRANTED]';
                       } else if (isPending) {
-                        suffix = ' â€” [REQUISITION PENDING REVIEW]';
+                        suffix = ' Ã¢â‚¬â€ [REQUISITION PENDING REVIEW]';
                       }
 
                       return (
@@ -645,3 +674,6 @@ export const QuickApplyModal: React.FC<QuickApplyModalProps> = ({
     </div>
   );
 };
+
+
+
