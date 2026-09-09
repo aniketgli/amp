@@ -1,5 +1,5 @@
 import React from 'react';
-import { useBranding } from '../../utils/brandingStore';
+import { useBranding } from '@/services/brandingStore';
 
 interface WiiLogoProps {
   className?: string;
