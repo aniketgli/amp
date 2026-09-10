@@ -3,28 +3,17 @@
 // FILE: src/app/routes.tsx
 // ============================================================
 //
-// Central application route definitions.
+// Central route definitions.
 //
 // IMPORTANT:
-// This file currently contains the route/tab mapping logic only.
-// The actual page rendering will be moved here in a later step,
-// after the current App.tsx behavior has been verified.
-//
-// Keeping this migration incremental prevents accidental changes
-// to authentication, role handling, requisition state and UI.
+// - Route matching is for FRONTEND NAVIGATION / UX.
+// - Real authentication and authorization are enforced by backend.
 // ============================================================
 
 import type { UserRole } from "../types/requisition";
 
 // ============================================================
 // APPLICATION TAB / ROUTE TYPE
-// ============================================================
-//
-// Keep all top-level application destinations in one type.
-//
-// The URL is the source of truth for page navigation, while
-// activeTab remains a compatibility layer for the existing
-// page components during the migration.
 // ============================================================
 
 export type AppTab =
@@ -38,11 +27,7 @@ export type AppTab =
   | "auth";
 
 // ============================================================
-// APPLICATION ROUTE MAP
-// ============================================================
-//
-// This map keeps the relationship between the internal
-// AppTab value and the browser URL in one place.
+// ROUTE MAP
 // ============================================================
 
 export const APP_ROUTES: Record<AppTab, string> = {
@@ -57,69 +42,147 @@ export const APP_ROUTES: Record<AppTab, string> = {
 };
 
 // ============================================================
-// URL -> APPLICATION TAB
+// PUBLIC AUTH ROUTES
+// ============================================================
+
+export const AUTH_ROUTES = new Set(["/login", "/auth", "/register"]);
+
+export const isAuthRoute = (pathname: string): boolean => {
+  return AUTH_ROUTES.has(pathname);
+};
+
+export const isActivationRoute = (pathname: string): boolean => {
+  return pathname.startsWith("/activate/");
+};
+
+// ============================================================
+// PROTECTED ROUTES
 // ============================================================
 //
-// Converts the current browser pathname into the internal
-// application tab.
-//
-// IMPORTANT:
-// Keep this function outside React components.
+// These are application destinations requiring authentication.
+// Backend still enforces real security.
+// ============================================================
+
+export const PROTECTED_ROUTES = new Set([
+  "/",
+  "/dashboard",
+  "/profile",
+  "/requests",
+  "/requests/new",
+  "/approval-queue",
+  "/approvals",
+  "/helpdesk",
+  "/admin",
+  "/master",
+]);
+
+export const isProtectedRoute = (pathname: string): boolean => {
+  if (isActivationRoute(pathname)) {
+    return false;
+  }
+
+  if (isAuthRoute(pathname)) {
+    return false;
+  }
+
+  if (PROTECTED_ROUTES.has(pathname)) {
+    return true;
+  }
+
+  // Any non-public application URL is treated as protected.
+  //
+  // This gives us the desired behavior for manually copied
+  // protected URLs while the detailed route structure is
+  // migrated incrementally.
+  return pathname.startsWith("/");
+};
+
+// ============================================================
+// RETURN-TO HELPERS
+// ============================================================
+
+export const buildLoginPath = (returnTo?: string): string => {
+  if (!returnTo || returnTo === "/") {
+    return "/login";
+  }
+
+  return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+};
+
+export const getSafeReturnTo = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const decoded = decodeURIComponent(value);
+
+    // Only allow local application paths.
+    // Never redirect to an external origin.
+    if (!decoded.startsWith("/")) {
+      return null;
+    }
+
+    if (decoded.startsWith("//") || decoded.startsWith("/\\")) {
+      return null;
+    }
+
+    return decoded;
+  } catch {
+    return null;
+  }
+};
+
+// ============================================================
+// URL -> APPLICATION TAB
 // ============================================================
 
 export const getTabFromPath = (pathname: string): AppTab => {
-  // Authentication
-  if (pathname === "/login" || pathname === "/auth") {
+  if (
+    pathname === "/login" ||
+    pathname === "/auth" ||
+    pathname === "/register"
+  ) {
     return "auth";
   }
 
-  // Dashboard
   if (pathname === "/" || pathname === "/dashboard") {
     return "dashboard";
   }
 
-  // Profile
   if (pathname === "/profile") {
     return "profile";
   }
 
-  // Requests
   if (pathname === "/requests") {
     return "my_requests";
   }
 
-  // New request
   if (pathname === "/requests/new" || pathname === "/new-request") {
     return "new_request";
   }
 
-  // Approval queue
   if (pathname === "/approval-queue" || pathname === "/approvals") {
     return "approval_queue";
   }
 
-  // Helpdesk
   if (pathname === "/helpdesk") {
     return "helpdesk";
   }
 
-  // Administrator / Master
   if (pathname === "/admin" || pathname === "/master") {
     return "super_admin_panel";
   }
 
-  // Unknown path: fall back to dashboard.
   return "dashboard";
 };
 
 // ============================================================
-// ROLE-SPECIFIC ROUTE HELPERS
+// FRONTEND ROLE HELPERS
 // ============================================================
 //
-// These helpers are intentionally kept small for now.
-//
-// Actual authorization MUST remain enforced by the backend.
-// These are frontend navigation helpers only.
+// These are navigation/UX helpers only.
+// Backend authorization remains authoritative.
 // ============================================================
 
 export const isAdminRoute = (tab: AppTab): boolean => {
@@ -131,17 +194,13 @@ export const isApplicantRoute = (tab: AppTab): boolean => {
 };
 
 export const canAccessRoute = (tab: AppTab, currentRole: UserRole): boolean => {
-  // Admin route
   if (isAdminRoute(tab)) {
-    return currentRole === "admin";
+    return currentRole === "admin" || currentRole === "super_admin";
   }
 
-  // New request is available only to the User/Applicant persona.
   if (isApplicantRoute(tab)) {
     return currentRole === "applicant";
   }
 
-  // Other top-level routes remain available to authenticated
-  // users and continue to be handled by the existing App logic.
   return true;
 };

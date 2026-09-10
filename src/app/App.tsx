@@ -1,8 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { APP_ROUTES, getTabFromPath, type AppTab } from "./routes";
+import {
+  APP_ROUTES,
+  buildLoginPath,
+  getSafeReturnTo,
+  getTabFromPath,
+  isAuthRoute,
+  isProtectedRoute,
+  type AppTab,
+} from "./routes";
 
 import {
   ApplicantProfile,
@@ -19,9 +27,11 @@ import {
 import { createRequisition, getRequisitions } from "@/api/requisitions.api";
 
 import {
-  getLoginSession,
-  setStoredCurrentRole,
-  clearLoginSession,
+  activateUser,
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  type AuthenticatedUser,
 } from "@/api/auth.api";
 
 import { Navbar } from "../components/layout/Navbar";
@@ -36,12 +46,22 @@ import { HelpdeskView } from "../features/helpdesk/pages/HelpdeskPage";
 import { SuperAdminControlPanel } from "@/features/admin/pages/AdminControlPage";
 import { AuthPage } from "../features/auth/pages/AuthPage";
 
-// =========================================================
+// ============================================================
 // BACKEND ROLE -> FRONTEND ROLE MAP
-// =========================================================
-// Database roles use codes such as `user` and `administrator`.
-// The existing UI uses frontend role codes such as `applicant` and `admin`.
-// Keep this mapping in one place so API, state and Navbar stay consistent.
+// ============================================================
+//
+// IMPORTANT:
+// Backend/database roles are authoritative.
+// This map exists ONLY because the current UI components still
+// use the older frontend role names.
+//
+// Backend:
+//   user              -> applicant
+//   administrator     -> admin
+//
+// No role is fabricated for security purposes.
+// ============================================================
+
 interface AssignedRoleInfo {
   id: number;
   code: UserRole;
@@ -49,82 +69,158 @@ interface AssignedRoleInfo {
 }
 
 const ROLE_META: Record<string, AssignedRoleInfo> = {
-  applicant: { id: 1, code: "applicant", name: "User" },
-  user: { id: 1, code: "applicant", name: "User" },
+  user: {
+    id: 1,
+    code: "applicant",
+    name: "User",
+  },
+
+  applicant: {
+    id: 1,
+    code: "applicant",
+    name: "User",
+  },
+
   reporting_manager: {
     id: 2,
     code: "supervisor",
     name: "Reporting Manager / Supervisor (P)",
   },
-  nodal_officer: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
-  lab_nodal: { id: 3, code: "lab_nodal", name: "Nodal Officer" },
+
+  supervisor: {
+    id: 7,
+    code: "supervisor",
+    name: "Supervisor",
+  },
+
+  nodal_officer: {
+    id: 3,
+    code: "lab_nodal",
+    name: "Nodal Officer",
+  },
+
+  lab_nodal: {
+    id: 3,
+    code: "lab_nodal",
+    name: "Nodal Officer",
+  },
+
   associate_nodal_officer: {
     id: 4,
     code: "assoc_lab_nodal",
     name: "Associate Nodal Officer",
   },
+
   assoc_lab_nodal: {
     id: 4,
     code: "assoc_lab_nodal",
     name: "Associate Nodal Officer",
   },
-  it_head: { id: 5, code: "it_officer", name: "IT Head" },
-  it_officer: { id: 5, code: "it_officer", name: "IT Head" },
-  manager: { id: 6, code: "section_head", name: "Manager" },
-  section_head: { id: 6, code: "section_head", name: "Manager" },
-  supervisor: { id: 7, code: "supervisor", name: "Supervisor" },
-  administrator: { id: 8, code: "admin", name: "Administrator" },
-  admin: { id: 8, code: "admin", name: "Administrator" },
+
+  it_head: {
+    id: 5,
+    code: "it_officer",
+    name: "IT Head",
+  },
+
+  it_officer: {
+    id: 5,
+    code: "it_officer",
+    name: "IT Head",
+  },
+
+  manager: {
+    id: 6,
+    code: "section_head",
+    name: "Manager",
+  },
+
+  section_head: {
+    id: 6,
+    code: "section_head",
+    name: "Manager",
+  },
+
+  hrms_officer: {
+    id: 9,
+    code: "hrms_officer",
+    name: "HRMS Officer",
+  },
+
+  administrator: {
+    id: 8,
+    code: "admin",
+    name: "Administrator",
+  },
+
+  admin: {
+    id: 8,
+    code: "admin",
+    name: "Administrator",
+  },
+
+  super_admin: {
+    id: 10,
+    code: "super_admin",
+    name: "Super Administrator",
+  },
 };
 
-// Convert frontend role codes into the object structure expected by Navbar.
+// ============================================================
+// ROLE HELPERS
+// ============================================================
+
+const toFrontendRole = (
+  backendRoleCode: string | null | undefined,
+): UserRole | null => {
+  if (!backendRoleCode) {
+    return null;
+  }
+
+  const role = ROLE_META[String(backendRoleCode).trim().toLowerCase()];
+
+  return role?.code || null;
+};
+
 const toAssignedRoleObjects = (roles: UserRole[]): AssignedRoleInfo[] => {
   return [...new Set(roles)]
     .map((role) => ROLE_META[role])
     .filter((role): role is AssignedRoleInfo => Boolean(role));
 };
 
-export default function App() {
-  // ==========================================================
-  // REACT ROUTER
-  // ==========================================================
-  //
-  // navigate()
-  //   Browser URL change karta hai without full page reload.
-  //
-  // location
-  //   Current browser URL provide karta hai.
-  //
-  // Example:
-  //
-  // navigate("/admin");
-  //
-  // URL:
-  // http://192.168.205.75:5000/admin
-  //
-  // ==========================================================
+// ============================================================
+// AUTH USER -> FRONTEND PROFILE DATA
+// ============================================================
 
+const getUserProfileFromAuthenticatedUser = (
+  user: AuthenticatedUser,
+): Partial<ApplicantProfile> => {
+  return {
+    applicantName: user.fullName,
+    personalEmail: user.email,
+    mobileNo: user.phone,
+  };
+};
+
+// ============================================================
+// APP
+// ============================================================
+
+export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
   // =========================================================
-  // CENTRAL NAVIGATION FUNCTION
+  // NAVIGATION
   // =========================================================
-  // All top-level page navigation goes through this function.
-  // It updates BOTH the existing activeTab state and the browser URL.
-  // This fixes the original problem where the UI changed but the URL
-  // stayed at "/".
-  // =========================================================
+
   const navigateToTab = (tab: AppTab) => {
-    // Keep existing components compatible with activeTab.
     setActiveTab(tab);
 
-    // Clear a selected request whenever the user changes top-level pages.
     if (tab !== "my_requests") {
       setSelectedRequisition(null);
     }
 
-    // React Router changes the URL without a full page reload.
     const targetPath = APP_ROUTES[tab];
 
     if (location.pathname !== targetPath) {
@@ -133,44 +229,36 @@ export default function App() {
   };
 
   // =========================================================
-  // AUTHENTICATION
+  // AUTHENTICATION STATE
   // =========================================================
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
+  /**
+   * True until the first backend /api/me verification completes.
+   *
+   * This prevents the application from incorrectly treating a
+   * protected URL as logged out for a short moment on startup.
+   */
+  const [authInitializing, setAuthInitializing] = useState<boolean>(true);
+
   const [currentRole, setCurrentRole] = useState<UserRole>("applicant");
 
-  const [assignedRoles, setAssignedRoles] = useState<UserRole[]>(["applicant"]);
+  const [assignedRoles, setAssignedRoles] = useState<UserRole[]>([]);
 
-  // Actual logged-in account information used by the Navbar.
-  // This keeps the person's name separate from the currently selected role.
   const [loggedInUser, setLoggedInUser] = useState<{
     fullName: string;
     email: string;
     phone?: string;
   } | null>(null);
 
-  // The URL is the initial source of truth for the current page.
+  // =========================================================
+  // ACTIVE TAB / URL
+  // =========================================================
+
   const [activeTab, setActiveTab] = useState<AppTab>(
     getTabFromPath(window.location.pathname),
   );
-
-  // =========================================================
-  // URL -> ACTIVE TAB SYNCHRONIZATION
-  // =========================================================
-  // Browser Back / Forward changes location.pathname. Keep the legacy
-  // activeTab state synchronized so existing components continue to work.
-  // =========================================================
-  useEffect(() => {
-    const tab = getTabFromPath(location.pathname);
-    setActiveTab(tab);
-
-    // A top-level route change should never leave an old requisition detail
-    // selected, because that would hide the newly requested page.
-    if (tab !== "my_requests") {
-      setSelectedRequisition(null);
-    }
-  }, [location.pathname]);
 
   // =========================================================
   // APPLICATION DATA
@@ -216,54 +304,260 @@ export default function App() {
 
   const [activationMessage, setActivationMessage] = useState<string>("");
 
-  // =========================================================
-  // RESTORE LOGIN SESSION
-  // =========================================================
-  // Authentication persistence is centralized in auth.api.ts.
-  useEffect(() => {
-    try {
-      const session = getLoginSession();
+  // ============================================================
+  // ACTIVATION REQUEST GUARD
+  // ============================================================
+  //
+  // Prevents the same activation token from being submitted more
+  // than once during the lifetime of this App instance.
+  //
+  // This is especially important in React development mode where
+  // effects may be intentionally executed more than once.
+  //
+  // The backend remains authoritative; this is only a frontend
+  // duplicate-request prevention mechanism.
+  // ============================================================
 
-      if (!session) {
+  const activationInFlightToken = useRef<string | null>(null);
+
+  // =========================================================
+  // URL -> ACTIVE TAB
+  // =========================================================
+
+  useEffect(() => {
+    const tab = getTabFromPath(location.pathname);
+
+    setActiveTab(tab);
+
+    if (tab !== "my_requests") {
+      setSelectedRequisition(null);
+    }
+  }, [location.pathname]);
+
+  // =========================================================
+  // RESTORE AUTHENTICATION FROM BACKEND
+  // =========================================================
+  //
+  // NEVER read authentication state from localStorage.
+  //
+  // Backend /api/me:
+  //   HttpOnly cookie
+  //       ↓
+  //   authenticateToken
+  //       ↓
+  //   MySQL user
+  //       ↓
+  //   MySQL roles
+  //
+  // This is the authoritative authentication restore flow.
+  // =========================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreAuthentication = async () => {
+      try {
+        const response = await getCurrentUser();
+
+        if (cancelled || !response?.success || !response.user) {
+          return;
+        }
+
+        const user = response.user;
+
+        const frontendRoles = (user.roles || [])
+          .map((role) => toFrontendRole(role?.code))
+          .filter((role): role is UserRole => Boolean(role));
+
+        const uniqueRoles = [...new Set<UserRole>(frontendRoles)];
+
+        if (cancelled) {
+          return;
+        }
+
+        setLoggedInUser({
+          fullName: user.fullName || "User",
+          email: user.email || "",
+          phone: user.phone || "",
+        });
+
+        setAssignedRoles(uniqueRoles);
+
+        // Backend-selected current role is authoritative.
+        //
+        // /api/me currently returns all roles, so use "user"
+        // as the preferred persona when present, otherwise
+        // use the first DB-assigned frontend role.
+        const preferredRole = toFrontendRole(
+          user.roles?.find(
+            (role) =>
+              String(role?.code || "")
+                .trim()
+                .toLowerCase() === "user",
+          )?.code,
+        );
+
+        const restoredRole = preferredRole || uniqueRoles[0] || "applicant";
+
+        setCurrentRole(restoredRole);
+
+        setIsAuthenticated(true);
+
+        // Keep the current logged-in user's identity available
+        // to the existing UI without treating it as authority.
+        setApplicantProfile(
+          (previous) =>
+            ({
+              ...previous,
+              ...getUserProfileFromAuthenticatedUser(user),
+            }) as ApplicantProfile,
+        );
+      } catch (error) {
+        const status = (
+          error as Error & {
+            status?: number;
+          }
+        )?.status;
+
+        // ----------------------------------------------------------
+        // IMPORTANT:
+        //
+        // A failed initial /api/me request only means that there was
+        // no existing browser session when the application started.
+        //
+        // It must NOT forcibly reset authentication state here,
+        // because the user may have logged in while this initial
+        // request was still pending.
+        //
+        // The login flow itself is responsible for establishing the
+        // authenticated frontend state after successful backend login.
+        // ----------------------------------------------------------
+
+        if (status !== 401 && status !== 403) {
+          console.warn("Unable to restore backend authentication:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthInitializing(false);
+        }
+      }
+    };
+
+    restoreAuthentication();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // =========================================================
+  // AUTH EXPIRED EVENT
+  // =========================================================
+  //
+  // apiClient emits amp:auth-expired when a protected API
+  // returns 401.
+  // =========================================================
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      // ----------------------------------------------------------
+      // IMPORTANT:
+      //
+      // /api/me is also used as the initial session probe.
+      // A 401 from that probe must not destroy a successful login
+      // that may have completed meanwhile.
+      //
+      // The normal protected-API 401 flow will still log the user
+      // out when an authenticated session actually expires.
+      // ----------------------------------------------------------
+
+      if (!isAuthenticated) {
         return;
       }
 
-      const user = session.user;
+      setIsAuthenticated(false);
+      setLoggedInUser(null);
+      setAssignedRoles([]);
+      setCurrentRole("applicant");
+      setSelectedRequisition(null);
+    };
 
-      setLoggedInUser({
-        fullName: user.fullName || "User",
-        email: user.email || "",
-        phone: user.phone || "",
+    window.addEventListener("amp:auth-expired", handleAuthExpired);
+
+    return () => {
+      window.removeEventListener("amp:auth-expired", handleAuthExpired);
+    };
+  }, [isAuthenticated]);
+  // =========================================================
+  // AUTHENTICATION + DIRECT URL BUSINESS RULES
+  // =========================================================
+  //
+  // 1. Logged out + protected URL
+  //       -> /login?returnTo=<original path>
+  //
+  // 2. Logged in + /login or /register
+  //       -> requested returnTo or dashboard
+  //
+  // 3. Logged in + protected deep URL
+  //       -> remain on requested URL
+  //
+  // 4. Authorization for sensitive operations remains backend.
+  // =========================================================
+
+  useEffect(() => {
+    if (authInitializing || isActivationPage) {
+      return;
+    }
+
+    const pathname = location.pathname;
+
+    // -------------------------------------------------------
+    // LOGGED OUT
+    // -------------------------------------------------------
+
+    if (!isAuthenticated) {
+      if (isProtectedRoute(pathname)) {
+        const returnTo = `${pathname}${location.search}${location.hash}`;
+
+        const loginPath = buildLoginPath(returnTo);
+
+        if (
+          pathname !== "/login" &&
+          window.location.pathname !== loginPath.split("?")[0]
+        ) {
+          navigate(loginPath, {
+            replace: true,
+          });
+        }
+      }
+
+      return;
+    }
+
+    // -------------------------------------------------------
+    // LOGGED IN
+    // -------------------------------------------------------
+
+    if (isAuthRoute(pathname)) {
+      const returnTo = getSafeReturnTo(
+        new URLSearchParams(location.search).get("returnTo"),
+      );
+
+      navigate(returnTo || APP_ROUTES.dashboard, {
+        replace: true,
       });
 
-      const rawRoles = Array.isArray(user.roles)
-        ? user.roles
-            .map((role) => role?.code)
-            .filter(Boolean)
-            .map((code) => ROLE_META[String(code)]?.code)
-            .filter(Boolean)
-        : [];
-
-      const restoredRoles: UserRole[] = [
-        ...new Set<UserRole>(["applicant", ...rawRoles]),
-      ];
-
-      setAssignedRoles(restoredRoles);
-
-      const savedCurrentRole = session.currentRole as UserRole | null;
-
-      const restoredCurrentRole =
-        savedCurrentRole && restoredRoles.includes(savedCurrentRole)
-          ? savedCurrentRole
-          : "applicant";
-
-      setCurrentRole(restoredCurrentRole);
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.warn("Unable to restore saved login session:", error);
-      clearLoginSession();
+      return;
     }
-  }, []);
+  }, [
+    authInitializing,
+    isAuthenticated,
+    isActivationPage,
+    location.pathname,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
 
   // =========================================================
   // THEME EFFECT
@@ -281,109 +575,199 @@ export default function App() {
     localStorage.setItem("wii_app_theme", theme);
   }, [theme]);
 
-  // =========================================================
-  // THEME TOGGLE
-  // =========================================================
-
   const handleToggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    setTheme((previous) => (previous === "light" ? "dark" : "light"));
   };
-
   // =========================================================
-  // ACTIVATION URL DETECTION
+  // ACTIVATION URL
   // =========================================================
 
   useEffect(() => {
     const pathname = location.pathname;
 
-    console.log("Current pathname:", pathname);
+    // ---------------------------------------------------------
+    // Not an activation route
+    // ---------------------------------------------------------
 
-    // -------------------------------------------------------
-    // Check whether current URL is:
+    if (!pathname.startsWith("/activate/")) {
+      setIsActivationPage(false);
+      setActivationLoading(false);
+      return;
+    }
+
+    setIsActivationPage(true);
+    setActivationSuccess(false);
+    setActivationMessage("");
+
+    // ---------------------------------------------------------
+    // Extract token
+    // ---------------------------------------------------------
+
+    const token = pathname.slice("/activate/".length).split("/")[0]?.trim();
+
+    if (!token) {
+      setActivationLoading(false);
+      setActivationSuccess(false);
+      setActivationMessage("Activation token is missing.");
+      return;
+    }
+
+    // ---------------------------------------------------------
+    // React StrictMode protection
+    // ---------------------------------------------------------
     //
-    // /activate/TOKEN
-    // -------------------------------------------------------
+    // If the same token is already being processed, DO NOT
+    // start another request.
+    //
+    // IMPORTANT:
+    // We also do NOT cancel the original request in cleanup.
+    // This allows the original request to finish and update the
+    // activation result correctly.
+    // ---------------------------------------------------------
 
-    if (pathname.startsWith("/activate/")) {
-      setIsActivationPage(true);
+    if (activationInFlightToken.current === token) {
+      return;
+    }
 
-      const token = pathname.split("/activate/")[1]?.split("/")[0];
+    activationInFlightToken.current = token;
 
-      console.log("Activation token:", token);
+    const activateAccount = async () => {
+      const controller = new AbortController();
 
-      if (!token) {
-        setActivationLoading(false);
+      // -------------------------------------------------------
+      // Safety timeout.
+      //
+      // The UI must never remain on the spinner indefinitely.
+      // -------------------------------------------------------
+
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, 15000);
+
+      try {
+        setActivationLoading(true);
+        setActivationSuccess(false);
+        setActivationMessage("");
+
+        // -----------------------------------------------------
+        // PUBLIC activation endpoint.
+        //
+        // No JWT/localStorage dependency.
+        // -----------------------------------------------------
+
+        const response = await fetch(
+          `/api/activate/${encodeURIComponent(token)}`,
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+            signal: controller.signal,
+          },
+        );
+
+        const contentType = response.headers.get("content-type") || "";
+
+        let data: {
+          success?: boolean;
+          message?: string;
+          alreadyActivated?: boolean;
+        } = {};
+
+        if (contentType.includes("application/json")) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+
+          data = {
+            success: false,
+            message: text || "Invalid response received from the server.",
+          };
+        }
+
+        // -----------------------------------------------------
+        // SUCCESS
+        // -----------------------------------------------------
+
+        if (response.ok && data.success === true) {
+          setActivationSuccess(true);
+
+          setActivationMessage(
+            data.message ||
+              (data.alreadyActivated
+                ? "Your account is already activated. You can now log in."
+                : "Your account has been activated successfully."),
+          );
+
+          return;
+        }
+
+        // -----------------------------------------------------
+        // FAILED
+        // -----------------------------------------------------
 
         setActivationSuccess(false);
 
-        setActivationMessage("Activation token is missing.");
+        setActivationMessage(
+          data.message || "Invalid or expired activation link.",
+        );
+      } catch (error) {
+        console.error("ACTIVATION ERROR:", error);
 
-        return;
-      }
+        // -----------------------------------------------------
+        // Timeout
+        // -----------------------------------------------------
 
-      // -----------------------------------------------------
-      // ACTIVATE ACCOUNT
-      // -----------------------------------------------------
-
-      const activateAccount = async () => {
-        try {
-          setActivationLoading(true);
-
-          setActivationMessage("");
-
-          console.log("Calling activation API...");
-
-          const response = await fetch(
-            `/api/activate/${encodeURIComponent(token)}`,
-            {
-              method: "GET",
-
-              headers: {
-                Accept: "application/json",
-              },
-            },
-          );
-
-          console.log("Activation HTTP status:", response.status);
-
-          const data = await response.json();
-
-          console.log("Activation API response:", data);
-
-          if (response.ok && data.success) {
-            setActivationSuccess(true);
-
-            setActivationMessage(
-              data.message || "Your account has been activated successfully.",
-            );
-          } else {
-            setActivationSuccess(false);
-
-            setActivationMessage(
-              data.message || "Unable to activate your account.",
-            );
-          }
-        } catch (error) {
-          console.error("ACTIVATION ERROR:", error);
-
+        if (error instanceof DOMException && error.name === "AbortError") {
           setActivationSuccess(false);
 
           setActivationMessage(
-            "Unable to connect to the server. Please make sure the WII Access Management Server is running.",
+            "The activation server did not respond in time. Please try again.",
           );
-        } finally {
-          setActivationLoading(false);
-        }
-      };
 
-      activateAccount();
-    } else {
-      setIsActivationPage(false);
-    }
+          return;
+        }
+
+        // -----------------------------------------------------
+        // Network/server error
+        // -----------------------------------------------------
+
+        setActivationSuccess(false);
+
+        setActivationMessage(
+          "Unable to connect to the activation server. Please try again.",
+        );
+      } finally {
+        window.clearTimeout(timeoutId);
+
+        setActivationLoading(false);
+
+        // -----------------------------------------------------
+        // Clear the guard only after the request has completely
+        // finished.
+        // -----------------------------------------------------
+
+        if (activationInFlightToken.current === token) {
+          activationInFlightToken.current = null;
+        }
+      }
+    };
+
+    void activateAccount();
+
+    // ---------------------------------------------------------
+    // IMPORTANT:
+    //
+    // Do NOT abort/cancel the activation request here.
+    //
+    // React StrictMode may call this cleanup immediately during
+    // development and then execute the effect again.
+    // ---------------------------------------------------------
   }, [location.pathname]);
 
   // =========================================================
-  // INITIAL LOAD
+  // LOAD REQUISITIONS
   // =========================================================
 
   useEffect(() => {
@@ -418,25 +802,30 @@ export default function App() {
   }, [isAuthenticated]);
 
   // =========================================================
-  // TAB PROTECTION
+  // FRONTEND ROUTE UX GUARDS
+  // =========================================================
+  //
+  // These are NOT security controls.
+  // Backend authorization remains authoritative.
   // =========================================================
 
   useEffect(() => {
-    // Do not run role protection before authentication has been restored.
-    // Otherwise a valid saved Admin session can briefly look like the
-    // default Applicant role during the first render and get redirected.
     if (!isAuthenticated) {
       return;
     }
 
-    // Frontend guard for the Master/Admin page.
-    // NOTE: Backend authorization is still required for real security.
-    if (activeTab === "super_admin_panel" && currentRole !== "admin") {
+    // Admin/super-admin UI route.
+    if (
+      activeTab === "super_admin_panel" &&
+      currentRole !== "admin" &&
+      currentRole !== "super_admin"
+    ) {
       navigateToTab("dashboard");
+
       return;
     }
 
-    // New requests are available only to the User/Applicant persona.
+    // New request is available to the User/Applicant persona.
     if (activeTab === "new_request" && currentRole !== "applicant") {
       navigateToTab("dashboard");
     }
@@ -449,6 +838,8 @@ export default function App() {
   const handleSaveProfile = (updatedProfile: ApplicantProfile) => {
     setApplicantProfile(updatedProfile);
 
+    // Existing profile storage remains temporarily for the
+    // profile-module migration. It is NOT authentication state.
     saveApplicantProfile(updatedProfile);
   };
 
@@ -460,39 +851,62 @@ export default function App() {
     try {
       const response = await createRequisition({
         requisitionType: newRecord.type,
+
         requisitionMode: newRecord.itHrmsDetails?.requisitionMode || "new",
+
         renewalReason: newRecord.itHrmsDetails?.renewalReason || null,
+
         remarks:
           newRecord.history?.[newRecord.history.length - 1]?.comments || null,
 
         itHrmsDetails: newRecord.itHrmsDetails
           ? {
               requestEmail: newRecord.itHrmsDetails.requestEmail,
+
               requestedEmailGroups:
                 newRecord.itHrmsDetails.requestedEmailGroups,
+
               requestInternet: newRecord.itHrmsDetails.requestInternet,
+
               deviceType: newRecord.itHrmsDetails.deviceType,
+
               macAddress: newRecord.itHrmsDetails.macAddress,
+
               requestHrmsPms: newRecord.itHrmsDetails.requestHrmsPms,
+
               requestBiometric: newRecord.itHrmsDetails.requestBiometric,
             }
           : undefined,
 
         labFacilities: newRecord.labAccessDetails?.map((lab) => ({
           facilityId: lab.labId,
+
           facilityName: lab.labName,
+
           purposeEquipment: lab.purposeEquipment || null,
+
           fromDate: lab.fromDate || null,
+
           toDate: lab.toDate || null,
+
           hasBiometricId: lab.hasBiometricId || false,
+
           biometricIdNumber: lab.biometricIdNumber || null,
+
           assignedLabPassId: lab.assignedLabPassId || null,
+
           nodalApprovalStatus: lab.nodalApprovalStatus || "pending",
+
           remarks: lab.nodalComments || null,
+
           reviewedById: null,
+
           reviewedBy: lab.nodalOfficerName || null,
+
           reviewedAt: lab.actionDate ? `${lab.actionDate} 00:00:00` : null,
+
           nodalOfficerName: lab.nodalOfficerName || null,
+
           actionDate: lab.actionDate || null,
         })),
       });
@@ -523,9 +937,6 @@ export default function App() {
   // =========================================================
 
   const handleUpdateRequisition = (updatedRecord: RequisitionRecord) => {
-    // Keep React state synchronized with the authoritative record returned
-    // by the API/workflow layer. Database persistence is handled by the
-    // relevant API endpoint before this callback is invoked.
     setRequisitions((previous) =>
       previous.map((record) =>
         record.id === updatedRecord.id ? updatedRecord : record,
@@ -539,6 +950,10 @@ export default function App() {
 
   // =========================================================
   // RESET DEMO DATA
+  // =========================================================
+  //
+  // Existing legacy/demo feature is retained temporarily.
+  // It will be removed in the later cleanup phase.
   // =========================================================
 
   const handleResetDemoData = () => {
@@ -567,6 +982,214 @@ export default function App() {
   ).length;
 
   // =========================================================
+  // AUTH CALLBACK
+  // =========================================================
+  //
+  // Login has already been completed by AuthPage.
+  //
+  // IMPORTANT:
+  // - JWT is NOT read by frontend.
+  // - JWT is NOT stored in localStorage/sessionStorage.
+  // - /api/me is the backend/database source of truth.
+  // - Default backend role "user" maps to the existing
+  //   frontend "applicant" persona.
+  // - Default "user" login always redirects to Dashboard.
+  // =========================================================
+
+  const handleLoginSuccess = (
+    loginUserData: AuthenticatedUser,
+    backendCurrentRole?: string,
+  ) => {
+    // ---------------------------------------------------------
+    // BACKEND ROLES -> FRONTEND UI ROLES
+    // ---------------------------------------------------------
+
+    const frontendRoles = (loginUserData.roles || [])
+      .map((role) => toFrontendRole(role?.code))
+      .filter((role): role is UserRole => Boolean(role));
+
+    const uniqueRoles = [...new Set<UserRole>(frontendRoles)];
+
+    // ---------------------------------------------------------
+    // LOGGED-IN USER
+    // ---------------------------------------------------------
+
+    setLoggedInUser({
+      fullName: loginUserData.fullName || "User",
+      email: loginUserData.email || "",
+      phone: loginUserData.phone || "",
+    });
+
+    setAssignedRoles(uniqueRoles);
+
+    // ---------------------------------------------------------
+    // CHECK BACKEND DEFAULT USER ROLE
+    // ---------------------------------------------------------
+
+    const normalizedBackendCurrentRole = String(backendCurrentRole || "")
+      .trim()
+      .toLowerCase();
+
+    const hasDatabaseUserRole = Boolean(
+      loginUserData.roles?.some(
+        (role) =>
+          String(role?.code || "")
+            .trim()
+            .toLowerCase() === "user",
+      ),
+    );
+
+    // ---------------------------------------------------------
+    // DEFAULT USER ROLE
+    // ---------------------------------------------------------
+    //
+    // Backend/database:
+    //
+    //     user
+    //
+    // Existing frontend UI:
+    //
+    //     applicant
+    //
+    // Therefore:
+    //
+    //     DB user -> UI applicant -> Dashboard
+    // ---------------------------------------------------------
+
+    const isDefaultUserLogin =
+      normalizedBackendCurrentRole === "user" || hasDatabaseUserRole;
+
+    const requestedFrontendRole = toFrontendRole(normalizedBackendCurrentRole);
+
+    const loginRole: UserRole = isDefaultUserLogin
+      ? "applicant"
+      : requestedFrontendRole || uniqueRoles[0] || "applicant";
+
+    setCurrentRole(loginRole);
+
+    // ---------------------------------------------------------
+    // AUTHENTICATED
+    // ---------------------------------------------------------
+
+    setIsAuthenticated(true);
+
+    // ---------------------------------------------------------
+    // PROFILE DATA
+    // ---------------------------------------------------------
+
+    const profileData = getUserProfileFromAuthenticatedUser(loginUserData);
+
+    const mergedProfile = {
+      ...applicantProfile,
+      ...profileData,
+    };
+
+    setApplicantProfile(mergedProfile as ApplicantProfile);
+
+    // This is only the existing profile cache.
+    // It is NOT authentication or authorization state.
+    saveApplicantProfile(mergedProfile as ApplicantProfile);
+
+    setSelectedRequisition(null);
+
+    // ---------------------------------------------------------
+    // FINAL LOGIN REDIRECT
+    // ---------------------------------------------------------
+    //
+    // Newly registered/default users:
+    //
+    //     Login successful
+    //            ↓
+    //       DB role = user
+    //            ↓
+    //     UI role = applicant
+    //            ↓
+    //        Dashboard (/)
+    //
+    // replace=true prevents the login page from remaining
+    // immediately in browser history.
+    // ---------------------------------------------------------
+
+    if (isDefaultUserLogin) {
+      navigate(APP_ROUTES.dashboard, {
+        replace: true,
+      });
+
+      return;
+    }
+
+    // ---------------------------------------------------------
+    // OTHER AUTHENTICATED ROLES
+    // ---------------------------------------------------------
+    //
+    // Existing non-user role behaviour remains available.
+    // Dashboard is the safe default if no specific role route
+    // is defined.
+    // ---------------------------------------------------------
+
+    navigate(APP_ROUTES.dashboard, {
+      replace: true,
+    });
+  };
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+
+      setLoggedInUser(null);
+
+      setIsAuthenticated(false);
+
+      setCurrentRole("applicant");
+
+      setAssignedRoles([]);
+
+      setSelectedRequisition(null);
+
+      setRequisitions([]);
+
+      navigate("/login", {
+        replace: true,
+      });
+    } catch (error) {
+      console.error("LOGOUT ERROR:", error);
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to complete logout. Please try again.",
+      );
+    }
+  };
+
+  // =========================================================
+  // AUTH INITIALIZATION UI
+  // =========================================================
+
+  if (authInitializing && !isActivationPage) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="mx-auto mb-5 h-12 w-12 rounded-full border-4 border-slate-200 border-t-emerald-600 animate-spin" />
+
+          <h2 className="text-lg font-bold text-slate-800">
+            Verifying Session...
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Please wait while the WII Access Management Portal verifies your
+            account.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
   // ACTIVATION PAGE
   // =========================================================
 
@@ -575,8 +1198,6 @@ export default function App() {
       <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
         <div className="w-full max-w-lg">
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            {/* HEADER */}
-
             <div className="bg-slate-900 text-white px-8 py-8 text-center">
               <h1 className="text-2xl font-bold">
                 Wildlife Institute of India
@@ -587,13 +1208,11 @@ export default function App() {
               </p>
             </div>
 
-            {/* BODY */}
-
             <div className="px-8 py-10 text-center">
               {activationLoading ? (
                 <>
                   <div className="flex justify-center mb-6">
-                    <div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                    <div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
                   </div>
 
                   <h2 className="text-xl font-bold text-slate-800">
@@ -607,8 +1226,6 @@ export default function App() {
                 </>
               ) : activationSuccess ? (
                 <>
-                  {/* SUCCESS ICON */}
-
                   <div className="mx-auto mb-6 flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100">
                     <span className="text-3xl text-emerald-600">✓</span>
                   </div>
@@ -625,11 +1242,11 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      // Use React Router instead of manually editing history
-                      // and forcing a full browser reload.
-                      navigateToTab("auth");
-                    }}
+                    onClick={() =>
+                      navigate("/login", {
+                        replace: true,
+                      })
+                    }
                     className="mt-8 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
                   >
                     Go to Login
@@ -637,8 +1254,6 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  {/* ERROR ICON */}
-
                   <div className="mx-auto mb-6 flex items-center justify-center w-16 h-16 rounded-full bg-red-100">
                     <span className="text-3xl text-red-600">!</span>
                   </div>
@@ -656,11 +1271,11 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      // Use React Router instead of manually editing history
-                      // and forcing a full browser reload.
-                      navigateToTab("auth");
-                    }}
+                    onClick={() =>
+                      navigate("/login", {
+                        replace: true,
+                      })
+                    }
                     className="mt-8 w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 rounded-lg transition"
                   >
                     Go to Login
@@ -675,69 +1290,63 @@ export default function App() {
   }
 
   // =========================================================
-  // LOGIN / AUTH PAGE
+  // LOGIN / REGISTER PAGE
   // =========================================================
 
   if (!isAuthenticated || activeTab === "auth") {
+    const initialMode =
+      location.pathname === "/register" ? "register" : "login";
+
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900 transition-colors">
         <div className="flex-1">
           <AuthPage
-            initialMode="login"
+            initialMode={initialMode}
             isAuthenticated={isAuthenticated}
             onNavigateHome={
               isAuthenticated ? () => navigateToTab("dashboard") : undefined
             }
             onLoginSuccess={(
               _initialRole,
-              newAssignedRoles,
-              updatedProfileData,
+              _newAssignedRoles,
+              _updatedProfileData,
             ) => {
-              // Login successful: hydrate the complete frontend session.
-              // The backend tells us all assigned roles; the first active persona is always User.
-              setIsAuthenticated(true);
+              // ------------------------------------------------
+              // IMPORTANT:
+              //
+              // AuthPage has already called the login API.
+              // We intentionally do not read or store a browser
+              // token here.
+              //
+              // Reload /api/me so the backend remains the
+              // source of truth.
+              // ------------------------------------------------
 
-              // Keep the normal User role (`applicant`) on every account.
-              const normalizedRoles: UserRole[] = [
-                ...new Set<UserRole>([
-                  "applicant",
-                  ...(newAssignedRoles || []),
-                ]),
-              ];
+              getCurrentUser()
+                .then((response) => {
+                  if (response.success && response.user) {
+                    handleLoginSuccess(
+                      response.user,
+                      // The login API itself selected the current
+                      // role, but AuthPage's current callback does
+                      // not expose it yet. /api/me is therefore used
+                      // to restore the assigned DB roles.
+                      undefined,
+                    );
+                  }
+                })
+                .catch((error) => {
+                  console.error(
+                    "Unable to reload authenticated user after login:",
+                    error,
+                  );
 
-              setAssignedRoles(normalizedRoles);
+                  setIsAuthenticated(false);
 
-              // IMPORTANT: A successful LOGIN always starts in User persona.
-              // Do NOT use a previously selected Admin role as the login role.
-              // Admin/other roles remain available in the Navbar role switcher.
-              const loginRole: UserRole = "applicant";
+                  setLoggedInUser(null);
 
-              setCurrentRole(loginRole);
-              setStoredCurrentRole(loginRole);
-
-              // Read the authenticated user through the centralized session helper.
-              const session = getLoginSession();
-
-              if (session?.user) {
-                setLoggedInUser({
-                  fullName: session.user.fullName || "User",
-                  email: session.user.email || "",
-                  phone: session.user.phone || "",
+                  setAssignedRoles([]);
                 });
-              }
-
-              if (updatedProfileData) {
-                const merged = {
-                  ...applicantProfile,
-                  ...updatedProfileData,
-                };
-
-                setApplicantProfile(merged as ApplicantProfile);
-                saveApplicantProfile(merged as ApplicantProfile);
-              }
-
-              setSelectedRequisition(null);
-              navigateToTab("dashboard");
             }}
           />
         </div>
@@ -762,19 +1371,19 @@ export default function App() {
 
       <Navbar
         currentRole={currentRole}
-        // Navbar expects complete role objects, not only role strings.
         assignedRoles={toAssignedRoleObjects(assignedRoles)}
         onRoleChange={(role) => {
           const nextRole = role as UserRole;
 
+          // Role switching is currently a frontend persona
+          // change only. Sensitive backend operations continue
+          // to validate actual DB-assigned roles.
           setCurrentRole(nextRole);
-          setStoredCurrentRole(nextRole);
 
-          // Switching persona always starts from that persona's dashboard.
           setSelectedRequisition(null);
+
           navigateToTab("dashboard");
         }}
-        // Give Navbar the real account name/email.
         userProfile={
           {
             ...applicantProfile,
@@ -784,23 +1393,12 @@ export default function App() {
           } as ApplicantProfile
         }
         activeTab={activeTab}
-        // Navbar already exposes onTabChange. The App now connects it to
-        // React Router so every top-level navigation also updates the URL.
         onTabChange={(tab) => navigateToTab(tab as AppTab)}
         pendingApprovalsCount={pendingApprovalsCount}
         onResetData={handleResetDemoData}
         onSearch={(query) => setSearchQuery(query)}
         onOpenAuth={() => navigateToTab("auth")}
-        onLogout={() => {
-          clearLoginSession();
-
-          setLoggedInUser(null);
-          setIsAuthenticated(false);
-          setCurrentRole("applicant");
-          setAssignedRoles(["applicant"]);
-          setSelectedRequisition(null);
-          navigateToTab("auth");
-        }}
+        onLogout={handleLogout}
       />
 
       {/* =====================================================
@@ -823,9 +1421,7 @@ export default function App() {
               <OverviewDashboard
                 requisitions={requisitions}
                 currentRole={currentRole}
-                onNavigateTab={(tab) => {
-                  navigateToTab(tab as AppTab);
-                }}
+                onNavigateTab={(tab) => navigateToTab(tab as AppTab)}
                 onSelectRequisition={(req) => {
                   setSelectedRequisition(req);
                 }}
@@ -843,7 +1439,7 @@ export default function App() {
               />
             )}
 
-            {/* MY ACCESS */}
+            {/* MY ACCESS / NEW REQUEST */}
 
             {activeTab === "new_request" && (
               <MyAccessHub
@@ -854,9 +1450,7 @@ export default function App() {
                   setSelectedRequisition(req);
                 }}
                 onSubmitRequisition={handleCreateRequisition}
-                onNavigateTab={(tab) => {
-                  navigateToTab(tab as AppTab);
-                }}
+                onNavigateTab={(tab) => navigateToTab(tab as AppTab)}
               />
             )}
 
