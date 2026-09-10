@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // WII ACCESS MANAGEMENT PORTAL
 // FILE: src/main.tsx
 // ============================================================
@@ -12,7 +12,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./api/apiClient";
 
 import App from "./app/App.tsx";
-import "./index.css";
+import "./styles/index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -21,3 +21,6 @@ createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+
+

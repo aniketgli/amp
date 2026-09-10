@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { RequisitionRecord, UserRole } from '@/types';
-import { OFFICIAL_ROLES } from '@/data/initialData';
+import { OFFICIAL_ROLES } from '@/constants/roles';
 import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/lib/storage';
 import { ApprovalActionModal } from '@/features/workflow/components/ApprovalActionModal';
 import {
@@ -139,7 +139,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
               <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access Management Portal
             </span>
-            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">• Wildlife Institute of India</span>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">â€¢ Wildlife Institute of India</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
             {currentRole === 'applicant' && 'Personnel Access Hub'}
@@ -551,7 +551,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               onClick={() => onNavigateTab('super_admin_panel')}
               className="text-xs font-extrabold text-purple-700 hover:text-purple-900 underline cursor-pointer mt-2 block"
             >
-              Open Governance Console →
+              Open Governance Console â†’
             </button>
             <p className="text-xs text-slate-500">Edit Roles & Overrides</p>
           </div>
@@ -616,7 +616,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         </span>
                       </div>
                       <div className="text-[11px] sm:text-xs text-slate-500 truncate mt-0.5">
-                        {req.applicant.designation} • {req.applicant.departmentCellProject}
+                        {req.applicant.designation} â€¢ {req.applicant.departmentCellProject}
                       </div>
                     </div>
                   </div>
@@ -937,3 +937,4 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     </div>
   );
 };
+

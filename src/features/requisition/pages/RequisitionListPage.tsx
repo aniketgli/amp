@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { RequisitionRecord, UserRole, WII_LABS } from '@/types';
-import { OFFICIAL_ROLES } from '@/data/initialData';
+import { OFFICIAL_ROLES } from '@/constants/roles';
 import { getRequisitionServiceName, isRequisitionVisibleForRole } from '@/lib/storage';
 import { ApprovalActionModal } from '@/features/workflow/components/ApprovalActionModal';
 import { OfficialFormReplica } from '@/features/requisition/components/OfficialFormReplica';
@@ -78,7 +78,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
     currentRole === 'admin';
 
   const formatDisplayDate = (dateStr?: string) => {
-    if (!dateStr) return '—';
+    if (!dateStr) return 'â€”';
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return dateStr;
@@ -349,7 +349,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1 shrink-0">
               <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Access Management Portal
             </span>
-            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">• Wildlife Institute of India</span>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">â€¢ Wildlife Institute of India</span>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
@@ -546,11 +546,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                     toDate: defaultTo,
                     value: isRejected ? (
                       <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                        ✕ Rejected
+                        âœ• Rejected
                       </span>
                     ) : isDeactivated ? (
                       <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                        🔒 Deactivated
+                        ðŸ”’ Deactivated
                       </span>
                     ) : req.itHrmsDetails.assignedWiiEmail ? (
                       <span className="font-mono text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 truncate max-w-[150px] inline-block">
@@ -571,11 +571,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                     toDate: defaultTo,
                     value: isRejected ? (
                       <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                        ✕ Rejected
+                        âœ• Rejected
                       </span>
                     ) : isDeactivated ? (
                       <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                        🔒 Deactivated
+                        ðŸ”’ Deactivated
                       </span>
                     ) : req.itHrmsDetails.macAddress ? (
                       <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -596,15 +596,15 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                     toDate: defaultTo,
                     value: isRejected ? (
                       <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                        ✕ Rejected
+                        âœ• Rejected
                       </span>
                     ) : isDeactivated ? (
                       <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                        🔒 Deactivated
+                        ðŸ”’ Deactivated
                       </span>
                     ) : req.status === 'approved_provisioned' || req.itHrmsDetails?.hrmsAccessGranted ? (
                       <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 whitespace-nowrap inline-flex items-center gap-1">
-                        ✓ Active
+                        âœ“ Active
                       </span>
                     ) : null,
                   });
@@ -621,11 +621,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                     toDate: defaultTo,
                     value: isRejected ? (
                       <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                        ✕ Rejected
+                        âœ• Rejected
                       </span>
                     ) : isDeactivated ? (
                       <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                        🔒 Deactivated
+                        ðŸ”’ Deactivated
                       </span>
                     ) : req.itHrmsDetails?.assignedBiometricId || req.applicant.biometricId ? (
                       <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
@@ -650,19 +650,19 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                         toDate: formatDisplayDate(lab.toDate) || defaultTo,
                         value: isRejected ? (
                           <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                            ✕ Rejected
+                            âœ• Rejected
                           </span>
                         ) : isDeactivated ? (
                           <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                            🔒 Deactivated
+                            ðŸ”’ Deactivated
                           </span>
                         ) : lab.nodalApprovalStatus === 'approved' ? (
                           <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
-                            ✓ Pass
+                            âœ“ Pass
                           </span>
                         ) : lab.nodalApprovalStatus === 'rejected' ? (
                           <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
-                            ✕ Denied
+                            âœ• Denied
                           </span>
                         ) : null,
                       });
@@ -678,7 +678,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                     icon: null,
                     fromDate: defaultFrom,
                     toDate: defaultTo,
-                    value: <span className="text-slate-400 text-[10px]">—</span>,
+                    value: <span className="text-slate-400 text-[10px]">â€”</span>,
                   });
                 }
 
@@ -870,11 +870,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                           toDate: defaultTo,
                           value: isRejected ? (
                             <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                              ✕ Rejected
+                              âœ• Rejected
                             </span>
                           ) : isDeactivated ? (
                             <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                              🔒 Deactivated
+                              ðŸ”’ Deactivated
                             </span>
                           ) : req.itHrmsDetails.assignedWiiEmail ? (
                             <span className="font-mono text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 truncate max-w-[150px] inline-block">
@@ -895,11 +895,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                           toDate: defaultTo,
                           value: isRejected ? (
                             <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                              ✕ Rejected
+                              âœ• Rejected
                             </span>
                           ) : isDeactivated ? (
                             <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                              🔒 Deactivated
+                              ðŸ”’ Deactivated
                             </span>
                           ) : req.itHrmsDetails.macAddress ? (
                             <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -920,15 +920,15 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                           toDate: defaultTo,
                           value: isRejected ? (
                             <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                              ✕ Rejected
+                              âœ• Rejected
                             </span>
                           ) : isDeactivated ? (
                             <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                              🔒 Deactivated
+                              ðŸ”’ Deactivated
                             </span>
                           ) : req.status === 'approved_provisioned' || req.itHrmsDetails?.hrmsAccessGranted ? (
                             <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 whitespace-nowrap inline-flex items-center gap-1">
-                              ✓ Active
+                              âœ“ Active
                             </span>
                           ) : null,
                         });
@@ -945,11 +945,11 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                           toDate: defaultTo,
                           value: isRejected ? (
                             <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                              ✕ Rejected
+                              âœ• Rejected
                             </span>
                           ) : isDeactivated ? (
                             <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                              🔒 Deactivated
+                              ðŸ”’ Deactivated
                             </span>
                           ) : req.itHrmsDetails?.assignedBiometricId || req.applicant.biometricId ? (
                             <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
@@ -974,19 +974,19 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                               toDate: formatDisplayDate(lab.toDate) || defaultTo,
                               value: isRejected ? (
                                 <span className="text-[9px] text-rose-700 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap inline-flex items-center gap-1">
-                                  ✕ Rejected
+                                  âœ• Rejected
                                 </span>
                               ) : isDeactivated ? (
                                 <span className="text-[9px] text-slate-700 font-extrabold bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap inline-flex items-center gap-1">
-                                  🔒 Deactivated
+                                  ðŸ”’ Deactivated
                                 </span>
                               ) : lab.nodalApprovalStatus === 'approved' ? (
                                 <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
-                                  ✓ Pass
+                                  âœ“ Pass
                                 </span>
                               ) : lab.nodalApprovalStatus === 'rejected' ? (
                                 <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
-                                  ✕ Denied
+                                  âœ• Denied
                                 </span>
                               ) : null,
                             });
@@ -1002,7 +1002,7 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                           icon: null,
                           fromDate: defaultFrom,
                           toDate: defaultTo,
-                          value: <span className="text-slate-400 text-[10px]">—</span>,
+                          value: <span className="text-slate-400 text-[10px]">â€”</span>,
                         });
                       }
 
@@ -1062,10 +1062,10 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
                                   }`}
                                 >
                                   {req.piApproval?.status === 'approved'
-                                    ? '✓ Endorsed'
+                                    ? 'âœ“ Endorsed'
                                     : req.piApproval?.status === 'rejected'
-                                    ? '✕ Rejected'
-                                    : '⏳ Pending PI'}
+                                    ? 'âœ• Rejected'
+                                    : 'â³ Pending PI'}
                                 </span>
                               </td>
                             )}
@@ -1300,3 +1300,4 @@ export const RequisitionList: React.FC<RequisitionListProps> = ({
     </div>
   );
 };
+

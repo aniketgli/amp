@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { ApplicantProfile, UserRole } from "@/types";
-import { OFFICIAL_ROLES } from "@/data/initialData";
+import { OFFICIAL_ROLES } from "@/constants/roles";
 import { recordSecurityAuditLog } from "@/services/auditLogger";
 import {
   User,
@@ -102,7 +102,7 @@ const SAMPLE_USER_PROFILES: Record<string, ApplicantProfile> = {
         verifiedAt: "2026-02-01T10:30:00Z",
         verifiedBy: "AI Vision OCR Engine (WII Central Estt.)",
         status: "active",
-        monthlyEmoluments: "₹42,000/- per month + HRA",
+        monthlyEmoluments: "â‚¹42,000/- per month + HRA",
         verificationConfidence: "100% OCR AI Verified",
         extractedTextSummary:
           "Official Sanction Order issued by Wildlife Institute of India sanctioning the engagement of Dr. Ananya Sharma as Senior Research Fellow under DST Project with Dr. R. K. Singh as PI.",
@@ -120,7 +120,7 @@ const SAMPLE_USER_PROFILES: Record<string, ApplicantProfile> = {
         verifiedAt: "2024-02-01T11:15:00Z",
         verifiedBy: "Establishment Officer (Physical Verification)",
         status: "superseded",
-        monthlyEmoluments: "₹37,000/- per month + HRA",
+        monthlyEmoluments: "â‚¹37,000/- per month + HRA",
         verificationConfidence: "100% Verified (Historical)",
         extractedTextSummary:
           "Initial Sanction Order appointing Ms. Ananya Sharma as Junior Research Fellow (JRF) for 2 years tenure.",
@@ -554,7 +554,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               Access Management Portal
             </span>
             <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
-              • Wildlife Institute of India
+              â€¢ Wildlife Institute of India
             </span>
           </div>
           <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
@@ -643,7 +643,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
                       onClick={() => setIsSearchOpen(false)}
                       className="text-slate-400 hover:text-white text-[10px] cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-800"
                     >
-                      Close ✕
+                      Close âœ•
                     </button>
                   </div>
                   {filteredUserEntries.length === 0 ? (
@@ -685,7 +685,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 truncate">
-                            {p.designation} • {p.departmentCellProject}
+                            {p.designation} â€¢ {p.departmentCellProject}
                           </p>
                         </div>
                       </button>
@@ -1255,6 +1255,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     </div>
   );
 };
+
 
 
 

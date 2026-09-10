@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   ApplicantProfile,
   RequisitionRecord,
   RequisitionType,
   UserRole,
 } from "@/types";
-import { OFFICIAL_ROLES } from "@/data/initialData";
+import { OFFICIAL_ROLES } from "@/constants/roles";
 import { getRequisitionServiceName } from "@/lib/storage";
 import {
   QuickApplyModal,
@@ -109,7 +109,7 @@ export const LAB_FACILITIES_LIST = [
 ];
 
 const formatDisplayDate = (dStr?: string) => {
-  if (!dStr) return "—";
+  if (!dStr) return "â€”";
   const date = new Date(dStr);
   if (isNaN(date.getTime())) return dStr;
   return date.toLocaleDateString("en-GB", {
@@ -205,7 +205,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               Management Portal
             </span>
             <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
-              • Wildlife Institute of India
+              â€¢ Wildlife Institute of India
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug sm:leading-tight break-words">
@@ -332,7 +332,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
               Eligible for Renewal
             </div>
             <div className="text-[10px] text-slate-500 dark:text-slate-400">
-              Extend tenure for 2026–2027
+              Extend tenure for 2026â€“2027
             </div>
           </div>
         </div>
@@ -419,7 +419,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                       approvedEmailReq.applicant.dateOfJoining ||
                         approvedEmailReq.createdAt,
                     )}{" "}
-                    → {formatDisplayDate(approvedEmailReq.applicant.validUpTo)}
+                    â†’ {formatDisplayDate(approvedEmailReq.applicant.validUpTo)}
                   </span>
                 </div>
               </div>
@@ -470,7 +470,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                 }
                 className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer pt-1"
               >
-                View Requisition Status →
+                View Requisition Status â†’
               </button>
             </div>
           ) : (
@@ -581,7 +581,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                       approvedNetReq.applicant.dateOfJoining ||
                         approvedNetReq.createdAt,
                     )}{" "}
-                    → {formatDisplayDate(approvedNetReq.applicant.validUpTo)}
+                    â†’ {formatDisplayDate(approvedNetReq.applicant.validUpTo)}
                   </span>
                 </div>
               </div>
@@ -627,7 +627,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                 }
                 className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer pt-1"
               >
-                View Requisition Status →
+                View Requisition Status â†’
               </button>
             </div>
           ) : (
@@ -737,7 +737,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                       approvedHrmsReq.applicant.dateOfJoining ||
                         approvedHrmsReq.createdAt,
                     )}{" "}
-                    → {formatDisplayDate(approvedHrmsReq.applicant.validUpTo)}
+                    â†’ {formatDisplayDate(approvedHrmsReq.applicant.validUpTo)}
                   </span>
                 </div>
               </div>
@@ -784,7 +784,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                 }
                 className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer pt-1"
               >
-                View Requisition Status →
+                View Requisition Status â†’
               </button>
             </div>
           ) : (
@@ -965,7 +965,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                                   req.applicant.dateOfJoining ||
                                   req.createdAt,
                               )}{" "}
-                              →{" "}
+                              â†’{" "}
                               {formatDisplayDate(
                                 firstLab?.toDate || req.applicant.validUpTo,
                               )}
@@ -992,7 +992,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                             }
                             className="text-blue-700 font-bold hover:underline flex items-center gap-1 cursor-pointer shrink-0"
                           >
-                            View Requisition Status →
+                            View Requisition Status â†’
                           </button>
                         </div>
                       </div>
@@ -1039,7 +1039,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                             }
                             className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer shrink-0"
                           >
-                            View Requisition Details →
+                            View Requisition Details â†’
                           </button>
                         </div>
                       </div>
@@ -1087,7 +1087,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
                             }
                             className="text-blue-700 font-bold hover:underline text-xs flex items-center gap-1 cursor-pointer shrink-0"
                           >
-                            View Requisition Status →
+                            View Requisition Status â†’
                           </button>
                         </div>
                       </div>
@@ -1121,6 +1121,7 @@ export const MyAccessHub: React.FC<MyAccessHubProps> = ({
     </div>
   );
 };
+
 
 
 
