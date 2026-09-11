@@ -201,7 +201,10 @@ export async function apiRequest<T>(
     requestHeaders.set("Accept", "application/json");
   }
 
-  if (init.body && !requestHeaders.has("Content-Type")) {
+  const isFormDataBody =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
+
+  if (init.body && !isFormDataBody && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
   }
 

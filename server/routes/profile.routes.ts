@@ -2,10 +2,15 @@ import type { Express } from "express";
 
 import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
+
+import { profilePhotoUpload } from "../middleware/upload";
+
 import {
   getMyProfile,
+  getMyProfilePhoto,
   getUserProfile,
   updateMyProfile,
+  uploadProfilePhoto,
 } from "../controllers/profile.controller";
 
 const PROFILE_DIRECTORY_ROLES = [
@@ -20,13 +25,42 @@ const PROFILE_DIRECTORY_ROLES = [
 ] as const;
 
 export function registerProfileRoutes(app: Express) {
-  // Current authenticated user's profile.
+  /* ==========================================================
+     CURRENT AUTHENTICATED USER PROFILE
+     ========================================================== */
+
   app.get("/api/profile", authenticateToken, getMyProfile);
 
-  // Update current authenticated user's profile.
   app.put("/api/profile", authenticateToken, updateMyProfile);
 
-  // Directory profile lookup for authorized officers.
+  /* ==========================================================
+     CURRENT USER PROFILE PHOTO
+     ========================================================== */
+
+  /*
+   * Get current user's photo.
+   *
+   * The authenticated session determines the user.
+   */
+  app.get("/api/profile/photo", authenticateToken, getMyProfilePhoto);
+
+  /*
+   * Upload / replace current user's photo.
+   *
+   * Multipart field:
+   *   photo
+   */
+  app.post(
+    "/api/profile/photo",
+    authenticateToken,
+    profilePhotoUpload.single("photo"),
+    uploadProfilePhoto,
+  );
+
+  /* ==========================================================
+     DIRECTORY PROFILE LOOKUP
+     ========================================================== */
+
   app.get(
     "/api/profile/:userId",
     authenticateToken,

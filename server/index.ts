@@ -2,19 +2,12 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import {
-  PORT,
-  JWT_SECRET,
-  EMAIL_USER,
-  EMAIL_PASS,
-  GEMINI_API_KEY,
-} from "./config/env";
+import { PORT, EMAIL_USER, EMAIL_PASS, GEMINI_API_KEY } from "./config/env";
 import { ADMIN_ROLES } from "./config/constants";
 import { db, isDbConnected, testDatabaseConnection } from "./db/connection";
 import { authenticateToken } from "./middleware/auth";
 import { getUserRoles, requireRole } from "./middleware/authorization";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { registerAuthRoutes } from "./routes/auth.routes";
@@ -26,16 +19,15 @@ import { registerOfficeOrderRoutes } from "./routes/office-order.routes";
 import { registerRequisitionRoutes } from "./routes/requisition.routes";
 import { registerWorkflowRoutes } from "./routes/workflow.routes";
 import { registerProfileRoutes } from "./routes/profile.routes";
+import { registerProfileMasterRoutes } from "./routes/profile-master.routes";
+import { registerProfileMasterAdminRoutes } from "./routes/profile-master-admin.routes";
+import { registerProfileAdminRoutes } from "./routes/profile-admin.routes";
 
 const app = express();
 
 /* =========================================================
    SERVER CONFIGURATION
 ========================================================= */
-
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required.");
-}
 
 async function verifyPassword(
   password: string,
@@ -66,6 +58,9 @@ registerAdminRoutes(app);
 registerOfficeOrderRoutes(app);
 registerRequisitionRoutes(app);
 registerWorkflowRoutes(app);
+registerProfileMasterRoutes(app);
+registerProfileMasterAdminRoutes(app);
+registerProfileAdminRoutes(app);
 
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 

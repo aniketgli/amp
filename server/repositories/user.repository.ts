@@ -1,3 +1,5 @@
+import type { PoolConnection } from "mysql2/promise";
+
 import { db } from "../db/connection";
 
 // ------------------------------------------------------------
@@ -8,7 +10,9 @@ import { db } from "../db/connection";
 // server/routes/users.routes.ts.
 // ------------------------------------------------------------
 
-export async function getUserById(userId: number) {
+export async function getUserById(
+  userId: number,
+) {
   const [users]: any = await db.query(
     `SELECT
        id,
@@ -72,7 +76,9 @@ export async function getAllUsers() {
   return users || [];
 }
 
-export async function getUserRoles(userId: number) {
+export async function getUserRoles(
+  userId: number,
+) {
   const [roles]: any = await db.query(
     `SELECT
        r.id,
@@ -90,43 +96,114 @@ export async function getUserRoles(userId: number) {
   return roles || [];
 }
 
+/* ============================================================
+   ADMIN IDENTITY UPDATE
+   ============================================================ */
+
+/**
+ * Update administrator-controlled identity fields.
+ *
+ * This method intentionally accepts only the fields that an
+ * administrator is allowed to change from the Profile module:
+ *
+ *   - full_name
+ *   - email
+ *   - phone
+ *
+ * The transaction boundary is owned by the caller.
+ */
+export async function updateUserIdentityWithConnection(
+  connection: PoolConnection,
+  userId: number,
+  identity: {
+    fullName: string;
+    email: string;
+    phone: string;
+  },
+): Promise<void> {
+  const [result]: any =
+    await connection.query(
+      `
+        UPDATE users
+        SET
+          full_name = ?,
+          email = ?,
+          phone = ?
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [
+        identity.fullName,
+        identity.email,
+        identity.phone,
+        userId,
+      ],
+    );
+
+  if (
+    !result ||
+    result.affectedRows !== 1
+  ) {
+    throw new Error(
+      "Unable to update user identity.",
+    );
+  }
+}
+
+/* ============================================================
+   USER ROLES
+   ============================================================ */
+
 export async function updateUserRoles(
   userId: number,
   roleIds: number[],
 ): Promise<boolean> {
-  const connection = await db.getConnection();
+  const connection =
+    await db.getConnection();
 
   try {
     // Verify user exists.
-    const [users]: any = await db.query(
-      "SELECT id FROM users WHERE id = ? LIMIT 1",
-      [userId],
-    );
+    const [users]: any =
+      await db.query(
+        "SELECT id FROM users WHERE id = ? LIMIT 1",
+        [userId],
+      );
 
-    if (!users || users.length === 0) {
+    if (
+      !users ||
+      users.length === 0
+    ) {
       return false;
     }
 
     // Verify all supplied roles exist and are active.
-    const placeholders = roleIds.map(() => "?").join(",");
+    const placeholders =
+      roleIds
+        .map(() => "?")
+        .join(",");
 
-    const [roles]: any = await db.query(
-      `SELECT id
-       FROM roles
-       WHERE id IN (${placeholders})
-         AND is_active = 1`,
-      roleIds,
-    );
+    const [roles]: any =
+      await db.query(
+        `SELECT id
+         FROM roles
+         WHERE id IN (${placeholders})
+           AND is_active = 1`,
+        roleIds,
+      );
 
-    if (!roles || roles.length !== roleIds.length) {
+    if (
+      !roles ||
+      roles.length !== roleIds.length
+    ) {
       return false;
     }
 
     await connection.beginTransaction();
 
-    await connection.query("DELETE FROM user_roles WHERE user_id = ?", [
-      userId,
-    ]);
+    await connection.query(
+      "DELETE FROM user_roles WHERE user_id = ?",
+      [userId],
+    );
 
     for (const roleId of roleIds) {
       await connection.query(
@@ -139,7 +216,10 @@ export async function updateUserRoles(
 
     return true;
   } catch (error) {
-    await connection.rollback().catch(() => {});
+    await connection
+      .rollback()
+      .catch(() => {});
+
     throw error;
   } finally {
     connection.release();
