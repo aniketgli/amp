@@ -14,10 +14,6 @@ import type {
 
 /* ============================================================
    BACKWARD-COMPATIBLE TYPE EXPORTS
-   ------------------------------------------------------------
-   Existing profile pages still import these domain types from
-   profile.api.ts. Re-exporting them keeps those consumers
-   working while the domain types live in src/types/profile.ts.
    ============================================================ */
 
 export type {
@@ -32,10 +28,6 @@ export type {
   ProfileOrgUnitType,
 } from "../types/profile";
 
-/* ============================================================
-   API RESPONSE TYPES
-   ============================================================ */
-
 interface ProfileResponse {
   success: boolean;
   message?: string;
@@ -48,16 +40,20 @@ interface MasterResponse<T> {
   data?: T;
 }
 
+interface PincodeResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    pincode: string;
+    district: string;
+    state: string;
+  };
+}
+
 /* ============================================================
    PROFILE
    ============================================================ */
 
-/**
- * Get the authenticated user's profile.
- *
- * Authentication is handled by the HttpOnly session cookie
- * through apiRequest().
- */
 export async function getMyProfile(): Promise<ApplicantProfile | null> {
   const response = await apiRequest<ProfileResponse>("/api/profile", {
     method: "GET",
@@ -66,17 +62,6 @@ export async function getMyProfile(): Promise<ApplicantProfile | null> {
   return response.profile ?? null;
 }
 
-/**
- * Save the authenticated user's profile.
- *
- * Backend remains the source of truth and performs:
- * - validation
- * - authorization
- * - employment-specific validation
- * - master-data validation
- * - immutable identity enforcement
- * - audit/history recording
- */
 export async function updateMyProfile(
   profile: Record<string, unknown>,
 ): Promise<ApplicantProfile> {
@@ -114,14 +99,6 @@ export async function getEmploymentTypes(): Promise<
    ORGANIZATION UNITS
    ============================================================ */
 
-/**
- * Get active Department / Cell / Project masters.
- *
- * Backend contract:
- *   ?types=department,cell,project
- *
- * Organization names are never hardcoded here.
- */
 export async function getOrgUnits(
   types?: ProfileOrgUnitType[],
 ): Promise<ProfileOrgUnit[]> {
@@ -216,15 +193,30 @@ export async function getProfileOfficers(): Promise<ProfileOfficer[]> {
 }
 
 /* ============================================================
+   PIN CODE LOOKUP
+   ============================================================ */
+
+export async function getPincodeDetails(
+  pincode: string,
+): Promise<{ pincode: string; district: string; state: string }> {
+  const response = await apiRequest<PincodeResponse>(
+    `/api/profile/pincode/${encodeURIComponent(pincode)}`,
+    {
+      method: "GET",
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(response.message || "PIN code not found.");
+  }
+
+  return response.data;
+}
+
+/* ============================================================
    PROFILE PHOTO
    ============================================================ */
 
-/**
- * Upload or replace the authenticated user's profile photo.
- *
- * Authentication is handled by the HttpOnly session cookie.
- * The browser must NOT send a user ID or token.
- */
 export async function uploadProfilePhoto(
   file: File,
 ): Promise<ApplicantProfile> {
@@ -233,15 +225,8 @@ export async function uploadProfilePhoto(
   }
 
   const formData = new FormData();
-
   formData.append("photo", file);
 
-  /*
-   * Do not manually set Content-Type here.
-   *
-   * The browser automatically generates the correct
-   * multipart/form-data boundary.
-   */
   const response = await apiRequest<ProfileResponse>("/api/profile/photo", {
     method: "POST",
     body: formData,
@@ -257,12 +242,6 @@ export async function uploadProfilePhoto(
   return response.profile;
 }
 
-/**
- * Authenticated profile photo endpoint.
- *
- * This is intentionally a relative URL so the browser sends
- * the existing HttpOnly authentication cookie.
- */
 export function getProfilePhotoUrl(): string {
   return "/api/profile/photo";
 }
