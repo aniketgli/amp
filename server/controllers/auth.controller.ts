@@ -23,7 +23,7 @@ import {
 //
 // Responsibilities:
 // - Receive HTTP request
-// - Call auth/session services
+// - Call auth service
 // - Call email service where required
 // - Establish/revoke authenticated browser session
 // - Return safe API responses
@@ -33,11 +33,10 @@ import {
 // - Password hashing / verification
 // - Role assignment
 // - Frontend/localStorage
-// - JWT creation
+// - Session policy
 //
 // Security principle:
 // Backend + Database are the source of truth.
-// Authentication uses an opaque, database-backed session cookie.
 // ============================================================
 
 const AUTH_COOKIE_NAME = "wii_auth_token";
@@ -109,43 +108,15 @@ function getLoginErrorStatus(message: string): number {
 }
 
 // ============================================================
-// AUTH COOKIE
+// AUTH COOKIE HELPERS
 // ============================================================
 //
-// The cookie contains only an opaque random session token.
-//
-// Frontend JavaScript:
-// - cannot read the token because it is HttpOnly
-// - never receives session metadata
-// - never stores authentication credentials in localStorage
-//
-// No maxAge/expires is set intentionally: this is a browser session
-// cookie. Server-side absolute and idle limits remain authoritative.
+// The browser receives only an opaque random session token in an
+// HttpOnly cookie. The raw token is never returned in JSON and is
+// never stored in the database.
 // ============================================================
 
-function setAuthCookie(res: Response, sessionToken: string): void {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  res.cookie(AUTH_COOKIE_NAME, sessionToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
-    path: "/",
-  });
-}
-
-function clearAuthCookie(res: Response): void {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
-    path: "/",
-  });
-}
-
-function getAuthCookie(req: Request): string | null {
+function getCookie(req: Request, name: string): string | null {
   const cookieHeader = String(req.headers.cookie || "");
 
   if (!cookieHeader) {
@@ -161,7 +132,7 @@ function getAuthCookie(req: Request): string | null {
 
     const cookieName = rawCookie.slice(0, separatorIndex).trim();
 
-    if (cookieName !== AUTH_COOKIE_NAME) {
+    if (cookieName !== name) {
       continue;
     }
 
@@ -181,13 +152,32 @@ function getAuthCookie(req: Request): string | null {
   return null;
 }
 
+function setAuthCookie(res: Response, sessionToken: string): void {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // No maxAge/expires is intentional: this is a browser session cookie.
+  // Server-side absolute/idle limits remain the real security boundary.
+  res.cookie(AUTH_COOKIE_NAME, sessionToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+  });
+}
+
+function clearAuthCookie(res: Response): void {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+  });
+}
+
 // ============================================================
 // POST /api/register
-// ============================================================
-//
-// IMPORTANT:
-// Frontend does NOT send a role.
-// Backend auth service assigns the default "user" role.
 // ============================================================
 
 export async function registerAuth(req: Request, res: Response) {
@@ -319,11 +309,9 @@ export async function activateAuth(req: Request, res: Response) {
 //        ↓
 // Database user/password/status/role validation
 //        ↓
-// Secure opaque session generated server-side
+// Secure server-side session creation
 //        ↓
-// SHA-256 hash stored in DB
-//        ↓
-// HttpOnly browser session cookie
+// HttpOnly browser-session cookie
 //        ↓
 // Safe user response
 //
@@ -338,24 +326,13 @@ export async function loginAuth(req: Request, res: Response) {
       requestedRole: req.body?.requestedRole,
     });
 
-    // --------------------------------------------------------
-    // Create the server-side session only after credentials,
-    // account state and database roles have been validated.
-    // --------------------------------------------------------
-
     const session = await createUserSession({
-      userId: result.user.id,
+      userId: Number(result.user.id),
       ipAddress: req.ip || null,
       userAgent: req.get("user-agent") || null,
     });
 
     setAuthCookie(res, session.sessionToken);
-
-    // --------------------------------------------------------
-    // SECURITY:
-    // Raw token and session metadata are never included in the
-    // response body.
-    // --------------------------------------------------------
 
     return res.status(200).json({
       success: true,
@@ -381,8 +358,8 @@ export async function loginAuth(req: Request, res: Response) {
 // GET /api/me
 // ============================================================
 //
-// authenticateToken middleware has already validated the
-// server-side session and current account state.
+// authenticateToken middleware has already validated the opaque
+// server-side session and loaded the current DB identity.
 // ============================================================
 
 export async function meAuth(req: Request, res: Response) {
@@ -416,11 +393,9 @@ export async function meAuth(req: Request, res: Response) {
   } catch (error) {
     console.error("GET /api/me ERROR:", error);
 
-    // Do not clear a valid browser session merely because the
-    // database/service had a transient failure.
     return res.status(500).json({
       success: false,
-      message: "Unable to verify authentication.",
+      message: "Unable to verify the authenticated session.",
     });
   }
 }
@@ -429,14 +404,16 @@ export async function meAuth(req: Request, res: Response) {
 // POST /api/logout
 // ============================================================
 //
-// Logout revokes the server-side session first, then clears the
-// browser cookie. If the session is already gone, the endpoint
-// remains idempotently successful.
+// Logout is a real server-side invalidation:
+//   browser cookie → session lookup → DB revoke → cookie clear
+//
+// If the session is already invalid/expired, logout still succeeds
+// from the user's perspective and clears the browser cookie.
 // ============================================================
 
 export async function logoutAuth(req: Request, res: Response) {
   try {
-    const sessionToken = getAuthCookie(req);
+    const sessionToken = getCookie(req, AUTH_COOKIE_NAME);
 
     if (sessionToken) {
       await revokeUserSession(sessionToken, "logout");
@@ -449,15 +426,15 @@ export async function logoutAuth(req: Request, res: Response) {
       message: "Logged out successfully.",
     });
   } catch (error) {
+    // Even if the database is temporarily unavailable, remove the
+    // browser cookie so the client cannot continue using this token.
     console.error("POST /api/logout ERROR:", error);
 
-    // The browser cookie is still cleared so the client does not
-    // continue presenting a possibly unusable credential.
     clearAuthCookie(res);
 
-    return res.status(500).json({
-      success: false,
-      message: "Unable to complete logout.",
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully.",
     });
   }
 }
