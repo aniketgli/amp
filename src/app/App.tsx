@@ -46,6 +46,9 @@ import { HelpdeskView } from "../features/helpdesk/pages/HelpdeskPage";
 import { SuperAdminControlPanel } from "@/features/admin/pages/AdminControlPage";
 import { AuthPage } from "../features/auth/pages/AuthPage";
 
+const AUTH_SYNC_CHANNEL_NAME = "amp-auth-sync";
+const AUTH_SYNC_LOGOUT_EVENT = "logout";
+
 // ============================================================
 // BACKEND ROLE -> FRONTEND ROLE MAP
 // ============================================================
@@ -253,6 +256,21 @@ export default function App() {
   } | null>(null);
 
   // =========================================================
+  // SESSION/TAB SYNCHRONIZATION
+  // =========================================================
+  //
+  // Authentication remains server-side. BroadcastChannel is used
+  // only as a UX synchronization mechanism so a manual logout or
+  // backend-invalidated session is reflected in other open tabs.
+  //
+  // No authentication token, session ID, expiry information or
+  // other credential is ever placed in the channel.
+  // =========================================================
+
+  const authSyncChannelRef = useRef<BroadcastChannel | null>(null);
+  const authInvalidationInProgressRef = useRef<boolean>(false);
+
+  // =========================================================
   // ACTIVE TAB / URL
   // =========================================================
 
@@ -333,6 +351,53 @@ export default function App() {
       setSelectedRequisition(null);
     }
   }, [location.pathname]);
+
+  // =========================================================
+  // MULTI-TAB AUTH SYNC
+  // =========================================================
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+      return;
+    }
+
+    const channel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+
+    authSyncChannelRef.current = channel;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type !== AUTH_SYNC_LOGOUT_EVENT) {
+        return;
+      }
+
+      setIsAuthenticated(false);
+      setLoggedInUser(null);
+      setAssignedRoles([]);
+      setCurrentRole("applicant");
+      setSelectedRequisition(null);
+      setRequisitions([]);
+
+      if (isProtectedRoute(location.pathname)) {
+        const returnTo = `${location.pathname}${location.search}${location.hash}`;
+
+        navigate(buildLoginPath(returnTo), {
+          replace: true,
+        });
+      } else if (!isAuthRoute(location.pathname)) {
+        navigate("/login", {
+          replace: true,
+        });
+      }
+    };
+
+    channel.addEventListener("message", handleMessage);
+
+    return () => {
+      channel.removeEventListener("message", handleMessage);
+      channel.close();
+      authSyncChannelRef.current = null;
+    };
+  }, [location.pathname, location.search, location.hash, navigate]);
 
   // =========================================================
   // RESTORE AUTHENTICATION FROM BACKEND
@@ -459,20 +524,22 @@ export default function App() {
   // =========================================================
 
   useEffect(() => {
-    const handleAuthExpired = () => {
-      // ----------------------------------------------------------
-      // IMPORTANT:
-      //
-      // /api/me is also used as the initial session probe.
-      // A 401 from that probe must not destroy a successful login
-      // that may have completed meanwhile.
-      //
-      // The normal protected-API 401 flow will still log the user
-      // out when an authenticated session actually expires.
-      // ----------------------------------------------------------
-
-      if (!isAuthenticated) {
+    const handleAuthExpired = async () => {
+      if (!isAuthenticated || authInvalidationInProgressRef.current) {
         return;
+      }
+
+      authInvalidationInProgressRef.current = true;
+
+      try {
+        // A protected API has already established that the session
+        // is invalid. Ask the backend to revoke it as well; this is
+        // safe even when the session was already expired/revoked.
+        await logoutUser();
+      } catch (error) {
+        // The protected request already proved the session is invalid.
+        // A logout transport failure must not keep the UI authenticated.
+        console.warn("Unable to confirm server-side logout:", error);
       }
 
       setIsAuthenticated(false);
@@ -480,6 +547,27 @@ export default function App() {
       setAssignedRoles([]);
       setCurrentRole("applicant");
       setSelectedRequisition(null);
+      setRequisitions([]);
+
+      // Tell other tabs only that authentication ended. Never send
+      // a token, session ID, user data or expiry information.
+      authSyncChannelRef.current?.postMessage({
+        type: AUTH_SYNC_LOGOUT_EVENT,
+      });
+
+      if (isProtectedRoute(location.pathname)) {
+        const returnTo = `${location.pathname}${location.search}${location.hash}`;
+
+        navigate(buildLoginPath(returnTo), {
+          replace: true,
+        });
+      } else {
+        navigate("/login", {
+          replace: true,
+        });
+      }
+
+      authInvalidationInProgressRef.current = false;
     };
 
     window.addEventListener("amp:auth-expired", handleAuthExpired);
@@ -487,7 +575,14 @@ export default function App() {
     return () => {
       window.removeEventListener("amp:auth-expired", handleAuthExpired);
     };
-  }, [isAuthenticated]);
+  }, [
+    isAuthenticated,
+    location.pathname,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
+
   // =========================================================
   // AUTHENTICATION + DIRECT URL BUSINESS RULES
   // =========================================================
@@ -1137,20 +1232,29 @@ export default function App() {
   // =========================================================
 
   const handleLogout = async () => {
+    if (authInvalidationInProgressRef.current) {
+      return;
+    }
+
+    authInvalidationInProgressRef.current = true;
+
     try {
+      // Server-side logout is authoritative. The backend revokes
+      // the session and clears the HttpOnly cookie.
       await logoutUser();
 
       setLoggedInUser(null);
-
       setIsAuthenticated(false);
-
       setCurrentRole("applicant");
-
       setAssignedRoles([]);
-
       setSelectedRequisition(null);
-
       setRequisitions([]);
+
+      // Synchronize logout to other open tabs without exposing any
+      // authentication credential or session information.
+      authSyncChannelRef.current?.postMessage({
+        type: AUTH_SYNC_LOGOUT_EVENT,
+      });
 
       navigate("/login", {
         replace: true,
@@ -1163,6 +1267,8 @@ export default function App() {
           ? error.message
           : "Unable to complete logout. Please try again.",
       );
+    } finally {
+      authInvalidationInProgressRef.current = false;
     }
   };
 
@@ -1177,12 +1283,11 @@ export default function App() {
           <div className="mx-auto mb-5 h-12 w-12 rounded-full border-4 border-slate-200 border-t-emerald-600 animate-spin" />
 
           <h2 className="text-lg font-bold text-slate-800">
-            Verifying Session...
+            Loading...
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Please wait while the WII Access Management Portal verifies your
-            account.
+            Please wait while the WII Access Management Portal loads.
           </p>
         </div>
       </div>
