@@ -1,44 +1,45 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt, { type JwtPayload } from "jsonwebtoken";
 
-import { JWT_SECRET } from "../config/env";
-import { getAuthenticatedUserById } from "../repositories/auth.repository";
+import {
+  getAuthenticatedUserById,
+  getActiveUserRoles,
+} from "../repositories/auth.repository";
+import { validateSession } from "../services/session.service";
 
 // ============================================================
 // AUTHENTICATION MIDDLEWARE
 // ============================================================
 //
-// Authentication flow:
-//
 // Browser
 //   ↓
-// HttpOnly cookie
+// HttpOnly session cookie
 //   ↓
-// JWT signature/expiry verification
+// SHA-256 lookup in server-side session store
+//   ↓
+// Session revocation / absolute expiry / invisible idle validation
 //   ↓
 // Database user verification
+//   ↓
+// Current database role resolution
 //   ↓
 // Trusted req.user identity
 //
 // IMPORTANT:
-// - Database is authoritative for account state.
-// - JWT roles are NOT trusted.
-// - Authorization middleware must resolve current roles
-//   from the database.
+// - Database is authoritative for session and account state.
+// - Browser never receives a JWT or session metadata.
+// - Authorization continues to resolve permissions from the DB.
+// - Bearer/JWT authentication is intentionally not accepted here.
 // ============================================================
 
 export interface AuthenticatedRequest extends Request {
   user?: {
     userId: number;
     email: string;
+    role: string;
   };
 }
 
 const AUTH_COOKIE_NAME = "wii_auth_token";
-
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required.");
-}
 
 // ============================================================
 // COOKIE PARSER
@@ -51,9 +52,7 @@ function getCookie(req: Request, name: string): string | null {
     return null;
   }
 
-  const cookies = cookieHeader.split(";");
-
-  for (const rawCookie of cookies) {
+  for (const rawCookie of cookieHeader.split(";")) {
     const separatorIndex = rawCookie.indexOf("=");
 
     if (separatorIndex === -1) {
@@ -75,7 +74,6 @@ function getCookie(req: Request, name: string): string | null {
     try {
       return decodeURIComponent(rawValue);
     } catch {
-      // Malformed cookie value.
       return null;
     }
   }
@@ -84,60 +82,7 @@ function getCookie(req: Request, name: string): string | null {
 }
 
 // ============================================================
-// TOKEN EXTRACTION
-// ============================================================
-//
-// Preferred:
-//   HttpOnly cookie
-//
-// Temporary compatibility:
-//   Authorization: Bearer <token>
-//
-// The frontend must not persist the JWT itself.
-// ============================================================
-
-function getAuthToken(req: Request): string | null {
-  const cookieToken = getCookie(req, AUTH_COOKIE_NAME);
-
-  if (cookieToken) {
-    return cookieToken;
-  }
-
-  const authHeader = String(req.headers.authorization || "");
-
-  const match = authHeader.match(/^Bearer\s+([^\s]+)$/);
-
-  return match?.[1] || null;
-}
-
-// ============================================================
-// JWT PAYLOAD VALIDATION
-// ============================================================
-
-interface AuthTokenPayload extends JwtPayload {
-  userId: number;
-}
-
-function isValidTokenPayload(
-  payload: string | JwtPayload,
-): payload is AuthTokenPayload {
-  if (typeof payload !== "object" || payload === null) {
-    return false;
-  }
-
-  const userId = Number(
-    (
-      payload as JwtPayload & {
-        userId?: unknown;
-      }
-    ).userId,
-  );
-
-  return Number.isInteger(userId) && userId > 0;
-}
-
-// ============================================================
-// AUTHENTICATE TOKEN
+// AUTHENTICATE SERVER SESSION
 // ============================================================
 
 export async function authenticateToken(
@@ -147,12 +92,12 @@ export async function authenticateToken(
 ): Promise<void | Response> {
   try {
     // ----------------------------------------------------------
-    // 1. Get token.
+    // 1. Read the opaque HttpOnly session cookie.
     // ----------------------------------------------------------
 
-    const token = getAuthToken(req);
+    const sessionToken = getCookie(req, AUTH_COOKIE_NAME);
 
-    if (!token) {
+    if (!sessionToken) {
       return res.status(401).json({
         success: false,
         message: "Authentication is required.",
@@ -160,29 +105,30 @@ export async function authenticateToken(
     }
 
     // ----------------------------------------------------------
-    // 2. Verify JWT.
-    //
-    // Only HS256 is accepted.
-    // Signature + expiry are checked by jsonwebtoken.
+    // 2. Validate against the server-side session store.
     // ----------------------------------------------------------
 
-    const decoded = jwt.verify(token, JWT_SECRET, {
-      algorithms: ["HS256"],
-    });
+    const authenticatedSession = await validateSession(sessionToken);
 
-    if (!isValidTokenPayload(decoded)) {
+    if (!authenticatedSession) {
+      // Remove an unusable cookie. Session details remain server-side.
+      res.clearCookie(AUTH_COOKIE_NAME, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      });
+
       return res.status(401).json({
         success: false,
-        message: "Invalid authentication token.",
+        message: "Your session has ended. Please log in again.",
       });
     }
 
-    const userId = Number(decoded.userId);
+    const userId = authenticatedSession.userId;
 
     // ----------------------------------------------------------
-    // 3. Re-check user from MySQL.
-    //
-    // A valid JWT alone is NOT sufficient.
+    // 3. Re-check the current user from MySQL.
     // ----------------------------------------------------------
 
     const currentUser = await getAuthenticatedUserById(userId);
@@ -190,12 +136,45 @@ export async function authenticateToken(
     if (!currentUser) {
       return res.status(401).json({
         success: false,
-        message: "Authenticated user account could not be found.",
+        message: "Authentication is required.",
       });
     }
 
     // ----------------------------------------------------------
-    // 4. DB is authoritative for activation state.
+    // 4. Resolve CURRENT role directly from MySQL.
+    // ----------------------------------------------------------
+
+    const activeRoles = await getActiveUserRoles(userId);
+
+    if (!activeRoles.length) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "No active role is assigned to this account. Please contact the administrator.",
+      });
+    }
+
+    const databaseRole =
+      activeRoles.find(
+        (role) =>
+          String(role.code || "")
+            .trim()
+            .toLowerCase() === "user",
+      ) || activeRoles[0];
+
+    const currentRole = String(databaseRole.code || "")
+      .trim()
+      .toLowerCase();
+
+    if (!currentRole) {
+      return res.status(403).json({
+        success: false,
+        message: "Unable to determine the active role for this account.",
+      });
+    }
+
+    // ----------------------------------------------------------
+    // 5. DB is authoritative for activation state.
     // ----------------------------------------------------------
 
     if (!currentUser.is_activated) {
@@ -206,7 +185,7 @@ export async function authenticateToken(
     }
 
     // ----------------------------------------------------------
-    // 5. DB is authoritative for account status.
+    // 6. DB is authoritative for account status.
     // ----------------------------------------------------------
 
     if (String(currentUser.status).toLowerCase() !== "active") {
@@ -217,44 +196,23 @@ export async function authenticateToken(
     }
 
     // ----------------------------------------------------------
-    // 6. Attach only trusted identity.
-    //
-    // NEVER attach role information from JWT.
-    // Authorization middleware resolves roles from DB.
+    // 7. Attach only trusted server/database identity.
     // ----------------------------------------------------------
 
     (req as AuthenticatedRequest).user = {
       userId,
       email: currentUser.email,
+      role: currentRole,
     };
 
     return next();
   } catch (error) {
     // ----------------------------------------------------------
-    // Expired JWT.
-    // ----------------------------------------------------------
-
-    if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Your authentication session has expired. Please log in again.",
-      });
-    }
-
-    // ----------------------------------------------------------
-    // Invalid/malformed JWT.
-    // ----------------------------------------------------------
-
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid authentication token.",
-      });
-    }
-
-    // ----------------------------------------------------------
-    // Unexpected server/database error.
+    // Unexpected server/database failure.
+    //
+    // A temporary backend failure is NOT an authentication failure.
+    // Return 500 so the frontend can avoid logging the user out merely
+    // because the server/database is temporarily unavailable.
     // ----------------------------------------------------------
 
     console.error("AUTHENTICATION MIDDLEWARE ERROR:", error);
