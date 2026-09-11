@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 
 import {
   activate,
@@ -13,7 +12,10 @@ import {
   sendRegistrationActivationEmail,
 } from "../services/email.service";
 
-import { JWT_SECRET } from "../config/env";
+import {
+  createUserSession,
+  revokeUserSession,
+} from "../services/session.service";
 
 // ============================================================
 // AUTH CONTROLLER
@@ -21,9 +23,9 @@ import { JWT_SECRET } from "../config/env";
 //
 // Responsibilities:
 // - Receive HTTP request
-// - Call auth service
+// - Call auth/session services
 // - Call email service where required
-// - Establish authenticated browser session
+// - Establish/revoke authenticated browser session
 // - Return safe API responses
 //
 // NOT responsible for:
@@ -31,15 +33,14 @@ import { JWT_SECRET } from "../config/env";
 // - Password hashing / verification
 // - Role assignment
 // - Frontend/localStorage
+// - JWT creation
 //
 // Security principle:
 // Backend + Database are the source of truth.
-// Frontend role/session state is never trusted.
+// Authentication uses an opaque, database-backed session cookie.
 // ============================================================
 
 const AUTH_COOKIE_NAME = "wii_auth_token";
-
-const AUTH_COOKIE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -111,38 +112,73 @@ function getLoginErrorStatus(message: string): number {
 // AUTH COOKIE
 // ============================================================
 //
-// JWT is stored only in an HttpOnly cookie.
+// The cookie contains only an opaque random session token.
 //
 // Frontend JavaScript:
-// - cannot read the token
-// - cannot modify the token
-// - cannot use localStorage as the authentication source
+// - cannot read the token because it is HttpOnly
+// - never receives session metadata
+// - never stores authentication credentials in localStorage
 //
-// Browser automatically sends the cookie with same-origin requests.
+// No maxAge/expires is set intentionally: this is a browser session
+// cookie. Server-side absolute and idle limits remain authoritative.
 // ============================================================
 
-function setAuthCookie(res: Response, token: string): void {
+function setAuthCookie(res: Response, sessionToken: string): void {
   const isProduction = process.env.NODE_ENV === "production";
 
-  res.cookie(AUTH_COOKIE_NAME, token, {
+  res.cookie(AUTH_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
     path: "/",
-    maxAge: AUTH_COOKIE_MAX_AGE,
   });
 }
 
 function clearAuthCookie(res: Response): void {
   const isProduction = process.env.NODE_ENV === "production";
 
-  res.cookie(AUTH_COOKIE_NAME, "", {
+  res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
     path: "/",
-    maxAge: 0,
   });
+}
+
+function getAuthCookie(req: Request): string | null {
+  const cookieHeader = String(req.headers.cookie || "");
+
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const rawCookie of cookieHeader.split(";")) {
+    const separatorIndex = rawCookie.indexOf("=");
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const cookieName = rawCookie.slice(0, separatorIndex).trim();
+
+    if (cookieName !== AUTH_COOKIE_NAME) {
+      continue;
+    }
+
+    const rawValue = rawCookie.slice(separatorIndex + 1).trim();
+
+    if (!rawValue) {
+      return null;
+    }
+
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 // ============================================================
@@ -173,10 +209,6 @@ export async function registerAuth(req: Request, res: Response) {
       });
     }
 
-    // --------------------------------------------------------
-    // Registration must produce activation information.
-    // --------------------------------------------------------
-
     if (!result.userId || !result.email || !result.activationToken) {
       console.error(
         "Registration succeeded but activation data is incomplete.",
@@ -189,10 +221,6 @@ export async function registerAuth(req: Request, res: Response) {
       });
     }
 
-    // --------------------------------------------------------
-    // Send activation email only after successful DB creation.
-    // --------------------------------------------------------
-
     try {
       await sendRegistrationActivationEmail({
         fullName: String(req.body?.fullName || "").trim(),
@@ -202,19 +230,12 @@ export async function registerAuth(req: Request, res: Response) {
     } catch (emailError) {
       console.error("REGISTRATION ACTIVATION EMAIL ERROR:", emailError);
 
-      // Account exists, but user cannot activate without the link.
-      // Do NOT expose the activation token in the API response.
       return res.status(503).json({
         success: false,
         message:
           "Your account was created, but the activation email could not be sent. Please contact the administrator.",
       });
     }
-
-    // --------------------------------------------------------
-    // SECURITY:
-    // Never return activationToken to frontend.
-    // --------------------------------------------------------
 
     return res.status(201).json({
       success: true,
@@ -240,11 +261,6 @@ export async function registerAuth(req: Request, res: Response) {
 // ============================================================
 // GET /api/activate/:token
 // ============================================================
-//
-// Activation is performed completely by the backend.
-//
-// Frontend only displays the result.
-// ============================================================
 
 export async function activateAuth(req: Request, res: Response) {
   try {
@@ -266,17 +282,6 @@ export async function activateAuth(req: Request, res: Response) {
       });
     }
 
-    // --------------------------------------------------------
-    // Activation has already succeeded in the database.
-    //
-    // This email is informational only.
-    // Email failure must NOT undo successful activation.
-    // --------------------------------------------------------
-
-    // Activation is already committed in the database.
-    // Do not block the HTTP response on the informational email.
-    // A slow/unavailable SMTP server must not leave the activation
-    // page stuck while the account is already active.
     if (result.user) {
       void sendActivationSuccessEmail({
         fullName: result.user.fullName,
@@ -314,63 +319,42 @@ export async function activateAuth(req: Request, res: Response) {
 //        ↓
 // Database user/password/status/role validation
 //        ↓
-// JWT generated server-side
+// Secure opaque session generated server-side
 //        ↓
-// HttpOnly cookie
+// SHA-256 hash stored in DB
+//        ↓
+// HttpOnly browser session cookie
 //        ↓
 // Safe user response
 //
-// JWT is NEVER returned to JavaScript.
+// No JWT is created or returned.
 // ============================================================
 
 export async function loginAuth(req: Request, res: Response) {
   try {
-    if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not configured.");
-
-      return res.status(500).json({
-        success: false,
-        message: "Authentication service is not configured correctly.",
-      });
-    }
-
     const result = await login({
       email: req.body?.email,
       password: req.body?.password,
-
-      // This may be used for UI/workflow selection,
-      // but the auth service must validate the requested
-      // role against the database.
       requestedRole: req.body?.requestedRole,
     });
 
     // --------------------------------------------------------
-    // JWT is generated only on the backend.
+    // Create the server-side session only after credentials,
+    // account state and database roles have been validated.
     // --------------------------------------------------------
 
-    const token = jwt.sign(
-      {
-        userId: result.user.id,
-        email: result.user.email,
-        role: result.currentRole.code,
-        roleId: result.currentRole.id,
-      },
-      JWT_SECRET,
-      {
-        expiresIn: "24h",
-        algorithm: "HS256",
-      },
-    );
+    const session = await createUserSession({
+      userId: result.user.id,
+      ipAddress: req.ip || null,
+      userAgent: req.get("user-agent") || null,
+    });
 
-    // --------------------------------------------------------
-    // Store JWT in HttpOnly cookie.
-    // --------------------------------------------------------
-
-    setAuthCookie(res, token);
+    setAuthCookie(res, session.sessionToken);
 
     // --------------------------------------------------------
     // SECURITY:
-    // JWT/token is intentionally NOT included in response.
+    // Raw token and session metadata are never included in the
+    // response body.
     // --------------------------------------------------------
 
     return res.status(200).json({
@@ -397,16 +381,8 @@ export async function loginAuth(req: Request, res: Response) {
 // GET /api/me
 // ============================================================
 //
-// authenticateToken middleware verifies the JWT.
-//
-// IMPORTANT:
-// The user is then loaded again from the DATABASE.
-//
-// Therefore:
-// - deleted user → rejected
-// - deactivated user → rejected
-// - changed roles → DB value is used
-// - stale frontend state → irrelevant
+// authenticateToken middleware has already validated the
+// server-side session and current account state.
 // ============================================================
 
 export async function meAuth(req: Request, res: Response) {
@@ -418,7 +394,7 @@ export async function meAuth(req: Request, res: Response) {
 
       return res.status(401).json({
         success: false,
-        message: "Authenticated user not found.",
+        message: "Authentication is required.",
       });
     }
 
@@ -429,7 +405,7 @@ export async function meAuth(req: Request, res: Response) {
 
       return res.status(401).json({
         success: false,
-        message: "Authenticated user not found.",
+        message: "Authentication is required.",
       });
     }
 
@@ -438,29 +414,13 @@ export async function meAuth(req: Request, res: Response) {
       user: result.user,
     });
   } catch (error) {
-    const message = getErrorMessage(error);
-
     console.error("GET /api/me ERROR:", error);
 
-    const normalized = message.toLowerCase();
-
-    if (
-      normalized.includes("not found") ||
-      normalized.includes("not activated") ||
-      normalized.includes("not active") ||
-      normalized.includes("role")
-    ) {
-      clearAuthCookie(res);
-
-      return res.status(403).json({
-        success: false,
-        message,
-      });
-    }
-
-    return res.status(401).json({
+    // Do not clear a valid browser session merely because the
+    // database/service had a transient failure.
+    return res.status(500).json({
       success: false,
-      message: "Unable to verify the authenticated session.",
+      message: "Unable to verify authentication.",
     });
   }
 }
@@ -469,15 +429,35 @@ export async function meAuth(req: Request, res: Response) {
 // POST /api/logout
 // ============================================================
 //
-// Logout is server-side cookie invalidation.
-// Frontend does not need access to the JWT.
+// Logout revokes the server-side session first, then clears the
+// browser cookie. If the session is already gone, the endpoint
+// remains idempotently successful.
 // ============================================================
 
-export function logoutAuth(_req: Request, res: Response) {
-  clearAuthCookie(res);
+export async function logoutAuth(req: Request, res: Response) {
+  try {
+    const sessionToken = getAuthCookie(req);
 
-  return res.status(200).json({
-    success: true,
-    message: "Logged out successfully.",
-  });
+    if (sessionToken) {
+      await revokeUserSession(sessionToken, "logout");
+    }
+
+    clearAuthCookie(res);
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully.",
+    });
+  } catch (error) {
+    console.error("POST /api/logout ERROR:", error);
+
+    // The browser cookie is still cleared so the client does not
+    // continue presenting a possibly unusable credential.
+    clearAuthCookie(res);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to complete logout.",
+    });
+  }
 }
