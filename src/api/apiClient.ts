@@ -38,7 +38,12 @@ const SESSION_PROBE_PATH = "/api/me";
 const SESSION_PROBE_MAX_ATTEMPTS = 3;
 const SESSION_PROBE_RETRY_DELAY_MS = 500;
 
+const AUTH_SYNC_CHANNEL_NAME = "amp-auth-sync";
+const AUTH_SYNC_STORAGE_KEY = "amp_auth_sync_event";
+
 let installed = false;
+let authSyncInitialized = false;
+let authSyncChannel: BroadcastChannel | null = null;
 
 // ============================================================
 // URL HELPERS
@@ -61,14 +66,6 @@ function isPublicApiPath(pathname: string): boolean {
     return true;
   }
 
-  // ----------------------------------------------------------
-  // Dynamic activation URL
-  //
-  // /api/activate/:token
-  //
-  // Activation does NOT require authentication.
-  // ----------------------------------------------------------
-
   if (pathname.startsWith("/api/activate/")) {
     return true;
   }
@@ -83,51 +80,121 @@ function isSessionProbePath(pathname: string): boolean {
 // ============================================================
 // AUTH SESSION HELPERS
 // ============================================================
-//
-// JavaScript cannot read the HttpOnly authentication cookie.
-// Therefore getAuthToken() intentionally returns null.
-//
-// Authentication state is determined by the backend /api/me check
-// and by the response from protected API requests.
-// ============================================================
 
-/**
- * Compatibility helper.
- * Authentication tokens are intentionally inaccessible to frontend JS.
- */
 export function getAuthToken(): null {
   return null;
 }
 
-/**
- * Clear client-side authentication state.
- *
- * The real browser session is cleared by POST /api/logout. This helper
- * only informs the application that an already-authenticated protected
- * request was rejected by the backend.
- */
 export function clearAuthSession(): void {
-  notifyAuthExpired();
+  notifyAuthExpired(true);
 }
 
 // ============================================================
-// AUTH EXPIRY EVENT
+// AUTH EXPIRY / CROSS-TAB SYNCHRONIZATION
 // ============================================================
 //
-// This event is ONLY for a protected API request made while the
-// application already considers the user authenticated and the backend
-// explicitly responds with 401.
+// Only a small logout/invalidation event is synchronized. No token,
+// session ID, user information or expiry information is ever stored or
+// broadcast to other tabs.
 //
-// /api/me MUST NEVER trigger this event because it is a session probe.
+// BroadcastChannel is preferred. A storage-event fallback covers browsers
+// where BroadcastChannel is unavailable. The fallback contains only a
+// timestamped event marker and is not authentication state.
 // ============================================================
 
-function notifyAuthExpired(): void {
+function dispatchAuthExpired(): void {
   if (typeof window === "undefined") {
     return;
   }
 
   window.dispatchEvent(new CustomEvent("amp:auth-expired"));
 }
+
+function initializeAuthSync(): void {
+  if (
+    authSyncInitialized ||
+    typeof window === "undefined" ||
+    typeof window.addEventListener !== "function"
+  ) {
+    return;
+  }
+
+  authSyncInitialized = true;
+
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      authSyncChannel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+
+      authSyncChannel.addEventListener("message", (event: MessageEvent) => {
+        if (event.data?.type === "logout") {
+          dispatchAuthExpired();
+        }
+      });
+    } catch {
+      authSyncChannel = null;
+    }
+  }
+
+  window.addEventListener("storage", (event: StorageEvent) => {
+    if (event.key !== AUTH_SYNC_STORAGE_KEY || !event.newValue) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(event.newValue) as { type?: string };
+
+      if (payload.type === "logout") {
+        dispatchAuthExpired();
+      }
+    } catch {
+      // Ignore malformed synchronization events.
+    }
+  });
+}
+
+/**
+ * Tell all other open application tabs that authentication has ended.
+ * No credential or session metadata is included.
+ */
+export function broadcastAuthLogout(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  initializeAuthSync();
+
+  const event = {
+    type: "logout",
+    at: Date.now(),
+  };
+
+  try {
+    authSyncChannel?.postMessage(event);
+  } catch {
+    // Storage fallback below remains available.
+  }
+
+  try {
+    window.localStorage.setItem(AUTH_SYNC_STORAGE_KEY, JSON.stringify(event));
+    window.localStorage.removeItem(AUTH_SYNC_STORAGE_KEY);
+  } catch {
+    // Cross-tab sync is best-effort UX; the server session remains authoritative.
+  }
+}
+
+function notifyAuthExpired(broadcast = false): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  dispatchAuthExpired();
+
+  if (broadcast) {
+    broadcastAuthLogout();
+  }
+}
+
+initializeAuthSync();
 
 // ============================================================
 // FETCH INSTALLATION
@@ -162,24 +229,13 @@ export function installAuthenticatedFetch(): void {
 
     const response = await originalFetch(input, requestInit);
 
-    // ----------------------------------------------------------
-    // PROTECTED API SESSION INVALIDATION
-    // ----------------------------------------------------------
-    //
-    // Only an explicit 401 from a protected API means the backend has
-    // rejected the current authenticated session.
-    //
-    // Network failures and 5xx responses are NOT converted into logout.
-    // /api/me is a probe and is also excluded.
-    // ----------------------------------------------------------
-
     if (
       isApiRequest(url) &&
       !isPublicApiPath(pathname) &&
       !isSessionProbePath(pathname) &&
       response.status === 401
     ) {
-      notifyAuthExpired();
+      notifyAuthExpired(true);
     }
 
     return response;
@@ -196,17 +252,6 @@ function wait(milliseconds: number): Promise<void> {
   });
 }
 
-/**
- * Probe /api/me without turning temporary infrastructure failures into
- * authentication failures.
- *
- * Returns:
- *   true  -> backend explicitly confirmed the session
- *   false -> backend explicitly rejected the session (401/403), or the
- *            probe could not be completed after the small retry budget
- *
- * No session metadata is exposed to the UI.
- */
 export async function validateStoredSession(): Promise<boolean> {
   if (typeof window === "undefined") {
     return false;
@@ -227,14 +272,8 @@ export async function validateStoredSession(): Promise<boolean> {
       }
 
       if (response.status === 401 || response.status === 403) {
-        // The backend explicitly says there is no valid authenticated
-        // session. This does not emit amp:auth-expired because /api/me is
-        // the authoritative initial/session probe.
         return false;
       }
-
-      // 5xx/other responses are treated as transient infrastructure
-      // failures and retried instead of immediately forcing logout.
     } catch {
       // Network/server connectivity failure does not prove that the
       // server-side session is invalid. Retry silently.
