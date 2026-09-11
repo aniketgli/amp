@@ -32,9 +32,8 @@ const PUBLIC_API_PATHS = new Set([
 ]);
 
 const SESSION_PROBE_PATH = "/api/me";
+const LOGOUT_PATH = "/api/logout";
 
-// A temporary network/backend failure must not be treated as an expired
-// session. The probe is retried a small number of times before it gives up.
 const SESSION_PROBE_MAX_ATTEMPTS = 3;
 const SESSION_PROBE_RETRY_DELAY_MS = 500;
 
@@ -44,10 +43,6 @@ const AUTH_SYNC_STORAGE_KEY = "amp_auth_sync_event";
 let installed = false;
 let authSyncInitialized = false;
 let authSyncChannel: BroadcastChannel | null = null;
-
-// ============================================================
-// URL HELPERS
-// ============================================================
 
 function isApiRequest(url: string): boolean {
   return url.startsWith("/api/") || url.includes("/api/");
@@ -93,13 +88,8 @@ export function clearAuthSession(): void {
 // AUTH EXPIRY / CROSS-TAB SYNCHRONIZATION
 // ============================================================
 //
-// Only a small logout/invalidation event is synchronized. No token,
-// session ID, user information or expiry information is ever stored or
-// broadcast to other tabs.
-//
-// BroadcastChannel is preferred. A storage-event fallback covers browsers
-// where BroadcastChannel is unavailable. The fallback contains only a
-// timestamped event marker and is not authentication state.
+// Only a logout/invalidation event is synchronized. No token, session ID,
+// user information or expiry information is ever stored or broadcast.
 // ============================================================
 
 function dispatchAuthExpired(): void {
@@ -152,10 +142,6 @@ function initializeAuthSync(): void {
   });
 }
 
-/**
- * Tell all other open application tabs that authentication has ended.
- * No credential or session metadata is included.
- */
 export function broadcastAuthLogout(): void {
   if (typeof window === "undefined") {
     return;
@@ -171,7 +157,7 @@ export function broadcastAuthLogout(): void {
   try {
     authSyncChannel?.postMessage(event);
   } catch {
-    // Storage fallback below remains available.
+    // Storage fallback remains available.
   }
 
   try {
@@ -229,10 +215,15 @@ export function installAuthenticatedFetch(): void {
 
     const response = await originalFetch(input, requestInit);
 
+    if (pathname === LOGOUT_PATH && response.ok) {
+      broadcastAuthLogout();
+    }
+
     if (
       isApiRequest(url) &&
       !isPublicApiPath(pathname) &&
       !isSessionProbePath(pathname) &&
+      pathname !== LOGOUT_PATH &&
       response.status === 401
     ) {
       notifyAuthExpired(true);
@@ -287,15 +278,7 @@ export async function validateStoredSession(): Promise<boolean> {
   return false;
 }
 
-// ============================================================
-// INSTALL TRANSPORT
-// ============================================================
-
 installAuthenticatedFetch();
-
-// ============================================================
-// GENERIC JSON API HELPER
-// ============================================================
 
 export async function apiRequest<T>(
   input: RequestInfo | URL,
