@@ -15,17 +15,13 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Touch-optimized smooth scrolling for horizontal overflow containers */
 .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   touch-action: pan-x pan-y;
 }
 
-/* Hide scrollbars for clean tab bars where desired */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -33,18 +29,13 @@ html, body {
   touch-action: pan-x pan-y;
 }
 
-/* Ensure long text, hashes, URLs, and emails break cleanly on mobile */
 .break-words-custom {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-/* Smooth transitions for theme & modal popovers */
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-/* Navbar Navigation Buttons */
 .nav-button {
   display: inline-flex;
   align-items: center;
@@ -71,10 +62,8 @@ html, body {
    ============================================================ */
 
 /* Required-field stars are rendered by the profile form itself.
-   Do not add another star through CSS; this prevents duplicate ** markers. */
+   No CSS-generated star is added, preventing duplicate ** markers. */
 
-/* The photo area uses the simple user placeholder instead of displaying
-   an existing/demo profile image. The upload/change control remains active. */
 .profile-form img[alt="Profile"] {
   display: none !important;
 }
@@ -96,8 +85,6 @@ html, body {
   background-position: center;
 }
 
-/* Profile save/validation error follows the portal's light rose alert theme,
-   matching the authentication error presentation. */
 .profile-form ~ .profile-error,
 body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] {
   background-color: #fff1f2 !important;
@@ -121,8 +108,6 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
   flex-direction: column;
 }
 
-/* Keep the profile error directly above the form, below the page header.
-   This avoids the Tailwind left-1/2 selector that caused CSS optimizer warnings. */
 .space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > div[class*="fixed"] {
   position: static !important;
   inset: auto !important;
@@ -156,39 +141,40 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
 /* ============================================================
    Profile section titles
    ============================================================
-   The form already renders the required section names. Hide only the
-   numeric prefixes and replace the complete heading text consistently.
+   Numeric prefixes are hidden. The actual title is selected by the
+   section icon, so the correct title remains correct even when Bank
+   Details is conditionally hidden.
 */
-.profile-form > div:nth-of-type(1) h2,
-.profile-form > div:nth-of-type(2) h2,
-.profile-form > div:nth-of-type(3) h2,
-.profile-form > div:nth-of-type(4) h2 {
+.profile-form h2:has(svg.lucide-user),
+.profile-form h2:has(svg.lucide-map-pin),
+.profile-form h2:has(svg.lucide-credit-card),
+.profile-form h2:has(svg.lucide-briefcase) {
   font-size: 0 !important;
 }
 
-.profile-form > div:nth-of-type(1) h2::after {
+.profile-form h2:has(svg.lucide-user)::after {
   content: "Personal Details";
   font-size: 0.75rem;
 }
 
-.profile-form > div:nth-of-type(2) h2::after {
+.profile-form h2:has(svg.lucide-map-pin)::after {
   content: "Address Details";
   font-size: 0.75rem;
 }
 
-.profile-form > div:nth-of-type(3) h2::after {
+.profile-form h2:has(svg.lucide-credit-card)::after {
   content: "Bank Details";
   font-size: 0.75rem;
 }
 
-.profile-form > div:nth-of-type(4) h2::after {
+.profile-form h2:has(svg.lucide-briefcase)::after {
   content: "Official Details";
   font-size: 0.75rem;
 }
 
-.profile-form > div:nth-of-type(1) h2 svg,
-.profile-form > div:nth-of-type(2) h2 svg,
-.profile-form > div:nth-of-type(3) h2 svg,
-.profile-form > div:nth-of-type(4) h2 svg {
+.profile-form h2:has(svg.lucide-user) svg,
+.profile-form h2:has(svg.lucide-map-pin) svg,
+.profile-form h2:has(svg.lucide-credit-card) svg,
+.profile-form h2:has(svg.lucide-briefcase) svg {
   font-size: 1rem !important;
 }
