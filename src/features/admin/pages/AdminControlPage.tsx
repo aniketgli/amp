@@ -349,6 +349,9 @@ const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [
 ];
 
 
+function MasterStatusBadge({status}:{status:string}){return <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">{status}</span>;}
+function ManagementTable({headers,rows,render}:{headers:string[];rows:any[];render:(item:any)=>React.ReactNode}){return <div className="overflow-x-auto border rounded-xl"><table className="w-full text-left text-xs"><thead><tr>{headers.map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{rows.length===0?<tr><td colSpan={headers.length} className="p-8 text-center">No records found.</td></tr>:rows.map(item=><tr key={item.id}>{render(item)}</tr>)}</tbody></table></div>;}
+
 function ProfileMastersPanel() {
   const [tab, setTab] = useState<ProfileMasterTab>("employment");
   const [employmentTypes, setEmploymentTypes] = useState<any[]>([]);
