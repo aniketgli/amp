@@ -32,7 +32,7 @@ jobs:
           marker='/* =========================================================\n   COMPONENT\n========================================================= */'
           if marker not in s: raise SystemExit('component marker not found')
           s=s.replace(marker,dec('.github/profile-ui-sync/types.gz.b64')+'\n'+dec('.github/profile-ui-sync/panel.gz.b64')+'\n'+marker,1)
-          pattern=re.compile(r'\n      \{/\* =====================================================\n          PROFILE MASTERS\n      ===================================================== \*/.*?(?=\n      /\* =====================================================\n          SECURITY AUDIT)',re.S)
+          pattern=re.compile(r'\n      \{/\* =====================================================\n          PROFILE MASTERS\n      ===================================================== \*/.*?(?=\n      \{/\* =====================================================)',re.S)
           replacement='\n      {/* =====================================================\n          PROFILE MASTERS\n      ===================================================== */}\n\n      {activeSubTab === "profile_masters" && <ProfileMastersPanel />}\n'
           s,n=pattern.subn(replacement,s,count=1)
           if n!=1: raise SystemExit(f'profile section replacement count={n}')
