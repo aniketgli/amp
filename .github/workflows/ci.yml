@@ -43,3 +43,4 @@ jobs:
         run: npm run build
 
 # Production-readiness branch validation enabled.
+# Final profile integration verification trigger.
