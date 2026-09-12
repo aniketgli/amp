@@ -1,143 +1,38 @@
 import type { Express } from "express";
-
 import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
+import * as controller from "../controllers/profile-master-admin.controller";
 
-import {
-  getAdminOrgUnits,
-  getAdminBanks,
-  getAdminBatches,
-  createOrgUnit,
-  updateOrgUnit,
-  updateOrgUnitStatus,
-  createBank,
-  updateBank,
-  updateBankStatus,
-  createBatch,
-  updateBatch,
-  updateBatchStatus,
-} from "../controllers/profile-master-admin.controller";
-
-const requireAdministrator = requireRole("administrator");
+const administrator = requireRole("administrator");
 
 export function registerProfileMasterAdminRoutes(app: Express) {
-  /*
-   * Every master-data operation requires:
-   *
-   * Authentication
-   *        ↓
-   * Administrator role from DB
-   *        ↓
-   * Controller
-   *
-   * Frontend role checks are NOT security boundaries.
-   */
-
-  // =========================================================
-  // ORGANIZATION UNITS
-  // =========================================================
-
-  // Admin list — includes active + inactive records
-  app.get(
-    "/api/admin/profile-masters/org-units",
-    authenticateToken,
-    requireAdministrator,
-    getAdminOrgUnits,
-  );
-
-  // Create
-  app.post(
-    "/api/admin/profile-masters/org-units",
-    authenticateToken,
-    requireAdministrator,
-    createOrgUnit,
-  );
-
-  // Update
-  app.put(
-    "/api/admin/profile-masters/org-units/:id",
-    authenticateToken,
-    requireAdministrator,
-    updateOrgUnit,
-  );
-
-  // Activate / deactivate
-  app.patch(
-    "/api/admin/profile-masters/org-units/:id/status",
-    authenticateToken,
-    requireAdministrator,
-    updateOrgUnitStatus,
-  );
-
-  // =========================================================
-  // BANKS
-  // =========================================================
-
-  // Admin list — includes active + inactive records
-  app.get(
-    "/api/admin/profile-masters/banks",
-    authenticateToken,
-    requireAdministrator,
-    getAdminBanks,
-  );
-
-  // Create
-  app.post(
-    "/api/admin/profile-masters/banks",
-    authenticateToken,
-    requireAdministrator,
-    createBank,
-  );
-
-  // Update
-  app.put(
-    "/api/admin/profile-masters/banks/:id",
-    authenticateToken,
-    requireAdministrator,
-    updateBank,
-  );
-
-  // Activate / deactivate
-  app.patch(
-    "/api/admin/profile-masters/banks/:id/status",
-    authenticateToken,
-    requireAdministrator,
-    updateBankStatus,
-  );
-
-  // =========================================================
-  // BATCHES
-  // =========================================================
-
-  // Admin list — includes active + inactive records
-  app.get(
-    "/api/admin/profile-masters/batches",
-    authenticateToken,
-    requireAdministrator,
-    getAdminBatches,
-  );
-
-  // Create
-  app.post(
-    "/api/admin/profile-masters/batches",
-    authenticateToken,
-    requireAdministrator,
-    createBatch,
-  );
-
-  // Update
-  app.put(
-    "/api/admin/profile-masters/batches/:id",
-    authenticateToken,
-    requireAdministrator,
-    updateBatch,
-  );
-
-  // Activate / deactivate
-  app.patch(
-    "/api/admin/profile-masters/batches/:id/status",
-    authenticateToken,
-    requireAdministrator,
-    updateBatchStatus,
-  );
+  app.get("/api/admin/profile-masters/employment-types", authenticateToken, administrator, controller.getAdminEmploymentTypes);
+  app.get("/api/admin/profile-masters/org-units", authenticateToken, administrator, controller.getAdminOrgUnits);
+  app.post("/api/admin/profile-masters/org-units", authenticateToken, administrator, controller.createOrgUnit);
+  app.put("/api/admin/profile-masters/org-units/:id", authenticateToken, administrator, controller.updateOrgUnit);
+  app.patch("/api/admin/profile-masters/org-units/:id/status", authenticateToken, administrator, controller.updateOrgUnitStatus);
+  app.get("/api/admin/profile-masters/banks", authenticateToken, administrator, controller.getAdminBanks);
+  app.post("/api/admin/profile-masters/banks", authenticateToken, administrator, controller.createBank);
+  app.put("/api/admin/profile-masters/banks/:id", authenticateToken, administrator, controller.updateBank);
+  app.patch("/api/admin/profile-masters/banks/:id/status", authenticateToken, administrator, controller.updateBankStatus);
+  app.get("/api/admin/profile-masters/designations", authenticateToken, administrator, controller.getAdminDesignations);
+  app.post("/api/admin/profile-masters/designations", authenticateToken, administrator, controller.createDesignation);
+  app.put("/api/admin/profile-masters/designations/:id", authenticateToken, administrator, controller.updateDesignation);
+  app.patch("/api/admin/profile-masters/designations/:id/status", authenticateToken, administrator, controller.updateDesignationStatus);
+  app.get("/api/admin/profile-masters/streams", authenticateToken, administrator, controller.getAdminStreams);
+  app.post("/api/admin/profile-masters/streams", authenticateToken, administrator, controller.createStream);
+  app.put("/api/admin/profile-masters/streams/:id", authenticateToken, administrator, controller.updateStream);
+  app.patch("/api/admin/profile-masters/streams/:id/status", authenticateToken, administrator, controller.updateStreamStatus);
+  app.get("/api/admin/profile-masters/msc-batches", authenticateToken, administrator, controller.getAdminMscBatches);
+  app.post("/api/admin/profile-masters/msc-batches", authenticateToken, administrator, controller.createMscBatch);
+  app.put("/api/admin/profile-masters/msc-batches/:id", authenticateToken, administrator, controller.updateMscBatch);
+  app.patch("/api/admin/profile-masters/msc-batches/:id/status", authenticateToken, administrator, controller.updateMscBatchStatus);
+  app.get("/api/admin/profile-masters/courses", authenticateToken, administrator, controller.getAdminCourses);
+  app.post("/api/admin/profile-masters/courses", authenticateToken, administrator, controller.createCourse);
+  app.put("/api/admin/profile-masters/courses/:id", authenticateToken, administrator, controller.updateCourse);
+  app.patch("/api/admin/profile-masters/courses/:id/status", authenticateToken, administrator, controller.updateCourseStatus);
+  app.get("/api/admin/profile-masters/trainee-batches", authenticateToken, administrator, controller.getAdminTraineeBatches);
+  app.post("/api/admin/profile-masters/trainee-batches", authenticateToken, administrator, controller.createTraineeBatch);
+  app.put("/api/admin/profile-masters/trainee-batches/:id", authenticateToken, administrator, controller.updateTraineeBatch);
+  app.patch("/api/admin/profile-masters/trainee-batches/:id/status", authenticateToken, administrator, controller.updateTraineeBatchStatus);
 }
