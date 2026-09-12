@@ -1,0 +1,41 @@
+name: Final Profile Fix v10
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v10]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Normalize profile imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          f=Path('src/features/profile/pages/UserProfilePage.tsx');s=f.read_text()
+          s=s.replace('  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n','')
+          s=re.sub(r'(?:import type \{ ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream \} from "@/types/profile";\n)+','import type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";\n',s)
+          f.write_text(s)
+          print('profile imports normalized')
+          PY
+          git diff --check
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'ERROR: no profile changes staged'; exit 1; }
+          git commit -m 'fix: normalize profile master imports [skip profile-v10]'
+          git rm -f .github/workflows/finalize-profile-v9.yml .github/workflows/finalize-profile-v10.yml
+          git commit -m 'chore: remove temporary profile integration workflows [skip profile-v10]'
+          git push origin production-readiness-cleanup
