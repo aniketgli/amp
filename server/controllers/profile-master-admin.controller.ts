@@ -1,281 +1,38 @@
 import type { Request, Response } from "express";
+import * as service from "../services/profile-master-admin.service";
 
-import {
-  listAdminOrgUnits,
-  listAdminBanks,
-  listAdminBatches,
-  addOrgUnit,
-  editOrgUnit,
-  changeOrgUnitStatus,
-  addBank,
-  editBank,
-  changeBankStatus,
-  addBatch,
-  editBatch,
-  changeBatchStatus,
-} from "../services/profile-master-admin.service";
+function message(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
+function id(req: Request) { return req.params.id; }
+function ok(res: Response, data: unknown, messageText?: string, status = 200) { return res.status(status).json({ success: true, ...(messageText ? { message: messageText } : {}), data }); }
+function fail(res: Response, error: unknown, fallback: string) { return res.status(400).json({ success: false, message: message(error, fallback) }); }
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
+export async function getAdminEmploymentTypes(_req: Request, res: Response) { try { return ok(res, await service.listAdminEmploymentTypes()); } catch (e) { return fail(res,e,"Unable to load employment types."); } }
+export async function getAdminOrgUnits(_req: Request, res: Response) { try { return ok(res, await service.listAdminOrgUnits()); } catch (e) { return fail(res,e,"Unable to load organizations."); } }
+export async function getAdminBanks(_req: Request, res: Response) { try { return ok(res, await service.listAdminBanks()); } catch (e) { return fail(res,e,"Unable to load banks."); } }
+export async function getAdminDesignations(_req: Request, res: Response) { try { return ok(res, await service.listAdminDesignations()); } catch (e) { return fail(res,e,"Unable to load designations."); } }
+export async function getAdminStreams(_req: Request, res: Response) { try { return ok(res, await service.listAdminStreams()); } catch (e) { return fail(res,e,"Unable to load streams."); } }
+export async function getAdminMscBatches(_req: Request, res: Response) { try { return ok(res, await service.listAdminMscBatches()); } catch (e) { return fail(res,e,"Unable to load MSc batches."); } }
+export async function getAdminCourses(_req: Request, res: Response) { try { return ok(res, await service.listAdminCourses()); } catch (e) { return fail(res,e,"Unable to load courses."); } }
+export async function getAdminTraineeBatches(_req: Request, res: Response) { try { return ok(res, await service.listAdminTraineeBatches()); } catch (e) { return fail(res,e,"Unable to load trainee batches."); } }
 
-function getId(req: Request): string | undefined {
-  return req.params.id;
-}
-
-/* =========================
-   ADMIN MASTER LISTS
-   ========================= */
-
-/**
- * Returns all organization units, including inactive records.
- *
- * This endpoint is administrator-only at the route layer.
- * It intentionally differs from the normal profile master GET API,
- * which returns active records only.
- */
-export async function getAdminOrgUnits(_req: Request, res: Response) {
-  try {
-    const data = await listAdminOrgUnits();
-
-    return res.json({
-      success: true,
-      data,
-    });
-  } catch (error) {
-    console.error("GET ADMIN profile org units ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to load organization units."),
-    });
-  }
-}
-
-/**
- * Returns all banks, including inactive records.
- */
-export async function getAdminBanks(_req: Request, res: Response) {
-  try {
-    const data = await listAdminBanks();
-
-    return res.json({
-      success: true,
-      data,
-    });
-  } catch (error) {
-    console.error("GET ADMIN profile banks ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to load banks."),
-    });
-  }
-}
-
-/**
- * Returns all batches, including inactive records.
- */
-export async function getAdminBatches(_req: Request, res: Response) {
-  try {
-    const data = await listAdminBatches();
-
-    return res.json({
-      success: true,
-      data,
-    });
-  } catch (error) {
-    console.error("GET ADMIN profile batches ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to load batches."),
-    });
-  }
-}
-
-/* =========================
-   ORGANIZATION UNITS
-   ========================= */
-
-export async function createOrgUnit(req: Request, res: Response) {
-  try {
-    const data = await addOrgUnit(req.body);
-
-    return res.status(201).json({
-      success: true,
-      message: "Organization unit created successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("CREATE profile org unit ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to create organization unit."),
-    });
-  }
-}
-
-export async function updateOrgUnit(req: Request, res: Response) {
-  try {
-    const data = await editOrgUnit(getId(req), req.body);
-
-    return res.json({
-      success: true,
-      message: "Organization unit updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile org unit ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to update organization unit."),
-    });
-  }
-}
-
-export async function updateOrgUnitStatus(req: Request, res: Response) {
-  try {
-    const data = await changeOrgUnitStatus(getId(req), req.body?.status);
-
-    return res.json({
-      success: true,
-      message: "Organization unit status updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile org unit status ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(
-        error,
-        "Unable to update organization unit status.",
-      ),
-    });
-  }
-}
-
-/* =========================
-   BANKS
-   ========================= */
-
-export async function createBank(req: Request, res: Response) {
-  try {
-    const data = await addBank(req.body);
-
-    return res.status(201).json({
-      success: true,
-      message: "Bank created successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("CREATE profile bank ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to create bank."),
-    });
-  }
-}
-
-export async function updateBank(req: Request, res: Response) {
-  try {
-    const data = await editBank(getId(req), req.body);
-
-    return res.json({
-      success: true,
-      message: "Bank updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile bank ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to update bank."),
-    });
-  }
-}
-
-export async function updateBankStatus(req: Request, res: Response) {
-  try {
-    const data = await changeBankStatus(getId(req), req.body?.status);
-
-    return res.json({
-      success: true,
-      message: "Bank status updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile bank status ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to update bank status."),
-    });
-  }
-}
-
-/* =========================
-   BATCHES
-   ========================= */
-
-export async function createBatch(req: Request, res: Response) {
-  try {
-    const data = await addBatch(req.body);
-
-    return res.status(201).json({
-      success: true,
-      message: "Batch created successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("CREATE profile batch ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to create batch."),
-    });
-  }
-}
-
-export async function updateBatch(req: Request, res: Response) {
-  try {
-    const data = await editBatch(getId(req), req.body);
-
-    return res.json({
-      success: true,
-      message: "Batch updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile batch ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to update batch."),
-    });
-  }
-}
-
-export async function updateBatchStatus(req: Request, res: Response) {
-  try {
-    const data = await changeBatchStatus(getId(req), req.body?.status);
-
-    return res.json({
-      success: true,
-      message: "Batch status updated successfully.",
-      data,
-    });
-  } catch (error) {
-    console.error("UPDATE profile batch status ERROR:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: getErrorMessage(error, "Unable to update batch status."),
-    });
-  }
-}
+export async function createOrgUnit(req: Request,res:Response){try{return ok(res,await service.addOrgUnit(req.body),"Organization created successfully.",201);}catch(e){return fail(res,e,"Unable to create organization.");}}
+export async function updateOrgUnit(req:Request,res:Response){try{return ok(res,await service.editOrgUnit(id(req),req.body),"Organization updated successfully.");}catch(e){return fail(res,e,"Unable to update organization.");}}
+export async function updateOrgUnitStatus(req:Request,res:Response){try{return ok(res,await service.changeOrgUnitStatus(id(req),req.body?.status),"Organization status updated successfully.");}catch(e){return fail(res,e,"Unable to update organization status.");}}
+export async function createBank(req:Request,res:Response){try{return ok(res,await service.addBank(req.body),"Bank created successfully.",201);}catch(e){return fail(res,e,"Unable to create bank.");}}
+export async function updateBank(req:Request,res:Response){try{return ok(res,await service.editBank(id(req),req.body),"Bank updated successfully.");}catch(e){return fail(res,e,"Unable to update bank.");}}
+export async function updateBankStatus(req:Request,res:Response){try{return ok(res,await service.changeBankStatus(id(req),req.body?.status),"Bank status updated successfully.");}catch(e){return fail(res,e,"Unable to update bank status.");}}
+export async function createDesignation(req:Request,res:Response){try{return ok(res,await service.addDesignation(req.body),"Designation created successfully.",201);}catch(e){return fail(res,e,"Unable to create designation.");}}
+export async function updateDesignation(req:Request,res:Response){try{return ok(res,await service.editDesignation(id(req),req.body),"Designation updated successfully.");}catch(e){return fail(res,e,"Unable to update designation.");}}
+export async function updateDesignationStatus(req:Request,res:Response){try{return ok(res,await service.changeDesignationStatus(id(req),req.body?.status),"Designation status updated successfully.");}catch(e){return fail(res,e,"Unable to update designation status.");}}
+export async function createStream(req:Request,res:Response){try{return ok(res,await service.addStream(req.body),"Stream created successfully.",201);}catch(e){return fail(res,e,"Unable to create stream.");}}
+export async function updateStream(req:Request,res:Response){try{return ok(res,await service.editStream(id(req),req.body),"Stream updated successfully.");}catch(e){return fail(res,e,"Unable to update stream.");}}
+export async function updateStreamStatus(req:Request,res:Response){try{return ok(res,await service.changeStreamStatus(id(req),req.body?.status),"Stream status updated successfully.");}catch(e){return fail(res,e,"Unable to update stream status.");}}
+export async function createMscBatch(req:Request,res:Response){try{return ok(res,await service.addMscBatch(req.body),"MSc batch created successfully.",201);}catch(e){return fail(res,e,"Unable to create MSc batch.");}}
+export async function updateMscBatch(req:Request,res:Response){try{return ok(res,await service.editMscBatch(id(req),req.body),"MSc batch updated successfully.");}catch(e){return fail(res,e,"Unable to update MSc batch.");}}
+export async function updateMscBatchStatus(req:Request,res:Response){try{return ok(res,await service.changeMscBatchStatus(id(req),req.body?.status),"MSc batch status updated successfully.");}catch(e){return fail(res,e,"Unable to update MSc batch status.");}}
+export async function createCourse(req:Request,res:Response){try{return ok(res,await service.addCourse(req.body),"Course created successfully.",201);}catch(e){return fail(res,e,"Unable to create course.");}}
+export async function updateCourse(req:Request,res:Response){try{return ok(res,await service.editCourse(id(req),req.body),"Course updated successfully.");}catch(e){return fail(res,e,"Unable to update course.");}}
+export async function updateCourseStatus(req:Request,res:Response){try{return ok(res,await service.changeCourseStatus(id(req),req.body?.status),"Course status updated successfully.");}catch(e){return fail(res,e,"Unable to update course status.");}}
+export async function createTraineeBatch(req:Request,res:Response){try{return ok(res,await service.addTraineeBatch(req.body),"Trainee batch created successfully.",201);}catch(e){return fail(res,e,"Unable to create trainee batch.");}}
+export async function updateTraineeBatch(req:Request,res:Response){try{return ok(res,await service.editTraineeBatch(id(req),req.body),"Trainee batch updated successfully.");}catch(e){return fail(res,e,"Unable to update trainee batch.");}}
+export async function updateTraineeBatchStatus(req:Request,res:Response){try{return ok(res,await service.changeTraineeBatchStatus(id(req),req.body?.status),"Trainee batch status updated successfully.");}catch(e){return fail(res,e,"Unable to update trainee batch status.");}}
