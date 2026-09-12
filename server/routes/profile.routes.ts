@@ -2,7 +2,7 @@ import type { Express } from "express";
 
 import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
-
+import { validateProfileUpdate } from "../middleware/profile-update-validation";
 import { profilePhotoUpload } from "../middleware/upload";
 
 import {
@@ -32,7 +32,12 @@ export function registerProfileRoutes(app: Express) {
 
   app.get("/api/profile", authenticateToken, getMyProfile);
 
-  app.put("/api/profile", authenticateToken, updateMyProfile);
+  app.put(
+    "/api/profile",
+    authenticateToken,
+    validateProfileUpdate,
+    updateMyProfile,
+  );
 
   /* ==========================================================
      CURRENT USER PROFILE PHOTO
