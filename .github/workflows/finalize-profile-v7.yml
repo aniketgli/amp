@@ -1,0 +1,43 @@
+name: Final Profile Fix v7
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v7]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Deduplicate profile imports and validate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          f=Path('src/features/profile/pages/UserProfilePage.tsx');s=f.read_text()
+          names=['getDesignations','getMscBatches','getCourses','getTraineeBatches','getStreams']
+          for n in names:
+              s=re.sub(rf'(?:  {n},\n)+',f'  {n},\n',s)
+          types='import type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";'
+          s=re.sub(r'(?:import type \{ ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream \} from "@/types/profile";\n)+',types+'\n',s)
+          f.write_text(s)
+          print('imports normalized')
+          PY
+          git diff --check
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts src/features/admin/pages/AdminControlPage.tsx server/services/profile-master-admin.service.ts
+          git diff --cached --check
+          git commit -m 'fix: normalize final profile integration imports [skip profile-v7]'
+          git rm -f .github/workflows/finalize-profile-integration.yml .github/workflows/finalize-profile-fixes.yml .github/workflows/finalize-profile-fixes-v2.yml .github/workflows/finalize-profile-fixes-v3.yml .github/workflows/finalize-profile-v4.yml .github/workflows/finalize-profile-v5.yml .github/workflows/finalize-profile-v6.yml .github/workflows/finalize-profile-v7.yml
+          git commit -m 'chore: remove temporary profile finalizer workflows [skip profile-v7]'
+          git push origin production-readiness-cleanup
