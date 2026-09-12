@@ -1,4 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
+import {
+  getAdminProfileEmploymentTypes,
+  getAdminProfileOrgUnits,
+  getAdminProfileBanks,
+  getAdminProfileDesignations,
+  getAdminProfileStreams,
+  getAdminProfileMscBatches,
+  getAdminProfileCourses,
+  getAdminProfileTraineeBatches,
+  createProfileOrgUnit,
+  updateProfileOrgUnit,
+  updateProfileOrgUnitStatus,
+  createProfileBank,
+  updateProfileBank,
+  updateProfileBankStatus,
+  createProfileDesignation,
+  updateProfileDesignation,
+  updateProfileDesignationStatus,
+  createProfileStream,
+  updateProfileStream,
+  updateProfileStreamStatus,
+  createProfileMscBatch,
+  updateProfileMscBatch,
+  updateProfileMscBatchStatus,
+  createProfileCourse,
+  updateProfileCourse,
+  updateProfileCourseStatus,
+  createProfileTraineeBatch,
+  updateProfileTraineeBatch,
+  updateProfileTraineeBatchStatus,
+} from "@/api/profile.api";
 import { RequisitionRecord, UserRole } from "@/types";
 import { recordSecurityAuditLog } from "@/services/auditLogger";
 import { SecurityAuditTrailSection } from "../components/SecurityAuditTrailSection";
@@ -288,6 +319,261 @@ const SYSTEM_ROLES = [
     name: "Administrator",
   },
 ];
+
+type ProfileMasterTab =
+  | "employment"
+  | "banks"
+  | "designations"
+  | "organizations"
+  | "streams"
+  | "msc_batches"
+  | "courses"
+  | "trainee_batches";
+
+type MasterFormMode = "create" | "edit";
+
+interface ProfileMasterFormState {
+  mode: MasterFormMode;
+  id: number | null;
+}
+
+const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [
+  { key: "employment", label: "Employment Type" },
+  { key: "banks", label: "Bank Master" },
+  { key: "designations", label: "Designation Master" },
+  { key: "organizations", label: "Organization Master" },
+  { key: "streams", label: "Stream Master" },
+  { key: "msc_batches", label: "MSc Batch Master" },
+  { key: "courses", label: "Course Master" },
+  { key: "trainee_batches", label: "Trainee Batch Master" },
+];
+
+
+function ProfileMastersPanel() {
+  const [tab, setTab] = useState<ProfileMasterTab>("employment");
+  const [employmentTypes, setEmploymentTypes] = useState<any[]>([]);
+  const [banks, setBanks] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [streams, setStreams] = useState<any[]>([]);
+  const [mscBatches, setMscBatches] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [traineeBatches, setTraineeBatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<ProfileMasterFormState>({ mode: "create", id: null });
+  const [modal, setModal] = useState<ProfileMasterTab | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [et, b, d, o, s, mb, c, tb] = await Promise.all([
+        getAdminProfileEmploymentTypes(),
+        getAdminProfileBanks(),
+        getAdminProfileDesignations(),
+        getAdminProfileOrgUnits(),
+        getAdminProfileStreams(),
+        getAdminProfileMscBatches(),
+        getAdminProfileCourses(),
+        getAdminProfileTraineeBatches(),
+      ]);
+      setEmploymentTypes(et);
+      setBanks(b);
+      setDesignations(d);
+      setOrganizations(o);
+      setStreams(s);
+      setMscBatches(mb);
+      setCourses(c);
+      setTraineeBatches(tb);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load profile masters.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const closeModal = () => {
+    if (saving) return;
+    setModal(null);
+    setForm({ mode: "create", id: null });
+    setValues({});
+  };
+
+  const nextBatchNumber = (kind: "msc" | "trainee", parentId: string) => {
+    if (!parentId) return "1";
+    const source = kind === "msc" ? mscBatches : traineeBatches;
+    const key = kind === "msc" ? "streamId" : "courseId";
+    const numbers = source.filter((item) => String(item[key]) === parentId).map((item) => Number(item.batchNumber));
+    return String(numbers.length ? Math.max(...numbers) + 1 : 1);
+  };
+
+  const openCreate = (target: ProfileMasterTab) => {
+    setForm({ mode: "create", id: null });
+    const base: Record<string, string> = {};
+    if (target === "organizations") base.unitType = "department";
+    if (target === "msc_batches") {
+      base.streamId = streams[0] ? String(streams[0].id) : "";
+      base.batchNumber = nextBatchNumber("msc", base.streamId);
+      base.validityStartYear = String(new Date().getFullYear());
+      base.validityEndYear = String(new Date().getFullYear() + 2);
+    }
+    if (target === "trainee_batches") {
+      base.courseId = courses[0] ? String(courses[0].id) : "";
+      base.batchNumber = nextBatchNumber("trainee", base.courseId);
+      base.validityStartYear = String(new Date().getFullYear());
+      base.validityEndYear = String(new Date().getFullYear() + 1);
+    }
+    if (target === "designations") base.employmentTypeId = employmentTypes[0] ? String(employmentTypes[0].id) : "";
+    setValues(base);
+    setModal(target);
+  };
+
+  const openEdit = (target: ProfileMasterTab, item: any) => {
+    setForm({ mode: "edit", id: Number(item.id) });
+    const v: Record<string, string> = {};
+    if (target === "banks") { v.bankName = item.bankName; v.bankCode = item.bankCode; }
+    if (target === "organizations") { v.unitType = item.unitType; v.unitName = item.unitName; v.unitCode = item.unitCode; v.description = item.description || ""; }
+    if (target === "designations") { v.employmentTypeId = String(item.employmentTypeId); v.designationName = item.designationName; v.designationCode = item.designationCode; }
+    if (target === "streams") { v.streamName = item.streamName; v.streamCode = item.streamCode; }
+    if (target === "courses") { v.courseName = item.courseName; v.courseCode = item.courseCode; }
+    if (target === "msc_batches") { v.streamId = String(item.streamId); v.batchNumber = String(item.batchNumber); v.batchName = item.batchName; v.batchCode = item.batchCode; v.validityStartYear = String(item.validityStartYear); v.validityEndYear = String(item.validityEndYear); }
+    if (target === "trainee_batches") { v.courseId = String(item.courseId); v.batchNumber = String(item.batchNumber); v.batchName = item.batchName; v.batchCode = item.batchCode; v.validityStartYear = String(item.validityStartYear); v.validityEndYear = String(item.validityEndYear); }
+    setValues(v);
+    setModal(target);
+  };
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!modal || modal === "employment") return;
+    setSaving(true);
+    setError(null);
+    try {
+      const id = form.id as number;
+      if (modal === "banks") {
+        const p = { bankName: values.bankName?.trim() || "", bankCode: values.bankCode?.trim() || "" };
+        if (!p.bankName || !p.bankCode) throw new Error("Bank Name and Bank Code are required.");
+        form.mode === "edit" ? await updateProfileBank(id, p) : await createProfileBank(p);
+      } else if (modal === "organizations") {
+        const p = { unitType: values.unitType as any, unitName: values.unitName?.trim() || "", unitCode: values.unitCode?.trim() || "", description: values.description?.trim() || null };
+        if (!p.unitName || !p.unitCode) throw new Error("Organization Name and Organization Code are required.");
+        form.mode === "edit" ? await updateProfileOrgUnit(id, p) : await createProfileOrgUnit(p);
+      } else if (modal === "designations") {
+        const p = { employmentTypeId: Number(values.employmentTypeId), designationName: values.designationName?.trim() || "", designationCode: values.designationCode?.trim() || "" };
+        if (!p.employmentTypeId || !p.designationName || !p.designationCode) throw new Error("Employment Type, Designation Name and Designation Code are required.");
+        form.mode === "edit" ? await updateProfileDesignation(id, p) : await createProfileDesignation(p);
+      } else if (modal === "streams") {
+        const p = { streamName: values.streamName?.trim() || "", streamCode: values.streamCode?.trim() || "" };
+        if (!p.streamName || !p.streamCode) throw new Error("Stream Name and Stream Code are required.");
+        form.mode === "edit" ? await updateProfileStream(id, p) : await createProfileStream(p);
+      } else if (modal === "courses") {
+        const p = { courseName: values.courseName?.trim() || "", courseCode: values.courseCode?.trim() || "" };
+        if (!p.courseName || !p.courseCode) throw new Error("Course Name and Course Code are required.");
+        form.mode === "edit" ? await updateProfileCourse(id, p) : await createProfileCourse(p);
+      } else if (modal === "msc_batches") {
+        const p = { streamId: Number(values.streamId), batchNumber: Number(values.batchNumber), batchName: values.batchName?.trim() || "", batchCode: values.batchCode?.trim() || "", validityStartYear: Number(values.validityStartYear), validityEndYear: Number(values.validityEndYear) };
+        if (!p.streamId || !p.batchNumber || !p.batchName || !p.batchCode || !p.validityStartYear || !p.validityEndYear) throw new Error("All MSc batch fields are required.");
+        form.mode === "edit" ? await updateProfileMscBatch(id, p) : await createProfileMscBatch(p);
+      } else if (modal === "trainee_batches") {
+        const p = { courseId: Number(values.courseId), batchNumber: Number(values.batchNumber), batchName: values.batchName?.trim() || "", batchCode: values.batchCode?.trim() || "", validityStartYear: Number(values.validityStartYear), validityEndYear: Number(values.validityEndYear) };
+        if (!p.courseId || !p.batchNumber || !p.batchName || !p.batchCode || !p.validityStartYear || !p.validityEndYear) throw new Error("All trainee batch fields are required.");
+        form.mode === "edit" ? await updateProfileTraineeBatch(id, p) : await createProfileTraineeBatch(p);
+      }
+      await load();
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save profile master.");
+    } finally { setSaving(false); }
+  };
+
+  const toggle = async (target: ProfileMasterTab, item: any) => {
+    if (target === "employment") return;
+    const next = item.status === "active" ? "inactive" : "active";
+    try {
+      if (target === "banks") await updateProfileBankStatus(item.id, next);
+      else if (target === "organizations") await updateProfileOrgUnitStatus(item.id, next);
+      else if (target === "designations") await updateProfileDesignationStatus(item.id, next);
+      else if (target === "streams") await updateProfileStreamStatus(item.id, next);
+      else if (target === "msc_batches") await updateProfileMscBatchStatus(item.id, next);
+      else if (target === "courses") await updateProfileCourseStatus(item.id, next);
+      else if (target === "trainee_batches") await updateProfileTraineeBatchStatus(item.id, next);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to change status."); }
+  };
+
+  const input = (key: string, label: string, requiredField = true, type = "text") => (
+    <div>
+      <label className="block text-[11px] font-bold text-slate-600 mb-1">{label}{requiredField ? " *" : ""}</label>
+      <input required={requiredField} type={type} value={values[key] || ""} onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))} className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white" />
+    </div>
+  );
+  const select = (key: string, label: string, options: any[], valueKey: string, labelKey: string) => (
+    <div>
+      <label className="block text-[11px] font-bold text-slate-600 mb-1">{label} *</label>
+      <select required value={values[key] || ""} onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))} className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white">
+        <option value="">Select {label}</option>
+        {options.map((o) => <option key={o.id} value={o[valueKey]}>{o[labelKey]}</option>)}
+      </select>
+    </div>
+  );
+
+  const renderTable = () => {
+    if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><td className="p-3 text-right text-[10px] font-bold text-slate-400">System Defined</td></>} />;
+    if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} /></>} />;
+    if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} /></>} />;
+    if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3 capitalize">{item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} /></>} />;
+    if (tab === "streams") return <ManagementTable headers={["Stream Name", "Stream Code", "Status", "Actions"]} rows={streams} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-mono text-slate-600">{item.streamCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("streams", item)} onToggle={() => void toggle("streams", item)} /></>} />;
+    if (tab === "msc_batches") return <ManagementTable headers={["Stream", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={mscBatches} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("msc_batches", item)} onToggle={() => void toggle("msc_batches", item)} /></>} />;
+    if (tab === "courses") return <ManagementTable headers={["Course Name", "Course Code", "Status", "Actions"]} rows={courses} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-mono text-slate-600">{item.courseCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("courses", item)} onToggle={() => void toggle("courses", item)} /></>} />;
+    return <ManagementTable headers={["Course", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={traineeBatches} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("trainee_batches", item)} onToggle={() => void toggle("trainee_batches", item)} /></>} />;
+  };
+
+  const modalTitle = tab === "banks" ? "Bank" : tab === "designations" ? "Designation" : tab === "organizations" ? "Organization" : tab === "streams" ? "Stream" : tab === "msc_batches" ? "MSc Batch" : tab === "courses" ? "Course" : "Trainee Batch";
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+      <div className="flex flex-wrap justify-between items-start gap-4 border-b border-slate-200 pb-4">
+        <div><h2 className="font-extrabold text-slate-900 flex items-center gap-2"><Database className="w-5 h-5 text-purple-600" />Profile Masters</h2><p className="text-xs text-slate-500 mt-1">Central database masters used by the user profile module.</p></div>
+        <button type="button" onClick={() => void load()} disabled={loading} className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{loading ? "Refreshing..." : "Refresh"}</button>
+      </div>
+      {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">{error}</div>}
+      <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-slate-200">
+        {MASTER_TABS.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`shrink-0 px-3 py-2.5 text-[11px] font-bold border-b-2 ${tab === item.key ? "border-purple-700 text-purple-700" : "border-transparent text-slate-500 hover:text-slate-800"}`}>{item.label}</button>)}
+      </div>
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div><h3 className="font-bold text-slate-800">{MASTER_TABS.find((x) => x.key === tab)?.label}</h3><p className="text-[11px] text-slate-500 mt-1">{tab === "employment" ? "System-defined employment types; values cannot be added or deleted." : "Manage active and inactive master records from the database."}</p></div>
+        {tab !== "employment" && <button type="button" onClick={() => openCreate(tab)} className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"><PlusCircle className="w-4 h-4" />Add New</button>}
+      </div>
+      {loading ? <div className="py-12 text-center text-sm text-slate-500">Loading profile masters...</div> : renderTable()}
+
+      {modal && modal !== "employment" && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
+          <form onSubmit={save} className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-5"><div><h3 className="font-extrabold text-slate-900">{form.mode === "edit" ? `Edit ${modalTitle}` : `Add ${modalTitle}`}</h3><p className="text-[11px] text-slate-500 mt-1">Changes are saved to the database.</p></div><button type="button" onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-4 h-4" /></button></div>
+            <div className="space-y-4">
+              {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}
+              {modal === "organizations" && <>{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
+              {modal === "designations" && <>{select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}
+              {modal === "streams" && <>{input("streamName", "Stream Name")} {input("streamCode", "Stream Code")}</>}
+              {modal === "courses" && <>{input("courseName", "Course Name")} {input("courseCode", "Course Code")}</>}
+              {modal === "msc_batches" && <>{select("streamId", "Stream", streams.filter((x) => x.status === "active"), "id", "streamName")} {input("batchNumber", "Batch Number", true, "number")} {input("batchName", "Batch Name")} {input("batchCode", "Batch Code")} <div className="grid grid-cols-2 gap-3">{input("validityStartYear", "Validity From", true, "number")}{input("validityEndYear", "Validity To", true, "number")}</div></>}
+              {modal === "trainee_batches" && <>{select("courseId", "Course", courses.filter((x) => x.status === "active"), "id", "courseName")} {input("batchNumber", "Batch Number", true, "number")} {input("batchName", "Batch Name")} {input("batchCode", "Batch Code")} <div className="grid grid-cols-2 gap-3">{input("validityStartYear", "Validity From", true, "number")}{input("validityEndYear", "Validity To", true, "number")}</div></>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5"><button type="button" onClick={closeModal} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold">Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold disabled:opacity-50">{saving ? "Saving..." : form.mode === "edit" ? "Save Changes" : "Add"}</button></div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionCell({ item, onEdit, onToggle }: { item: any; onEdit: () => void; onToggle: () => void }) {
+  return <td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={onEdit} className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg" title="Edit"><Edit3 className="w-4 h-4" /></button><button type="button" onClick={onToggle} className={`px-2 py-1 rounded text-[10px] font-bold ${item.status === "active" ? "text-red-600 hover:bg-red-50" : "text-emerald-700 hover:bg-emerald-50"}`}>{item.status === "active" ? "Deactivate" : "Activate"}</button></div></td>;
+}
 
 /* =========================================================
    COMPONENT
@@ -2142,455 +2428,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           PROFILE MASTERS
       ===================================================== */}
 
-      {activeSubTab === "profile_masters" && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
-          <div className="flex flex-wrap justify-between items-start gap-4 border-b border-slate-200 pb-4">
-            <div>
-              <h2 className="font-extrabold text-slate-900 flex items-center gap-2">
-                <Database className="w-5 h-5 text-purple-600" />
-                Profile Masters
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Central profile master data used by the user profile module.
-                Changes are persisted in the database through administrator-only
-                APIs.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={fetchProfileMasters}
-              disabled={profileMastersLoading}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {profileMastersLoading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-
-          {profileMastersError && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
-              {profileMastersError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            {[
-              ["org_units", "Organization Units", profileOrgUnits.length],
-              ["banks", "Banks", profileBanks.length],
-              ["batches", "Batches", profileBatches.length],
-              ["series", "Batch Series", profileBatchSeries.length],
-              ["employment", "Employment Types", profileEmploymentTypes.length],
-              ["officers", "Profile Officers", profileOfficers.length],
-            ].map(([key, label, count]) => (
-              <div
-                key={String(key)}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-3"
-              >
-                <div className="text-[10px] uppercase tracking-wide font-bold text-slate-500">
-                  {label}
-                </div>
-                <div className="text-xl font-extrabold text-slate-900 mt-1">
-                  {count}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-            {[
-              ["org_units", "Organization Units"],
-              ["banks", "Banks"],
-              ["batches", "Batches"],
-            ].map(([key, label]) => (
-              <button
-                key={String(key)}
-                type="button"
-                onClick={() =>
-                  setProfileMasterSection(key as ProfileMasterSection)
-                }
-                className={`px-3 py-2 rounded-lg text-xs font-bold ${
-                  profileMasterSection === key
-                    ? "bg-purple-700 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {profileMasterSection === "org_units" && (
-            <section>
-              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <div>
-                  <h3 className="font-bold text-slate-800">
-                    Organization Unit Master
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Department, cell and project values used by profile forms.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openAddProfileMaster("org_units")}
-                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Add Unit
-                </button>
-              </div>
-
-              {profileOrgUnits.length === 0 ? (
-                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
-                  No organization units found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b">
-                      <tr>
-                        <th className="p-3">Type</th>
-                        <th className="p-3">Name</th>
-                        <th className="p-3">Description</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {profileOrgUnits.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="p-3 font-semibold uppercase">
-                            {item.unitType}
-                          </td>
-                          <td className="p-3 font-bold text-slate-900">
-                            {item.unitName}
-                          </td>
-                          <td className="p-3 text-slate-500">
-                            {item.description || "—"}
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-1 rounded text-[10px] font-bold ${
-                                item.status === "active"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {item.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEditProfileOrgUnit(item)}
-                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
-                                title="Edit organization unit"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleProfileMasterStatus(
-                                    "org_units",
-                                    item,
-                                  )
-                                }
-                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
-                              >
-                                {item.status === "active"
-                                  ? "Deactivate"
-                                  : "Activate"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          )}
-
-          {profileMasterSection === "banks" && (
-            <section>
-              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <div>
-                  <h3 className="font-bold text-slate-800">Bank Master</h3>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Banks available for profile bank details.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openAddProfileMaster("banks")}
-                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Add Bank
-                </button>
-              </div>
-
-              {profileBanks.length === 0 ? (
-                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
-                  No banks found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b">
-                      <tr>
-                        <th className="p-3">Bank Name</th>
-                        <th className="p-3">Bank Code</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {profileBanks.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-900">
-                            {item.bankName}
-                          </td>
-                          <td className="p-3 font-mono text-slate-600">
-                            {item.bankCode || "—"}
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-1 rounded text-[10px] font-bold ${
-                                item.status === "active"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {item.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEditProfileBank(item)}
-                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
-                                title="Edit bank"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleProfileMasterStatus("banks", item)
-                                }
-                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
-                              >
-                                {item.status === "active"
-                                  ? "Deactivate"
-                                  : "Activate"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          )}
-
-          {profileMasterSection === "batches" && (
-            <section>
-              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <div>
-                  <h3 className="font-bold text-slate-800">Batch Master</h3>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    MSc and Diploma Trainee batches are maintained separately by
-                    batch series.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openAddProfileMaster("batches")}
-                  disabled={profileBatchSeries.length === 0}
-                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:bg-slate-300"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Add Batch
-                </button>
-              </div>
-
-              {profileBatches.length === 0 ? (
-                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
-                  No batches found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b">
-                      <tr>
-                        <th className="p-3">Series</th>
-                        <th className="p-3">Batch No.</th>
-                        <th className="p-3">Label</th>
-                        <th className="p-3">Period</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {profileBatches.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="p-3">
-                            <div className="font-bold">{item.seriesName}</div>
-                            <div className="text-[10px] text-slate-500">
-                              {item.seriesType}
-                            </div>
-                          </td>
-                          <td className="p-3 font-bold">{item.batchNumber}</td>
-                          <td className="p-3 text-slate-600">
-                            {item.batchLabel || "—"}
-                          </td>
-                          <td className="p-3 text-slate-600">
-                            {item.startYear || "—"} – {item.endYear || "—"}
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-1 rounded text-[10px] font-bold ${
-                                item.status === "active"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {item.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEditProfileBatch(item)}
-                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
-                                title="Edit batch"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleProfileMasterStatus(
-                                    "batches",
-                                    item,
-                                  )
-                                }
-                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
-                              >
-                                {item.status === "active"
-                                  ? "Deactivate"
-                                  : "Activate"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              <div className="mt-6 grid md:grid-cols-2 gap-4">
-                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                  <h4 className="font-bold text-sm text-slate-800">
-                    Batch Series
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-1 mb-3">
-                    Series are backend master configuration and read-only here.
-                  </p>
-                  <div className="space-y-2">
-                    {profileBatchSeries.map((series) => (
-                      <div
-                        key={series.id}
-                        className="flex justify-between items-center bg-white border border-slate-200 rounded-lg p-3"
-                      >
-                        <div>
-                          <div className="font-semibold text-xs">
-                            {series.seriesName}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            {series.seriesType}
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-700">
-                          {series.status.toUpperCase()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                  <h4 className="font-bold text-sm text-slate-800">
-                    Profile Officers
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-1 mb-3">
-                    Officers, managers and PIs come from users and database
-                    roles.
-                  </p>
-                  <div className="max-h-56 overflow-y-auto space-y-2">
-                    {profileOfficers.map((officer) => (
-                      <div
-                        key={officer.id}
-                        className="bg-white border border-slate-200 rounded-lg p-3"
-                      >
-                        <div className="font-semibold text-xs">
-                          {officer.fullName}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {officer.email || "—"}
-                        </div>
-                        {Array.isArray(officer.roles) &&
-                          officer.roles.length > 0 && (
-                            <div className="text-[10px] text-purple-700 mt-1">
-                              {officer.roles.join(", ")}
-                            </div>
-                          )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <div className="border-t border-slate-200 pt-5">
-            <h3 className="font-bold text-slate-800 text-sm">
-              Employment Types
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Employment types are system master values and are read-only from
-              this control panel.
-            </p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {profileEmploymentTypes.map((item) => {
-                const label =
-                  item.name ||
-                  item.label ||
-                  item.employmentType ||
-                  item.code ||
-                  "Unnamed employment type";
-
-                return (
-                  <span
-                    key={item.id}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700"
-                  >
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      {activeSubTab === "profile_masters" && <ProfileMastersPanel />}
 
       {/* =====================================================
           FACILITIES + SERVICES MASTER
