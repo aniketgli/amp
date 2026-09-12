@@ -66,3 +66,54 @@ html, body {
   background-color: rgb(30 41 59 / 0.8);
 }
 
+/* ============================================================
+   Profile page visual corrections
+   ============================================================ */
+
+/* Required-field stars must always be visible, before and after Save. */
+.profile-form label:not([title])::after {
+  content: " *" !important;
+  color: #dc2626 !important;
+  font-weight: 700 !important;
+}
+
+/* The photo area uses the simple user placeholder instead of displaying
+   an existing/demo profile image. The upload/change control remains active. */
+.profile-form img[alt="Profile"] {
+  display: none !important;
+}
+
+.profile-form .relative:has(> img[alt="Profile"])::before {
+  content: "";
+  display: flex;
+  width: 9rem;
+  height: 9rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background-color: #e2e8f0;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  outline: 1px solid #e2e8f0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21a8 8 0 0 0-16 0'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Profile save/validation error follows the portal's light rose alert theme,
+   matching the authentication error presentation. */
+.profile-form ~ .profile-error,
+body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] {
+  background-color: #fff1f2 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+}
+
+body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] svg {
+  color: #e11d48 !important;
+}
+
+body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
+  color: #881337 !important;
+}
+
