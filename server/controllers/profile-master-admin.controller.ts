@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import * as service from "../services/profile-master-admin.service";
+import { listBatches } from "../services/profile-master.service";
 
 function message(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
 function id(req: Request) { return req.params.id; }
@@ -15,7 +16,18 @@ export async function getAdminMscBatches(_req: Request, res: Response) { try { r
 export async function getAdminCourses(_req: Request, res: Response) { try { return ok(res, await service.listAdminCourses()); } catch (e) { return fail(res,e,"Unable to load courses."); } }
 export async function getAdminTraineeBatches(_req: Request, res: Response) { try { return ok(res, await service.listAdminTraineeBatches()); } catch (e) { return fail(res,e,"Unable to load trainee batches."); } }
 
-export async function createOrgUnit(req: Request,res:Response){try{return ok(res,await service.addOrgUnit(req.body),"Organization created successfully.",201);}catch(e){return fail(res,e,"Unable to create organization.");}}
+// Compatibility read for the older AdminControlPage while the UI is migrated to
+// the separate MSc/Trainee batch masters. This is intentionally read-only here.
+export async function getLegacyBatches(req: Request, res: Response) {
+  try {
+    const seriesType = typeof req.query.seriesType === "string" ? req.query.seriesType : undefined;
+    return ok(res, await listBatches(seriesType as any));
+  } catch (e) {
+    return fail(res, e, "Unable to load batches.");
+  }
+}
+
+export async function createOrgUnit(req:Request,res:Response){try{return ok(res,await service.addOrgUnit(req.body),"Organization created successfully.",201);}catch(e){return fail(res,e,"Unable to create organization.");}}
 export async function updateOrgUnit(req:Request,res:Response){try{return ok(res,await service.editOrgUnit(id(req),req.body),"Organization updated successfully.");}catch(e){return fail(res,e,"Unable to update organization.");}}
 export async function updateOrgUnitStatus(req:Request,res:Response){try{return ok(res,await service.changeOrgUnitStatus(id(req),req.body?.status),"Organization status updated successfully.");}catch(e){return fail(res,e,"Unable to update organization status.");}}
 export async function createBank(req:Request,res:Response){try{return ok(res,await service.addBank(req.body),"Bank created successfully.",201);}catch(e){return fail(res,e,"Unable to create bank.");}}
