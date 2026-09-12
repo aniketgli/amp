@@ -35,4 +35,7 @@ export function registerProfileMasterAdminRoutes(app: Express) {
   app.post("/api/admin/profile-masters/trainee-batches", authenticateToken, administrator, controller.createTraineeBatch);
   app.put("/api/admin/profile-masters/trainee-batches/:id", authenticateToken, administrator, controller.updateTraineeBatch);
   app.patch("/api/admin/profile-masters/trainee-batches/:id/status", authenticateToken, administrator, controller.updateTraineeBatchStatus);
+
+  // Temporary read compatibility for the legacy Profile Masters UI.
+  app.get("/api/admin/profile-masters/batches", authenticateToken, administrator, controller.getLegacyBatches);
 }
