@@ -1,0 +1,50 @@
+name: Final Profile Fix v8
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v8]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Fix final TypeScript errors
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          f=Path('src/features/admin/pages/AdminControlPage.tsx');s=f.read_text()
+          if 'function ManagementTable(' not in s:
+              m='function ProfileMastersPanel() {'
+              h='''function MasterStatusBadge({status}:{status:string}){return <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">{status}</span>;}\nfunction ManagementTable({headers,rows,render}:{headers:string[];rows:any[];render:(item:any)=>React.ReactNode}){return <div className="overflow-x-auto border rounded-xl"><table className="w-full text-left text-xs"><thead><tr>{headers.map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{rows.length===0?<tr><td colSpan={headers.length} className="p-8 text-center">No records found.</td></tr>:rows.map(item=><tr key={item.id}>{render(item)}</tr>)}</tbody></table></div>;}\n\n'''
+              if m not in s: raise SystemExit('profile panel marker missing')
+              s=s.replace(m,h+m,1)
+              f.write_text(s)
+          f=Path('server/services/profile-master-admin.service.ts');s=f.read_text()
+          old='if((await db.query(`SELECT id FROM ${table} WHERE ${parentColumn}=? AND batch_number=? ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[parentId,batchNumber,excludeId]:[parentId,batchNumber]))[0]?.length)throw new Error("This batch number already exists for the selected parent.");'
+          new='const [numberRows]:any=await db.query(`SELECT id FROM ${table} WHERE ${parentColumn}=? AND batch_number=? ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[parentId,batchNumber,excludeId]:[parentId,batchNumber]);if((numberRows as any[])?.length)throw new Error("This batch number already exists for the selected parent.");'
+          s=s.replace(old,new,1)
+          old='if((await db.query(`SELECT id FROM ${table} WHERE LOWER(TRIM(batch_code))=LOWER(TRIM(?)) ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[batchCode,excludeId]:[batchCode]))[0]?.length)throw new Error("This batch code already exists.");'
+          new='const [codeRows]:any=await db.query(`SELECT id FROM ${table} WHERE LOWER(TRIM(batch_code))=LOWER(TRIM(?)) ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[batchCode,excludeId]:[batchCode]);if((codeRows as any[])?.length)throw new Error("This batch code already exists.");'
+          s=s.replace(old,new,1)
+          f.write_text(s)
+          print('final TS fixes applied')
+          PY
+          git diff --check
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts src/features/admin/pages/AdminControlPage.tsx server/services/profile-master-admin.service.ts
+          git diff --cached --check
+          git commit -m 'fix: complete profile masters TypeScript integration [skip profile-v8]'
+          git rm -f .github/workflows/finalize-profile-integration.yml .github/workflows/finalize-profile-fixes.yml .github/workflows/finalize-profile-fixes-v2.yml .github/workflows/finalize-profile-fixes-v3.yml .github/workflows/finalize-profile-v4.yml .github/workflows/finalize-profile-v5.yml .github/workflows/finalize-profile-v6.yml .github/workflows/finalize-profile-v7.yml .github/workflows/finalize-profile-v8.yml
+          git commit -m 'chore: remove temporary profile finalizer workflows [skip profile-v8]'
+          git push origin production-readiness-cleanup
