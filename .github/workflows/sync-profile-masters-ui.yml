@@ -1,0 +1,64 @@
+name: Sync Profile Masters UI
+
+on:
+  push:
+    branches:
+      - production-readiness-cleanup
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-masters-sync]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+
+      - name: Patch AdminControlPage
+        env:
+          IMPORTS_GZ_B64: 'H4sIAAarpWoC/41Ty07DMBC89yusniPyAVzaQm9URUn7AZazCSviB/YaKar4d+yGiiDHJbf1zM7Y3tWgNNoSq4ALKtiFeQf7toV4COUBpL4WNXEC9sVaqyVb29i9flzhKL6sGOuAto1E9Wp1iz3spen1IEHRaTDgirTjaLuzQpqjdly9z+HP4LBTnFCrObqm8C45xxyc2HESb7MPedLeulnmZDkqgIlUhBsI/v4g4t40i/E4Sp+6xU8nkiyYMZlMKJEt5DLO43AT4V04Y3XbRqL6l8gYjhtMVHfhjNV05YlyMXkzv+VlU3KDpRkbH0I9yU6I3odHh3H2FQhtm4KdHdhK97+B25QUYzSV2WtvDcJbpGHrG6QX3U0UweMTBbiS/3Ad2GDwDX9iMOnxAwAA'
+          TYPES_GZ_B64: 'H4sIAAarpWoC/22Su26DQBBFe75iRO0vALkwidOhRIHOsqwFxs7K+7CWpSAO/57huYDpmMs9s/Oy9QPhy+grFxiz0qJJWQZ7D+APfJQPoWuJyvq9kDF1L4fvAkt+U8xyrUZJmxtT/HehldYgk2Mky/ySMZv/4KjkujLlFFnDuEKcPKHn2bbCvrQPbWSsC4Q9cZTWot+VWXDbOrkiz5Xlq4ZaKrFkhic9IokPVvlC0nkRgKpkhoZSqkqI0Gs8L6dGLMSHJD1+X9JDlATwhDvWwcvMQhAsQxEANczVDZrTmco8UeYBmE9zN5r94yRCSo360OxmSD9v544oHmpfORfbcMC7k7e55coc+DnTt8lxsY5JOmXbPV+8I+Ikh6hVt6HxNhzw1inb7vXtOCrt/7w+daar+QfuaW4sAgMAAA=='
+          PANEL_GZ_B64: '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'
+        run: |
+          python - <<'PY'
+          import base64, gzip, os, re
+          path = 'src/features/admin/pages/AdminControlPage.tsx'
+          s = open(path, encoding='utf-8').read()
+          def dec(name):
+              return gzip.decompress(base64.b64decode(os.environ[name])).decode('utf-8')
+          imports = dec('IMPORTS_GZ_B64')
+          types = dec('TYPES_GZ_B64')
+          panel = dec('PANEL_GZ_B64')
+          react_line = 'import React, { useEffect, useMemo, useState } from "react";\n'
+          req_line = 'import { RequisitionRecord, UserRole } from "@/types";\n'
+          audit_line = 'import { recordSecurityAuditLog } from "@/services/auditLogger";\n'
+          s = s.replace(req_line, '', 1)
+          s = s.replace(audit_line, '', 1)
+          s = s.replace(react_line, imports, 1)
+          marker = '/* =========================================================\n   COMPONENT\n========================================================= */'
+          if marker not in s:
+              raise SystemExit('component marker not found')
+          s = s.replace(marker, types + '\n' + panel + '\n' + marker, 1)
+          profile_marker = re.compile(r'\n      /\* =====================================================\n          PROFILE MASTERS\n      ===================================================== \*/.*?(?=\n      /\* =====================================================\n          SECURITY AUDIT)', re.S)
+          replacement = '\n      {/* =====================================================\n          PROFILE MASTERS\n      ===================================================== */}\n\n      {activeSubTab === "profile_masters" && <ProfileMastersPanel />}\n'
+          s, n = profile_marker.subn(replacement, s, count=1)
+          if n != 1:
+              raise SystemExit(f'profile section replacement count={n}')
+          open(path, 'w', encoding='utf-8').write(s)
+          print('patched', len(s))
+          PY
+
+      - name: Commit UI patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/admin/pages/AdminControlPage.tsx
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: finalize profile masters admin UI [skip profile-masters-sync]'
+          git push origin production-readiness-cleanup
