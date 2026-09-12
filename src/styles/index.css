@@ -117,3 +117,40 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
   color: #881337 !important;
 }
 
+/* ============================================================
+   Profile validation alert placement
+   ============================================================ */
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) {
+  display: flex;
+  flex-direction: column;
+}
+
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  order: 2;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  background: #fff1f2 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
+}
+
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 svg {
+  color: #e11d48 !important;
+}
+
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 strong {
+  color: #9f1239 !important;
+}
+
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .bg-slate-900 {
+  order: 1;
+}
+
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .profile-form {
+  order: 3;
+}
