@@ -4,7 +4,6 @@ import { db } from "../db/connection";
 export interface ApplicantProfileRecord {
   id?: number;
   userId: number | string;
-
   profilePhotoPath?: string | null;
   salutation?: string | null;
   applicantName: string;
@@ -16,23 +15,19 @@ export interface ApplicantProfileRecord {
   mobileNo: string;
   personalEmail: string;
   wiiOfficialEmail?: string | null;
-
   address?: string | null;
   city?: string | null;
   state?: string | null;
   pincode?: string | null;
-
   designation?: string | null;
   designationId?: number | null;
   stream?: string | null;
   streamId?: number | null;
   courseName?: string | null;
   courseId?: number | null;
-
   departmentCellProject?: string | null;
   supervisingOfficerId?: number | string | null;
   supervisingOfficerName?: string | null;
-
   departmentId?: number | null;
   projectId?: number | null;
   organizationId?: number | null;
@@ -42,18 +37,14 @@ export interface ApplicantProfileRecord {
   batchId?: number | null;
   mscBatchId?: number | null;
   traineeBatchId?: number | null;
-
   dateOfJoining?: string | null;
   validUpTo?: string | null;
-
   panNo?: string | null;
   bankName?: string | null;
   accountNo?: string | null;
   ifscCode?: string | null;
-
   officeOrderFileName?: string | null;
   biometricId?: string | null;
-
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -116,21 +107,17 @@ function mapProfile(row: any): ApplicantProfileRecord {
 }
 
 const PROFILE_SELECT = `
-  SELECT
-    id, user_id,
-    profile_photo_path, salutation, applicant_name, employment_type,
-    employment_type_id, gender, date_of_birth, blood_group, mobile_no,
-    personal_email, wii_official_email,
+  SELECT id, user_id,
+    profile_photo_path, salutation, applicant_name, employment_type, employment_type_id,
+    gender, date_of_birth, blood_group, mobile_no, personal_email, wii_official_email,
     address, city, state, pincode,
     designation, designation_id, stream, stream_id, course_name, course_id,
     department_cell_project, supervising_officer_id, supervising_officer_name,
     department_id, project_id, organization_id,
     reporting_officer_id, reporting_manager_id, pi_user_id, batch_id,
     msc_batch_id, trainee_batch_id,
-    date_of_joining, valid_up_to,
-    pan_no, bank_name, account_no, ifsc_code,
-    office_order_file_name, biometric_id,
-    created_at, updated_at
+    date_of_joining, valid_up_to, pan_no, bank_name, account_no, ifsc_code,
+    office_order_file_name, biometric_id, created_at, updated_at
   FROM applicant_profiles
   WHERE user_id = ?
   LIMIT 1
@@ -148,17 +135,15 @@ export async function getProfileByUserIdWithConnection(connection: PoolConnectio
 
 const PROFILE_COLUMNS = `
   user_id,
-  profile_photo_path, salutation, applicant_name, employment_type,
-  employment_type_id, gender, date_of_birth, blood_group, mobile_no,
-  personal_email, wii_official_email,
+  profile_photo_path, salutation, applicant_name, employment_type, employment_type_id,
+  gender, date_of_birth, blood_group, mobile_no, personal_email, wii_official_email,
   address, city, state, pincode,
   designation, designation_id, stream, stream_id, course_name, course_id,
   department_cell_project, supervising_officer_id, supervising_officer_name,
   department_id, project_id, organization_id,
   reporting_officer_id, reporting_manager_id, pi_user_id, batch_id,
   msc_batch_id, trainee_batch_id,
-  date_of_joining, valid_up_to,
-  pan_no, bank_name, account_no, ifsc_code,
+  date_of_joining, valid_up_to, pan_no, bank_name, account_no, ifsc_code,
   office_order_file_name, biometric_id
 `;
 
@@ -255,19 +240,9 @@ function profileValues(profile: ApplicantProfileRecord): unknown[] {
 
 async function executeUpsert(executor: typeof db | PoolConnection, profile: ApplicantProfileRecord): Promise<void> {
   await executor.query(
-    `
-      INSERT INTO applicant_profiles (${PROFILE_COLUMNS})
-      VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, ?, ?, ?, ?, ?
-      )
-      ON DUPLICATE KEY UPDATE ${PROFILE_UPDATE}
-    `,
+    `INSERT INTO applicant_profiles (${PROFILE_COLUMNS})
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE ${PROFILE_UPDATE}`,
     profileValues(profile),
   );
 }
