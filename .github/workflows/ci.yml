@@ -5,10 +5,12 @@ on:
     branches:
       - security-hardening
       - main
+      - production-readiness-cleanup
   pull_request:
     branches:
       - security-hardening
       - main
+      - production-readiness-cleanup
 
 permissions:
   contents: read
