@@ -35,6 +35,3 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
-
-# Production-readiness validation.
-# Final verification trigger v9.
