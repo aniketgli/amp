@@ -41,3 +41,5 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+# Production-readiness branch validation enabled.
