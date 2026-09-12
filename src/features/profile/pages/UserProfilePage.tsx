@@ -164,6 +164,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
   const [photoRefreshKey, setPhotoRefreshKey] = useState(0);
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState("");
+  const [validationAttempted, setValidationAttempted] = useState(false);
 
   const adminCanEditOfficialFields = isAdminRole(currentRole);
   const employmentCode = normalizeEmploymentCode(profile.employmentType);
@@ -269,9 +270,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
       })
       .catch((error) => {
         if (!cancelled) {
-          setPincodeError(
-            error instanceof Error ? error.message : "Unable to verify PIN code.",
-          );
+          const message =
+            error instanceof Error ? error.message : "Unable to verify PIN code.";
+          setPincodeError(message);
+          setSaveError(message);
           setProfile((previous) => ({ ...previous, city: "", state: "" }));
         }
       })
@@ -289,6 +291,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     value: string | number | null,
   ) => {
     setSaveError("");
+    setPhotoError("");
+    setValidationAttempted(false);
     setProfile((previous) => ({
       ...previous,
       [field]: value,
@@ -321,6 +325,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     }));
 
     setSaveError("");
+    setPhotoError("");
+    setValidationAttempted(false);
   };
 
   const handleProfilePhotoChange = (
@@ -331,6 +337,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     if (!file) return;
 
     setPhotoError("");
+    setSaveError("");
+    setValidationAttempted(false);
     const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
     if (!allowedTypes.has(file.type)) {
@@ -353,6 +361,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
 
     if (saving || loading) return;
 
+    setValidationAttempted(true);
+
     if (pincodeError || pincodeLoading) {
       setSaveError(
         pincodeLoading
@@ -364,7 +374,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
 
     if (!event.currentTarget.checkValidity()) {
       setSaveError("Please fill all mandatory fields marked with *.");
-      event.currentTarget.reportValidity();
       return;
     }
 
@@ -424,6 +433,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
       setProfile(toFormState(savedProfile));
       onSaveProfile?.(savedProfile as unknown as LegacyApplicantProfile);
       setIsSaved(true);
+      setValidationAttempted(false);
       window.setTimeout(() => setIsSaved(false), 3000);
     } catch (error) {
       setSaveError(
@@ -435,7 +445,13 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
   };
 
   const getFieldClass = (extra = "") =>
-    `w-full text-xs px-3 py-2 border border-slate-300 rounded-md text-slate-800 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed read-only:bg-slate-200 read-only:text-slate-600 ${extra}`;
+    `w-full text-xs px-3 py-2 border border-slate-300 rounded-md text-slate-800 disabled:cursor-not-allowed ${extra}`;
+
+  const getImmutableFieldClass = (extra = "") =>
+    `${getFieldClass(extra)} bg-slate-200 text-slate-600 cursor-not-allowed`;
+
+  const getAutoFieldClass = (extra = "") =>
+    `${getFieldClass(extra)} bg-white text-slate-800`;
 
   const renderOfficerOptions = (roleFilter?: string[]) => {
     const filtered = roleFilter
@@ -459,9 +475,30 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
     );
   }
 
+  const topError = photoError || saveError || loadError;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
-      <style>{`\n        .profile-form label:not([title])::after { content: " *"; color: #dc2626; font-weight: 700; }\n        .profile-form input:invalid:not(:focus):not(:disabled), .profile-form select:invalid:not(:focus):not(:disabled) { border-color: #fca5a5; }\n        .profile-form input:read-only, .profile-form select:disabled { background-color: #e2e8f0; color: #475569; }\n      `}</style>
+      <style>{`
+        .profile-form.validation-attempted input:invalid:not(:disabled),
+        .profile-form.validation-attempted select:invalid:not(:disabled) {
+          border-color: #fca5a5;
+          box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.12);
+        }
+        .profile-form input:read-only {
+          cursor: not-allowed;
+        }
+        .profile-form .immutable-field {
+          background-color: #e2e8f0;
+          color: #475569;
+          cursor: not-allowed;
+        }
+        .profile-form .normal-disabled-field {
+          background-color: #ffffff;
+          color: #1e293b;
+          opacity: 1;
+        }
+      `}</style>
 
       {isSaved && (
         <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg border border-slate-700 flex items-center gap-2">
@@ -475,19 +512,12 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
         </div>
       )}
 
-      {loadError && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-xl flex gap-2.5 text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{loadError}</span>
-        </div>
-      )}
-
-      {saveError && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-xl flex gap-2.5 text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <div>
+      {topError && !isSaved && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,720px)] bg-rose-600 text-white px-4 py-3 rounded-xl shadow-lg border border-rose-700 flex items-start gap-2.5 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="min-w-0">
             <strong className="font-bold">Unable to save profile:</strong>{" "}
-            {saveError}
+            <span>{topError}</span>
           </div>
         </div>
       )}
@@ -511,7 +541,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="profile-form space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        className={`profile-form space-y-5 ${validationAttempted ? "validation-attempted" : ""}`}
+        noValidate
+      >
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 sm:p-5 space-y-4">
           <div className="border-b border-slate-100 pb-2.5">
             <h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider flex items-center gap-2">
@@ -560,16 +594,6 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               {isPhotoUploading && (
                 <span className="text-[10px] text-slate-500">Saving photo...</span>
               )}
-              {pendingPhoto && !isPhotoUploading && (
-                <span className="text-[10px] text-slate-500 text-center">
-                  Selected — click Save Profile Changes to apply
-                </span>
-              )}
-              {photoError && (
-                <span className="text-[10px] text-red-600 text-center max-w-[210px]">
-                  {photoError}
-                </span>
-              )}
             </div>
 
             <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
@@ -580,8 +604,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
-                <input required value={profile.applicantName || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("applicantName", e.target.value)} className={getFieldClass()} />
+                <label className="block font-semibold text-slate-700 mb-1">Name</label>
+                <input required value={profile.applicantName || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("applicantName", e.target.value)} className={`${getImmutableFieldClass()} immutable-field`} />
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Employment Type</label>
@@ -609,11 +633,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Mobile</label>
-                <input required type="tel" inputMode="numeric" maxLength={15} pattern="[0-9]{10,15}" value={profile.mobileNo || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("mobileNo", e.target.value.replace(/\D/g, "").slice(0, 15))} className={getFieldClass("font-mono")} />
+                <input required type="tel" inputMode="numeric" maxLength={15} pattern="[0-9]{10,15}" value={profile.mobileNo || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("mobileNo", e.target.value.replace(/\D/g, "").slice(0, 15))} className={`${getImmutableFieldClass("font-mono")} immutable-field`} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Personal / Official Email</label>
-                <input required type="email" value={profile.personalEmail || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("personalEmail", e.target.value)} className={getFieldClass("font-mono")} />
+                <label className="block font-semibold text-slate-700 mb-1">Personal Email</label>
+                <input required type="email" value={profile.personalEmail || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("personalEmail", e.target.value)} className={`${getImmutableFieldClass("font-mono")} immutable-field`} />
               </div>
             </div>
           </div>
@@ -635,15 +659,14 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               <label className="block font-semibold text-slate-700 mb-1">Pin Code</label>
               <input required inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={profile.pincode || ""} onChange={(e) => handleChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))} className={getFieldClass("font-mono")} />
               {pincodeLoading && <p className="text-[10px] text-slate-500 mt-1">Finding location...</p>}
-              {pincodeError && <p className="text-[10px] text-red-600 mt-1">{pincodeError}</p>}
             </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1">City / District</label>
-              <input required readOnly value={profile.city || ""} className={getFieldClass()} />
+              <input required readOnly value={profile.city || ""} className={`${getImmutableFieldClass()} immutable-field`} />
             </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1">State</label>
-              <input required readOnly value={profile.state || ""} className={getFieldClass()} />
+              <input required readOnly value={profile.state || ""} className={`${getImmutableFieldClass()} immutable-field`} />
             </div>
           </div>
         </div>
@@ -696,7 +719,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
             </>}
 
             <div><label className="block font-semibold text-slate-700 mb-1">Date of Joining</label><input required type="date" value={profile.dateOfJoining || ""} onChange={(e) => handleChange("dateOfJoining", e.target.value)} className={getFieldClass()} /></div>
-            <div><label className="block font-semibold text-slate-700 mb-1">Valid Up To</label><input required type="date" value={profile.validUpTo || ""} disabled={isPermanent(profile.employmentType || "")} onChange={(e) => handleChange("validUpTo", e.target.value)} className={getFieldClass(isPermanent(profile.employmentType || "") ? "font-semibold" : "")} />{isPermanent(profile.employmentType || "") && <p className="text-[10px] text-slate-500 mt-1">Automatically calculated by the server from Date of Birth as the last day of the month in which the user turns 60.</p>}</div>
+            <div><label className="block font-semibold text-slate-700 mb-1">Valid Up To</label><input required type="date" value={profile.validUpTo || ""} readOnly={isPermanent(profile.employmentType || "")} onChange={(e) => handleChange("validUpTo", e.target.value)} className={getAutoFieldClass(isPermanent(profile.employmentType || "") ? "font-semibold" : "")} />{isPermanent(profile.employmentType || "") && <p className="text-[10px] text-slate-500 mt-1">Automatically calculated by the server from Date of Birth as the last day of the month in which the user turns 60.</p>}</div>
           </div>
         </div>
 
