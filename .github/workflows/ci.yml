@@ -35,3 +35,5 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+
+# Trigger final profile integration workflow.
