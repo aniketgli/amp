@@ -1,0 +1,175 @@
+name: Final Profile Fix Runner v3
+
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-fixes-v3]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+
+      - name: Apply robust final fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          ui = Path('src/features/profile/pages/UserProfilePage.tsx')
+          s = ui.read_text()
+          s = s.replace('  ProfileBatch,\n', '  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n')
+          s = s.replace('  getBatches,\n', '  getDesignations,\n  getMscBatches,\n  getCourses,\n  getTraineeBatches,\n  getStreams,\n')
+          s = re.sub(r'  const \[batches, setBatches\] = useState<ProfileBatch\[\]>\(\[\]\);', '  const [designations, setDesignations] = useState<ProfileDesignation[]>([]);\n  const [streams, setStreams] = useState<ProfileStream[]>([]);\n  const [mscBatches, setMscBatches] = useState<ProfileMscBatch[]>([]);\n  const [courses, setCourses] = useState<ProfileCourse[]>([]);\n  const [traineeBatches, setTraineeBatches] = useState<ProfileTraineeBatch[]>([]);', s, count=1)
+          s = re.sub(r'  const batchOptions = useMemo\(\(\) => \{.*?\n  \}, \[batches, employmentCode\]\);', '  const designationOptions = useMemo(() => designations.filter((item) => Number(item.employmentTypeId) === Number(profile.employmentTypeId)), [designations, profile.employmentTypeId]);\n  const mscBatchOptions = useMemo(() => mscBatches.filter((item) => Number(item.streamId) === Number(profile.streamId)), [mscBatches, profile.streamId]);\n  const traineeBatchOptions = useMemo(() => traineeBatches.filter((item) => Number(item.courseId) === Number(profile.courseId)), [traineeBatches, profile.courseId]);', s, count=1, flags=re.S)
+          s = re.sub(r'        const \[savedProfile, employment, units, bankList, batchList, officerList\] = await Promise\.all\(\[.*?\n        \]\);', '        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList] = await Promise.all([\n          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(),\n        ]);', s, count=1, flags=re.S)
+          s = re.sub(r'        setEmploymentTypes\(employment\); setOrgUnits\(units\); setBanks\(bankList\); setBatches\(batchList\); setOfficers\(officerList\);\n        if \(savedProfile\) setProfile\(toFormState\(savedProfile\)\);', '        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setDesignations(designationList); setStreams(streamList); setMscBatches(mscBatchList); setCourses(courseList); setTraineeBatches(traineeBatchList); setOfficers(officerList);\n        if (savedProfile) {\n          const employmentMaster = employment.find((item) => item.displayName === savedProfile.employmentType || item.code === savedProfile.employmentType);\n          setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? employmentMaster?.id ?? null });\n        }', s, count=1)
+
+          start = s.index('  const handleEmploymentChange = (value: string) => {')
+          end = s.index('\n\n  const handleProfilePhotoChange', start)
+          handler = '''  const handleEmploymentChange = (value: string) => {
+    const selected = employmentTypes.find((item) => item.displayName === value || item.code === value);
+    const displayName = selected?.displayName || value;
+    setProfile((previous) => ({
+      ...previous, employmentType: displayName, employmentTypeId: selected?.id ?? null, departmentId: null, projectId: null, organizationId: null, supervisingOfficerId: null,
+      supervisingOfficerName: "", reportingOfficerId: null, reportingManagerId: null, piUserId: null, batchId: null, mscBatchId: null, traineeBatchId: null,
+      designation: "", designationId: null, stream: "", streamId: null, courseName: "", courseId: null, bankName: isBankRequired(displayName) ? previous.bankName : null,
+      accountNo: isBankRequired(displayName) ? previous.accountNo : null, ifscCode: isBankRequired(displayName) ? previous.ifscCode : null,
+      panNo: isBankRequired(displayName) ? previous.panNo : null, validUpTo: isPermanent(displayName) ? "" : previous.validUpTo,
+    }));
+    setSaveError(""); setPhotoError(""); setValidationAttempted(false);
+  };'''
+          s = s[:start] + handler + s[end:]
+
+          s = s.replace('        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "",', '        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "", employmentTypeId: profile.employmentTypeId ?? null,', 1)
+          s = s.replace('        designation: profile.designation || null, stream: profile.stream || null, courseName: profile.courseName || null,', '        designation: profile.designation || null, designationId: profile.designationId ?? null, stream: profile.stream || null, streamId: profile.streamId ?? null, courseName: profile.courseName || null, courseId: profile.courseId ?? null,', 1)
+          s = s.replace('        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, reportingOfficerId:', '        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, organizationId: profile.organizationId ?? profile.departmentId ?? profile.projectId ?? null, reportingOfficerId:', 1)
+          s = s.replace('        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? null,', '        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? profile.mscBatchId ?? profile.traineeBatchId ?? null, mscBatchId: profile.mscBatchId ?? null, traineeBatchId: profile.traineeBatchId ?? null,', 1)
+          s = s.replace('value={item.code}>{item.displayName}</option>', 'value={item.displayName}>{item.displayName}</option>', 1)
+          s = s.replace('<input required value={profile.designation || ""} onChange={(e) => handleChange("designation", e.target.value)} className={getFieldClass()} />', '<select required value={profile.designationId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = designationOptions.find((d) => Number(d.id) === id); setProfile((previous) => ({ ...previous, designationId: id, designation: item?.designationName || "" })); }} className={getFieldClass()}><option value="">Select Designation</option>{designationOptions.map((item) => <option key={item.id} value={item.id}>{item.designationName}</option>)}</select>')
+          s = s.replace('<input required value={profile.stream || ""} onChange={(e) => handleChange("stream", e.target.value)} className={getFieldClass()} />', '<select required value={profile.streamId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = streams.find((stream) => Number(stream.id) === id); setProfile((previous) => ({ ...previous, streamId: id, stream: item?.streamName || "", mscBatchId: null, batchId: null })); }} className={getFieldClass()}><option value="">Select Stream</option>{streams.map((item) => <option key={item.id} value={item.id}>{item.streamName}</option>)}</select>')
+          s = s.replace('<input required value={profile.courseName || ""} onChange={(e) => handleChange("courseName", e.target.value)} className={getFieldClass()} />', '<select required value={profile.courseId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = courses.find((course) => Number(course.id) === id); setProfile((previous) => ({ ...previous, courseId: id, courseName: item?.courseName || "", traineeBatchId: null, batchId: null })); }} className={getFieldClass()}><option value="">Select Course</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.courseName}</option>)}</select>')
+          s = s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}', '{mscBatchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchName} ({batch.batchCode})</option>)}', 1)
+          s = s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}', '{traineeBatchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchName} ({batch.batchCode})</option>)}', 1)
+          s = s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>', 'value={profile.mscBatchId ?? profile.batchId ?? ""} onChange={(e) => handleChange("mscBatchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>', 1)
+          s = s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>', 'value={profile.traineeBatchId ?? profile.batchId ?? ""} onChange={(e) => handleChange("traineeBatchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>', 1)
+          ui.write_text(s)
+
+          svc = Path('server/services/profile.service.ts')
+          p = svc.read_text()
+          p = p.replace('async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<void> {', 'async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<number> {', 1)
+          p = p.replace('  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION', '  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n\n  return Number(rows[0].id);\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION', 1)
+          old_batch = re.compile(r'async function validateBatch\(\n  batchId: number \| null,\n  employmentType: EmploymentType,\n\): Promise<void> \{.*?\n\}\n\n/\* ============================================================\n   BANK VALIDATION', re.S)
+          new_batch = '''async function validateBatch(
+  batchId: number | null,
+  employmentType: EmploymentType,
+): Promise<void> {
+  const batchRequired = employmentType === EMPLOYMENT_TYPES.MSC_STUDENT || employmentType === EMPLOYMENT_TYPES.DIPLOMA_TRAINEE;
+  if (!batchRequired) { if (batchId !== null) throw new Error("Batch is not applicable for the selected Employment Type."); return; }
+  if (batchId === null) throw new Error("Batch is required.");
+  const table = employmentType === EMPLOYMENT_TYPES.MSC_STUDENT ? "profile_msc_batches" : "profile_trainee_batches";
+  const [rows]: any = await db.query(`SELECT id FROM ${table} WHERE id = ? AND status = 'active' LIMIT 1`, [batchId]);
+  if (!rows?.length) throw new Error("Selected Batch is not available.");
+}
+
+/* ============================================================
+   BANK VALIDATION'''
+          p, n = old_batch.subn(new_batch, p, count=1)
+          if n != 1: raise SystemExit('service batch validator not found')
+          marker = '/* ============================================================\n   BANK VALIDATION'
+          helper = '''/* ============================================================
+   PROFILE MASTER REFERENCE VALIDATION
+   ============================================================ */
+
+async function validateProfileMasterReferences(input: any, employmentType: EmploymentType, employmentTypeId: number) {
+  let designationId: number | null = null, streamId: number | null = null, courseId: number | null = null, mscBatchId: number | null = null, traineeBatchId: number | null = null, streamName: string | null = null, courseName: string | null = null;
+  const designationRequired = new Set<EmploymentType>([EMPLOYMENT_TYPES.PERMANENT, EMPLOYMENT_TYPES.DEPUTATION, EMPLOYMENT_TYPES.CONTRACTUAL, EMPLOYMENT_TYPES.RESEARCHER_PROJECT_STAFF]).has(employmentType);
+  if (designationRequired) {
+    designationId = validateId(input.designationId, "Designation");
+    const [rows]: any = await db.query(`SELECT designation_name FROM profile_designation_masters WHERE id = ? AND employment_type_id = ? AND status = 'active' LIMIT 1`, [designationId, employmentTypeId]);
+    if (!rows?.length) throw new Error("Selected Designation is invalid for the selected Employment Type.");
+  }
+  if (employmentType === EMPLOYMENT_TYPES.MSC_STUDENT) {
+    streamId = validateId(input.streamId, "Stream");
+    mscBatchId = validateId(input.mscBatchId ?? input.batchId, "MSc Batch");
+    const [streamRows]: any = await db.query(`SELECT stream_name FROM profile_stream_masters WHERE id = ? AND status = 'active' LIMIT 1`, [streamId]);
+    if (!streamRows?.length) throw new Error("Selected Stream is invalid.");
+    streamName = String(streamRows[0].stream_name);
+    const [batchRows]: any = await db.query(`SELECT id FROM profile_msc_batches WHERE id = ? AND stream_id = ? AND status = 'active' LIMIT 1`, [mscBatchId, streamId]);
+    if (!batchRows?.length) throw new Error("Selected MSc Batch does not belong to the selected Stream.");
+  }
+  if (employmentType === EMPLOYMENT_TYPES.DIPLOMA_TRAINEE) {
+    courseId = validateId(input.courseId, "Course");
+    traineeBatchId = validateId(input.traineeBatchId ?? input.batchId, "Trainee Batch");
+    const [courseRows]: any = await db.query(`SELECT course_name FROM profile_course_masters WHERE id = ? AND status = 'active' LIMIT 1`, [courseId]);
+    if (!courseRows?.length) throw new Error("Selected Course is invalid.");
+    courseName = String(courseRows[0].course_name);
+    const [batchRows]: any = await db.query(`SELECT id FROM profile_trainee_batches WHERE id = ? AND course_id = ? AND status = 'active' LIMIT 1`, [traineeBatchId, courseId]);
+    if (!batchRows?.length) throw new Error("Selected Trainee Batch does not belong to the selected Course.");
+  }
+  return { designationId, streamId, courseId, mscBatchId, traineeBatchId, streamName, courseName };
+}
+
+'''
+          p = p.replace(marker, helper + marker, 1)
+          p = p.replace('  await validateEmploymentType(\n    employmentType,\n  );', '  const employmentTypeId = await validateEmploymentType(\n    employmentType,\n  );', 1)
+          needle = '''  const employmentFields =
+    await validateEmploymentSpecificFields(
+      input,
+      employmentType,
+      dateOfBirth,
+    );'''
+          if needle not in p: raise SystemExit('employment fields call not found')
+          p = p.replace(needle, needle + '''
+
+  const masterReferences = await validateProfileMasterReferences(input, employmentType, employmentTypeId);''', 1)
+          p = p.replace('    employmentType,\n\n    gender,', '    employmentType,\n    employmentTypeId,\n\n    gender,', 1)
+          p = p.replace('    designation:\n      employmentFields.designation,', '    designation:\n      employmentFields.designation,\n    designationId:\n      masterReferences.designationId,', 1)
+          p = p.replace('    stream:\n      employmentFields.stream,', '    stream:\n      masterReferences.streamName ?? employmentFields.stream,\n    streamId:\n      masterReferences.streamId,', 1)
+          p = p.replace('    courseName:\n      employmentFields.courseName,', '    courseName:\n      masterReferences.courseName ?? employmentFields.courseName,\n    courseId:\n      masterReferences.courseId,', 1)
+          p = p.replace('    projectId:\n      employmentFields.projectId,', '    projectId:\n      employmentFields.projectId,\n\n    organizationId:\n      employmentFields.departmentId ?? employmentFields.projectId ?? null,', 1)
+          p = p.replace('    batchId:\n      employmentFields.batchId,', '    batchId:\n      masterReferences.mscBatchId ?? masterReferences.traineeBatchId ?? employmentFields.batchId,\n    mscBatchId:\n      masterReferences.mscBatchId,\n    traineeBatchId:\n      masterReferences.traineeBatchId,', 1)
+          svc.write_text(p)
+
+          admin = Path('src/features/admin/pages/AdminControlPage.tsx')
+          a = admin.read_text()
+          if 'function ManagementTable(' not in a:
+              marker = 'function ProfileMastersPanel() {'
+              helpers = '''function MasterStatusBadge({ status }: { status: string }) { return <span className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold ${status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{status}</span>; }\nfunction ActionCell({ item, onEdit, onToggle }: { item: any; onEdit: () => void; onToggle: () => void }) { return <td className="p-3 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={onEdit} className="px-2 py-1 text-slate-700 rounded-lg text-[10px] font-bold"><Edit3 className="w-3.5 h-3.5 inline mr-1" />Edit</button><button type="button" onClick={onToggle} className="px-2 py-1 text-slate-600 rounded-lg text-[10px] font-bold">{item.status === "active" ? "Deactivate" : "Activate"}</button></div></td>; }\nfunction ManagementTable({ headers, rows, render }: { headers: string[]; rows: any[]; render: (item: any) => React.ReactNode }) { return <div className="overflow-x-auto border border-slate-200 rounded-xl"><table className="w-full text-left text-xs"><thead className="bg-slate-50 border-b"><tr>{headers.map((header) => <th key={header} className="p-3 font-bold text-slate-600">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.length === 0 ? <tr><td colSpan={headers.length} className="p-8 text-center text-slate-400">No records found.</td></tr> : rows.map((item) => <tr key={item.id}>{render(item)}</tr>)}</tbody></table></div>; }\n\n'''
+              if marker not in a: raise SystemExit('ProfileMastersPanel marker missing')
+              admin.write_text(a.replace(marker, helpers + marker, 1))
+
+          svc2 = Path('server/services/profile-master-admin.service.ts')
+          q = svc2.read_text()
+          q = q.replace('if((await db.query(`SELECT id FROM ${table} WHERE ${parentColumn}=? AND batch_number=? ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[parentId,batchNumber,excludeId]:[parentId,batchNumber]))[0]?.length)throw new Error("This batch number already exists for the selected parent.");', 'const [numberRows]: any = await db.query(`SELECT id FROM ${table} WHERE ${parentColumn}=? AND batch_number=? ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[parentId,batchNumber,excludeId]:[parentId,batchNumber]);if(numberRows?.length)throw new Error("This batch number already exists for the selected parent.");', 1)
+          q = q.replace('if((await db.query(`SELECT id FROM ${table} WHERE LOWER(TRIM(batch_code))=LOWER(TRIM(?)) ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[batchCode,excludeId]:[batchCode]))[0]?.length)throw new Error("This batch code already exists.");', 'const [codeRows]: any = await db.query(`SELECT id FROM ${table} WHERE LOWER(TRIM(batch_code))=LOWER(TRIM(?)) ${excludeId?"AND id <> ?":""} LIMIT 1`,excludeId?[batchCode,excludeId]:[batchCode]);if(codeRows?.length)throw new Error("This batch code already exists.");', 1)
+          svc2.write_text(q)
+          print('robust final fixes applied')
+          PY
+
+      - name: Validate final tree
+        run: |
+          git diff --check
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Commit and clean temporary workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts src/features/admin/pages/AdminControlPage.tsx server/services/profile-master-admin.service.ts
+          git diff --cached --check
+          git commit -m 'fix: finalize profile master integration and validation [skip profile-fixes-v3]'
+          git rm -f .github/workflows/finalize-profile-integration.yml .github/workflows/finalize-profile-fixes.yml .github/workflows/finalize-profile-fixes-v2.yml .github/workflows/finalize-profile-fixes-v3.yml
+          git commit -m 'chore: remove temporary profile finalizer workflows [skip profile-fixes-v3]'
+          git push origin production-readiness-cleanup
