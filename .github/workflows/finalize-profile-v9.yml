@@ -1,0 +1,87 @@
+name: Final Profile Integration v9
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v9]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Integrate profile masters
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          f=Path('src/features/profile/pages/UserProfilePage.tsx');s=f.read_text()
+          s=s.replace('  ProfileBatch,\n','  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n',1)
+          s=s.replace('  getBatches,\n','  getDesignations,\n  getMscBatches,\n  getCourses,\n  getTraineeBatches,\n  getStreams,\n',1)
+          s=s.replace('import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";','import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";\nimport type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";',1)
+          s=s.replace('  const [batches, setBatches] = useState<ProfileBatch[]>([]);','  const [designations, setDesignations] = useState<ProfileDesignation[]>([]);\n  const [streams, setStreams] = useState<ProfileStream[]>([]);\n  const [mscBatches, setMscBatches] = useState<ProfileMscBatch[]>([]);\n  const [courses, setCourses] = useState<ProfileCourse[]>([]);\n  const [traineeBatches, setTraineeBatches] = useState<ProfileTraineeBatch[]>([]);',1)
+          s=re.sub(r'  const batchOptions = useMemo\(\(\) => \{.*?\n  \}, \[batches, employmentCode\]\);','  const designationOptions=useMemo(()=>designations.filter(x=>Number(x.employmentTypeId)===Number(profile.employmentTypeId)),[designations,profile.employmentTypeId]);\n  const mscBatchOptions=useMemo(()=>mscBatches.filter(x=>Number(x.streamId)===Number(profile.streamId)),[mscBatches,profile.streamId]);\n  const traineeBatchOptions=useMemo(()=>traineeBatches.filter(x=>Number(x.courseId)===Number(profile.courseId)),[traineeBatches,profile.courseId]);',s,1,flags=re.S)
+          old='''        const [savedProfile, employment, units, bankList, batchList, officerList] = await Promise.all([\n          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getBatches(), getProfileOfficers(),\n        ]);'''
+          new='''        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList] = await Promise.all([\n          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(),\n        ]);'''
+          if old not in s: raise SystemExit('profile load block not found')
+          s=s.replace(old,new,1)
+          old='''        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setBatches(batchList); setOfficers(officerList);\n        if (savedProfile) setProfile(toFormState(savedProfile));'''
+          new='''        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setDesignations(designationList); setStreams(streamList); setMscBatches(mscBatchList); setCourses(courseList); setTraineeBatches(traineeBatchList); setOfficers(officerList);\n        if (savedProfile) { const master=employment.find((x)=>x.displayName===savedProfile.employmentType||x.code===savedProfile.employmentType); setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? master?.id ?? null }); }'''
+          if old not in s: raise SystemExit('profile state load block not found')
+          s=s.replace(old,new,1)
+          a=s.index('  const handleEmploymentChange = (value: string) => {'); b=s.index('\n\n  const handleProfilePhotoChange',a)
+          handler='''  const handleEmploymentChange=(value:string)=>{const selected=employmentTypes.find(x=>x.displayName===value||x.code===value);const name=selected?.displayName||value;setProfile(p=>({...p,employmentType:name,employmentTypeId:selected?.id??null,departmentId:null,projectId:null,organizationId:null,supervisingOfficerId:null,supervisingOfficerName:"",reportingOfficerId:null,reportingManagerId:null,piUserId:null,batchId:null,mscBatchId:null,traineeBatchId:null,designation:"",designationId:null,stream:"",streamId:null,courseName:"",courseId:null,bankName:isBankRequired(name)?p.bankName:null,accountNo:isBankRequired(name)?p.accountNo:null,ifscCode:isBankRequired(name)?p.ifscCode:null,panNo:isBankRequired(name)?p.panNo:null,validUpTo:isPermanent(name)?"":p.validUpTo}));setSaveError("");setPhotoError("");setValidationAttempted(false);};'''
+          s=s[:a]+handler+s[b:]
+          s=s.replace('employmentType: profile.employmentType || "",','employmentType: profile.employmentType || "", employmentTypeId: profile.employmentTypeId ?? null,',1)
+          s=s.replace('designation: profile.designation || null, stream: profile.stream || null, courseName: profile.courseName || null,','designation: profile.designation || null, designationId: profile.designationId ?? null, stream: profile.stream || null, streamId: profile.streamId ?? null, courseName: profile.courseName || null, courseId: profile.courseId ?? null,',1)
+          s=s.replace('departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, reportingOfficerId:','departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, organizationId: profile.organizationId ?? profile.departmentId ?? profile.projectId ?? null, reportingOfficerId:',1)
+          s=s.replace('reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? null,','reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? profile.mscBatchId ?? profile.traineeBatchId ?? null, mscBatchId: profile.mscBatchId ?? null, traineeBatchId: profile.traineeBatchId ?? null,',1)
+          s=s.replace('value={item.code}>{item.displayName}</option>','value={item.displayName}>{item.displayName}</option>',1)
+          s=s.replace('<input required value={profile.designation || ""} onChange={(e) => handleChange("designation", e.target.value)} className={getFieldClass()} />','<select required value={profile.designationId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=designationOptions.find(d=>Number(d.id)===id);setProfile(p=>({...p,designationId:id,designation:x?.designationName||""}));}} className={getFieldClass()}><option value="">Select Designation</option>{designationOptions.map(x=><option key={x.id} value={x.id}>{x.designationName}</option>)}</select>',1)
+          s=s.replace('<input required value={profile.stream || ""} onChange={(e) => handleChange("stream", e.target.value)} className={getFieldClass()} />','<select required value={profile.streamId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=streams.find(v=>Number(v.id)===id);setProfile(p=>({...p,streamId:id,stream:x?.streamName||"",mscBatchId:null,batchId:null}));}} className={getFieldClass()}><option value="">Select Stream</option>{streams.map(x=><option key={x.id} value={x.id}>{x.streamName}</option>)}</select>',1)
+          s=s.replace('<input required value={profile.courseName || ""} onChange={(e) => handleChange("courseName", e.target.value)} className={getFieldClass()} />','<select required value={profile.courseId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=courses.find(v=>Number(v.id)===id);setProfile(p=>({...p,courseId:id,courseName:x?.courseName||"",traineeBatchId:null,batchId:null}));}} className={getFieldClass()}><option value="">Select Course</option>{courses.map(x=><option key={x.id} value={x.id}>{x.courseName}</option>)}</select>',1)
+          s=s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}','{mscBatchOptions.map(x=><option key={x.id} value={x.id}>{x.batchName} ({x.batchCode})</option>)}',1)
+          s=s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}','{traineeBatchOptions.map(x=><option key={x.id} value={x.id}>{x.batchName} ({x.batchCode})</option>)}',1)
+          s=s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>','value={profile.mscBatchId ?? profile.batchId ?? ""} onChange={e=>handleChange("mscBatchId",e.target.value?Number(e.target.value):null)} className={getFieldClass()}><option value="">Select MSc Batch</option>',1)
+          s=s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>','value={profile.traineeBatchId ?? profile.batchId ?? ""} onChange={e=>handleChange("traineeBatchId",e.target.value?Number(e.target.value):null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>',1)
+          f.write_text(s)
+
+          f=Path('server/services/profile.service.ts');p=f.read_text()
+          p=p.replace('async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<void> {','async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<number> {',1)
+          old='''  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION'''
+          new='''  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n  return Number(rows[0].id);\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION'''
+          if old not in p: raise SystemExit('employment validator block not found')
+          p=p.replace(old,new,1)
+          p=re.sub(r'async function validateBatch\(.*?\n\}\n\n/\* ============================================================\n   BANK VALIDATION', '''async function validateBatch(batchId:number|null,employmentType:EmploymentType):Promise<void>{if(employmentType!==EMPLOYMENT_TYPES.MSC_STUDENT&&employmentType!==EMPLOYMENT_TYPES.DIPLOMA_TRAINEE){if(batchId!==null)throw new Error("Batch is not applicable for the selected Employment Type.");return;}if(batchId===null)throw new Error("Batch is required.");const table=employmentType===EMPLOYMENT_TYPES.MSC_STUDENT?"profile_msc_batches":"profile_trainee_batches";const [rows]:any=await db.query(`SELECT id FROM ${table} WHERE id=? AND status='active' LIMIT 1`,[batchId]);if(!rows?.length)throw new Error("Selected Batch is not available.");}\n\n/* ============================================================\n   BANK VALIDATION''',p,count=1,flags=re.S)
+          marker='/* ============================================================\n   BANK VALIDATION'
+          helper='''async function validateProfileMasterReferences(input:any,employmentType:EmploymentType,employmentTypeId:number){let designationId:number|null=null,streamId:number|null=null,courseId:number|null=null,mscBatchId:number|null=null,traineeBatchId:number|null=null,streamName:string|null=null,courseName:string|null=null;const needs=new Set<EmploymentType>([EMPLOYMENT_TYPES.PERMANENT,EMPLOYMENT_TYPES.DEPUTATION,EMPLOYMENT_TYPES.CONTRACTUAL,EMPLOYMENT_TYPES.RESEARCHER_PROJECT_STAFF]).has(employmentType);if(needs){designationId=validateId(input.designationId,"Designation");const [r]:any=await db.query(`SELECT id FROM profile_designation_masters WHERE id=? AND employment_type_id=? AND status='active' LIMIT 1`,[designationId,employmentTypeId]);if(!r?.length)throw new Error("Selected Designation is invalid for the selected Employment Type.");}if(employmentType===EMPLOYMENT_TYPES.MSC_STUDENT){streamId=validateId(input.streamId,"Stream");mscBatchId=validateId(input.mscBatchId??input.batchId,"MSc Batch");const [r]:any=await db.query(`SELECT stream_name FROM profile_stream_masters WHERE id=? AND status='active' LIMIT 1`,[streamId]);if(!r?.length)throw new Error("Selected Stream is invalid.");streamName=String(r[0].stream_name);const [b]:any=await db.query(`SELECT id FROM profile_msc_batches WHERE id=? AND stream_id=? AND status='active' LIMIT 1`,[mscBatchId,streamId]);if(!b?.length)throw new Error("Selected MSc Batch does not belong to the selected Stream.");}if(employmentType===EMPLOYMENT_TYPES.DIPLOMA_TRAINEE){courseId=validateId(input.courseId,"Course");traineeBatchId=validateId(input.traineeBatchId??input.batchId,"Trainee Batch");const [r]:any=await db.query(`SELECT course_name FROM profile_course_masters WHERE id=? AND status='active' LIMIT 1`,[courseId]);if(!r?.length)throw new Error("Selected Course is invalid.");courseName=String(r[0].course_name);const [b]:any=await db.query(`SELECT id FROM profile_trainee_batches WHERE id=? AND course_id=? AND status='active' LIMIT 1`,[traineeBatchId,courseId]);if(!b?.length)throw new Error("Selected Trainee Batch does not belong to the selected Course.");}return{designationId,streamId,courseId,mscBatchId,traineeBatchId,streamName,courseName};}\n\n'''
+          if 'validateProfileMasterReferences' not in p:p=p.replace(marker,helper+marker,1)
+          p=p.replace('  await validateEmploymentType(\n    employmentType,\n  );','  const employmentTypeId=await validateEmploymentType(employmentType);',1)
+          needle='''  const employmentFields =\n    await validateEmploymentSpecificFields(\n      input,\n      employmentType,\n      dateOfBirth,\n    );'''
+          if needle not in p: raise SystemExit('employment fields call not found')
+          p=p.replace(needle,needle+'\n\n  const masterReferences=await validateProfileMasterReferences(input,employmentType,employmentTypeId);',1)
+          p=p.replace('    employmentType,\n\n    gender,','    employmentType,\n    employmentTypeId,\n\n    gender,',1).replace('    designation:\n      employmentFields.designation,','    designation:\n      employmentFields.designation,\n    designationId: masterReferences.designationId,',1).replace('    stream:\n      employmentFields.stream,','    stream:\n      masterReferences.streamName ?? employmentFields.stream,\n    streamId: masterReferences.streamId,',1).replace('    courseName:\n      employmentFields.courseName,','    courseName:\n      masterReferences.courseName ?? employmentFields.courseName,\n    courseId: masterReferences.courseId,',1).replace('    projectId:\n      employmentFields.projectId,','    projectId:\n      employmentFields.projectId,\n\n    organizationId: employmentFields.departmentId ?? employmentFields.projectId ?? null,',1).replace('    batchId:\n      employmentFields.batchId,','    batchId: masterReferences.mscBatchId ?? masterReferences.traineeBatchId ?? employmentFields.batchId,\n    mscBatchId: masterReferences.mscBatchId,\n    traineeBatchId: masterReferences.traineeBatchId,',1)
+          f.write_text(p)
+          print('profile master integration patched')
+          PY
+          git diff --check
+          git diff --stat
+          git diff -- src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts | grep -E '^[-+]' | head -80
+          git status --short
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts
+          git diff --cached --quiet && { echo 'ERROR: profile integration produced no changes'; exit 1; }
+          git commit -m 'fix: connect profile form and service to profile masters [skip profile-v9]'
+          git rm -f .github/workflows/finalize-profile-v9.yml
+          git commit -m 'chore: remove temporary profile integration workflow [skip profile-v9]'
+          git push origin production-readiness-cleanup
