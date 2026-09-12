@@ -68,7 +68,8 @@ CREATE TABLE profile_course_masters (
     course_code VARCHAR(50) NOT NULL,
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
 
     UNIQUE KEY uq_profile_course_name (course_name),
     UNIQUE KEY uq_profile_course_code (course_code),
@@ -82,6 +83,7 @@ CREATE TABLE profile_course_masters (
 CREATE TABLE profile_msc_batches (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     stream_id INT UNSIGNED NOT NULL,
+    batch_number INT UNSIGNED NOT NULL,
     batch_name VARCHAR(100) NOT NULL,
     batch_code VARCHAR(50) NOT NULL,
     validity_start_year SMALLINT UNSIGNED NOT NULL,
@@ -97,6 +99,8 @@ CREATE TABLE profile_msc_batches (
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
+    UNIQUE KEY uq_profile_msc_batch_stream_number
+        (stream_id, batch_number),
     UNIQUE KEY uq_profile_msc_batch_stream_name
         (stream_id, batch_name),
     UNIQUE KEY uq_profile_msc_batch_stream_code
@@ -114,6 +118,7 @@ CREATE TABLE profile_msc_batches (
 CREATE TABLE profile_trainee_batches (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     course_id INT UNSIGNED NOT NULL,
+    batch_number INT UNSIGNED NOT NULL,
     batch_name VARCHAR(100) NOT NULL,
     batch_code VARCHAR(50) NOT NULL,
     validity_start_year SMALLINT UNSIGNED NOT NULL,
@@ -129,6 +134,8 @@ CREATE TABLE profile_trainee_batches (
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
+    UNIQUE KEY uq_profile_trainee_batch_course_number
+        (course_id, batch_number),
     UNIQUE KEY uq_profile_trainee_batch_course_name
         (course_id, batch_name),
     UNIQUE KEY uq_profile_trainee_batch_course_code
