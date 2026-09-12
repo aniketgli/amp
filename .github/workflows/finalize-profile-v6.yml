@@ -1,0 +1,51 @@
+name: Final Profile Fix v6
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v6]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Apply compact profile patch and final corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          v=Path('.github/workflows/finalize-profile-v4.yml')
+          if v.exists():
+              raw=v.read_text(); marker="          python - <<'PY'\n"
+              block=raw.split(marker,1)[1].split("\n          PY",1)[0]
+              script="\n".join(line[10:] if line.startswith("          ") else line for line in block.splitlines())
+              exec(compile(script,'profile-v4.py','exec'),{})
+          f=Path('src/features/profile/pages/UserProfilePage.tsx');s=f.read_text()
+          s=s.replace('  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n','')
+          s=s.replace('  getBanks,\n','  getBanks,\n  getDesignations,\n  getMscBatches,\n  getCourses,\n  getTraineeBatches,\n  getStreams,\n',1)
+          s=s.replace('import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";','import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";\nimport type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";')
+          f.write_text(s)
+          f=Path('src/features/admin/pages/AdminControlPage.tsx');s=f.read_text()
+          block='''function ActionCell({item,onEdit,onToggle}:{item:any;onEdit:()=>void;onToggle:()=>void}){return <td className="p-3 text-right"><button type="button" onClick={onEdit} className="px-2 py-1 text-[10px] font-bold">Edit</button><button type="button" onClick={onToggle} className="px-2 py-1 text-[10px] font-bold">{item.status==='active'?'Deactivate':'Activate'}</button></td>;}\n'''
+          s=s.replace(block,'',1);f.write_text(s)
+          print('final profile patch applied')
+          PY
+      - name: Validate and commit final tree
+        run: |
+          git diff --check
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts src/features/admin/pages/AdminControlPage.tsx server/services/profile-master-admin.service.ts
+          git diff --cached --check
+          git commit -m 'fix: finalize profile masters integration [skip profile-v6]'
+          git rm -f .github/workflows/finalize-profile-integration.yml .github/workflows/finalize-profile-fixes.yml .github/workflows/finalize-profile-fixes-v2.yml .github/workflows/finalize-profile-fixes-v3.yml .github/workflows/finalize-profile-v4.yml .github/workflows/finalize-profile-v5.yml .github/workflows/finalize-profile-v6.yml
+          git commit -m 'chore: remove temporary profile finalizer workflows [skip profile-v6]'
+          git push origin production-readiness-cleanup
