@@ -1,0 +1,47 @@
+name: Final Profile Integration v11
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-v11]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - name: Apply and persist profile integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          v=Path('.github/workflows/finalize-profile-v9.yml')
+          raw=v.read_text(); marker="          python - <<'PY'\n"
+          block=raw.split(marker,1)[1].split("\n          PY",1)[0]
+          script="\n".join(line[10:] if line.startswith("          ") else line for line in block.splitlines())
+          exec(compile(script,'profile-v9.py','exec'),{})
+          f=Path('src/features/profile/pages/UserProfilePage.tsx');s=f.read_text()
+          s=s.replace('  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n','')
+          import re
+          s=re.sub(r'(?:import type \{ ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream \} from "@/types/profile";\n)+','import type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";\n',s)
+          f.write_text(s)
+          print('profile v9 patch persisted and imports normalized')
+          PY
+          git diff --check
+          git status --short
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'ERROR: profile integration produced no changes'; exit 1; }
+          git commit -m 'fix: persist profile master integration [skip profile-v11]'
+          git rm -f .github/workflows/finalize-profile-v9.yml .github/workflows/finalize-profile-v10.yml .github/workflows/finalize-profile-v11.yml
+          git commit -m 'chore: remove temporary profile integration workflows [skip profile-v11]'
+          git push origin production-readiness-cleanup
