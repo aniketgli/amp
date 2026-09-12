@@ -70,12 +70,8 @@ html, body {
    Profile page visual corrections
    ============================================================ */
 
-/* Required-field stars must always be visible, before and after Save. */
-.profile-form label:not([title])::after {
-  content: " *" !important;
-  color: #dc2626 !important;
-  font-weight: 700 !important;
-}
+/* Required-field stars are rendered by the profile form itself.
+   Do not add another star through CSS; this prevents duplicate ** markers. */
 
 /* The photo area uses the simple user placeholder instead of displaying
    an existing/demo profile image. The upload/change control remains active. */
@@ -125,7 +121,9 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
   flex-direction: column;
 }
 
-.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 {
+/* Keep the profile error directly above the form, below the page header.
+   This avoids the Tailwind left-1/2 selector that caused CSS optimizer warnings. */
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > div[class*="fixed"] {
   position: static !important;
   inset: auto !important;
   transform: none !important;
@@ -139,11 +137,11 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
 }
 
-.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 svg {
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > div[class*="fixed"] svg {
   color: #e11d48 !important;
 }
 
-.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .fixed.top-4.left-1\\/2 strong {
+.space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > div[class*="fixed"] strong {
   color: #9f1239 !important;
 }
 
@@ -153,4 +151,44 @@ body [class*="fixed"][class*="left-1/2"][class*="bg-rose-600"] strong {
 
 .space-y-6.max-w-7xl.mx-auto.pb-8:has(.profile-form) > .profile-form {
   order: 3;
+}
+
+/* ============================================================
+   Profile section titles
+   ============================================================
+   The form already renders the required section names. Hide only the
+   numeric prefixes and replace the complete heading text consistently.
+*/
+.profile-form > div:nth-of-type(1) h2,
+.profile-form > div:nth-of-type(2) h2,
+.profile-form > div:nth-of-type(3) h2,
+.profile-form > div:nth-of-type(4) h2 {
+  font-size: 0 !important;
+}
+
+.profile-form > div:nth-of-type(1) h2::after {
+  content: "Personal Details";
+  font-size: 0.75rem;
+}
+
+.profile-form > div:nth-of-type(2) h2::after {
+  content: "Address Details";
+  font-size: 0.75rem;
+}
+
+.profile-form > div:nth-of-type(3) h2::after {
+  content: "Bank Details";
+  font-size: 0.75rem;
+}
+
+.profile-form > div:nth-of-type(4) h2::after {
+  content: "Official Details";
+  font-size: 0.75rem;
+}
+
+.profile-form > div:nth-of-type(1) h2 svg,
+.profile-form > div:nth-of-type(2) h2 svg,
+.profile-form > div:nth-of-type(3) h2 svg,
+.profile-form > div:nth-of-type(4) h2 svg {
+  font-size: 1rem !important;
 }
