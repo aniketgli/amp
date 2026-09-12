@@ -14,12 +14,15 @@ import {
 import {
   ApplicantProfile,
   ProfileBank,
-  ProfileBatch,
   ProfileEmploymentType,
   ProfileOfficer,
   ProfileOrgUnit,
   getBanks,
-  getBatches,
+  getDesignations,
+  getMscBatches,
+  getCourses,
+  getTraineeBatches,
+  getStreams,
   getEmploymentTypes,
   getMyProfile,
   getOrgUnits,
@@ -31,6 +34,7 @@ import {
 } from "@/api/profile.api";
 
 import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";
+import type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";
 
 interface ProfileFormProps {
   initialProfile?: LegacyApplicantProfile;
@@ -89,7 +93,11 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
   const [employmentTypes, setEmploymentTypes] = useState<ProfileEmploymentType[]>([]);
   const [orgUnits, setOrgUnits] = useState<ProfileOrgUnit[]>([]);
   const [banks, setBanks] = useState<ProfileBank[]>([]);
-  const [batches, setBatches] = useState<ProfileBatch[]>([]);
+  const [designations, setDesignations] = useState<ProfileDesignation[]>([]);
+  const [streams, setStreams] = useState<ProfileStream[]>([]);
+  const [mscBatches, setMscBatches] = useState<ProfileMscBatch[]>([]);
+  const [courses, setCourses] = useState<ProfileCourse[]>([]);
+  const [traineeBatches, setTraineeBatches] = useState<ProfileTraineeBatch[]>([]);
   const [officers, setOfficers] = useState<ProfileOfficer[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,22 +119,21 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
   const departmentUnits = useMemo(() => getUnits(orgUnits, "department"), [orgUnits]);
   const cellUnits = useMemo(() => getUnits(orgUnits, "cell"), [orgUnits]);
   const projectUnits = useMemo(() => getUnits(orgUnits, "project"), [orgUnits]);
-  const batchOptions = useMemo(() => {
-    const series = employmentCode === "msc_student" ? "msc" : employmentCode === "diploma_trainee" ? "diploma_trainee" : "__none__";
-    return batches.filter((batch) => batch.seriesType === series);
-  }, [batches, employmentCode]);
+  const designationOptions=useMemo(()=>designations.filter(x=>Number(x.employmentTypeId)===Number(profile.employmentTypeId)),[designations,profile.employmentTypeId]);
+  const mscBatchOptions=useMemo(()=>mscBatches.filter(x=>Number(x.streamId)===Number(profile.streamId)),[mscBatches,profile.streamId]);
+  const traineeBatchOptions=useMemo(()=>traineeBatches.filter(x=>Number(x.courseId)===Number(profile.courseId)),[traineeBatches,profile.courseId]);
 
   useEffect(() => {
     let cancelled = false;
     async function loadProfileData() {
       setLoading(true); setLoadError("");
       try {
-        const [savedProfile, employment, units, bankList, batchList, officerList] = await Promise.all([
-          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getBatches(), getProfileOfficers(),
+        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList] = await Promise.all([
+          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(),
         ]);
         if (cancelled) return;
-        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setBatches(batchList); setOfficers(officerList);
-        if (savedProfile) setProfile(toFormState(savedProfile));
+        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setDesignations(designationList); setStreams(streamList); setMscBatches(mscBatchList); setCourses(courseList); setTraineeBatches(traineeBatchList); setOfficers(officerList);
+        if (savedProfile) { const master=employment.find((x)=>x.displayName===savedProfile.employmentType||x.code===savedProfile.employmentType); setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? master?.id ?? null }); }
       } catch (error) {
         if (!cancelled) setLoadError(error instanceof Error ? error.message : "Unable to load profile data.");
       } finally { if (!cancelled) setLoading(false); }
@@ -162,17 +169,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
     setProfile((previous) => ({ ...previous, [field]: value, ...(field === "pincode" ? { city: "", state: "" } : {}) }));
   };
 
-  const handleEmploymentChange = (value: string) => {
-    const selected = employmentTypes.find((item) => item.code === value);
-    setProfile((previous) => ({
-      ...previous, employmentType: selected?.code || value, departmentId: null, projectId: null, supervisingOfficerId: null,
-      supervisingOfficerName: "", reportingOfficerId: null, reportingManagerId: null, piUserId: null, batchId: null,
-      designation: "", stream: "", courseName: "", bankName: isBankRequired(value) ? previous.bankName : null,
-      accountNo: isBankRequired(value) ? previous.accountNo : null, ifscCode: isBankRequired(value) ? previous.ifscCode : null,
-      panNo: isBankRequired(value) ? previous.panNo : null, validUpTo: isPermanent(value) ? "" : previous.validUpTo,
-    }));
-    setSaveError(""); setPhotoError(""); setValidationAttempted(false);
-  };
+  const handleEmploymentChange=(value:string)=>{const selected=employmentTypes.find(x=>x.displayName===value||x.code===value);const name=selected?.displayName||value;setProfile(p=>({...p,employmentType:name,employmentTypeId:selected?.id??null,departmentId:null,projectId:null,organizationId:null,supervisingOfficerId:null,supervisingOfficerName:"",reportingOfficerId:null,reportingManagerId:null,piUserId:null,batchId:null,mscBatchId:null,traineeBatchId:null,designation:"",designationId:null,stream:"",streamId:null,courseName:"",courseId:null,bankName:isBankRequired(name)?p.bankName:null,accountNo:isBankRequired(name)?p.accountNo:null,ifscCode:isBankRequired(name)?p.ifscCode:null,panNo:isBankRequired(name)?p.panNo:null,validUpTo:isPermanent(name)?"":p.validUpTo}));setSaveError("");setPhotoError("");setValidationAttempted(false);};
 
   const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -209,13 +206,13 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
     setSaving(true); setSaveError(""); setIsSaved(false);
     try {
       const payload: Record<string, unknown> = {
-        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "",
+        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "", employmentTypeId: profile.employmentTypeId ?? null,
         gender: profile.gender || "", dateOfBirth: profile.dateOfBirth || "", bloodGroup: profile.bloodGroup || "", mobileNo: profile.mobileNo || "",
         personalEmail: profile.personalEmail || "", ...(adminCanEditOfficialFields ? { wiiOfficialEmail: profile.wiiOfficialEmail || null } : {}),
         address: profile.address || null, city: profile.city || null, state: profile.state || null, pincode: profile.pincode || null,
-        designation: profile.designation || null, stream: profile.stream || null, courseName: profile.courseName || null,
-        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, reportingOfficerId: profile.reportingOfficerId ?? null,
-        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? null,
+        designation: profile.designation || null, designationId: profile.designationId ?? null, stream: profile.stream || null, streamId: profile.streamId ?? null, courseName: profile.courseName || null, courseId: profile.courseId ?? null,
+        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, organizationId: profile.organizationId ?? profile.departmentId ?? profile.projectId ?? null, reportingOfficerId: profile.reportingOfficerId ?? null,
+        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? profile.mscBatchId ?? profile.traineeBatchId ?? null, mscBatchId: profile.mscBatchId ?? null, traineeBatchId: profile.traineeBatchId ?? null,
         dateOfJoining: profile.dateOfJoining || "", validUpTo: profile.validUpTo || null,
         panNo: isBankVisible ? profile.panNo || null : null, bankName: isBankVisible ? profile.bankName || null : null,
         accountNo: isBankVisible ? profile.accountNo || null : null, ifscCode: isBankVisible ? profile.ifscCode || null : null,
@@ -282,7 +279,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
             <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
               <div><label className="block font-semibold text-slate-700 mb-1">Salutation<span className="profile-required-star">*</span></label><select required value={profile.salutation || ""} onChange={(e) => handleChange("salutation", e.target.value)} className={getFieldClass()}><option value="">Select</option><option value="Dr.">Dr.</option><option value="Mr.">Mr.</option><option value="Ms.">Ms.</option><option value="Prof.">Prof.</option></select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Name<span className="profile-required-star">*</span></label><input required value={profile.applicantName || ""} disabled={!adminCanEditOfficialFields} onChange={(e) => handleChange("applicantName", e.target.value)} className={`${getImmutableFieldClass()} immutable-field`} /></div>
-              <div><label className="block font-semibold text-slate-700 mb-1">Employment Type<span className="profile-required-star">*</span></label><select required value={profile.employmentType || ""} onChange={(e) => handleEmploymentChange(e.target.value)} className={getFieldClass()}><option value="">Select Employment Type</option>{employmentTypes.map((item) => <option key={item.id} value={item.code}>{item.displayName}</option>)}</select></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Employment Type<span className="profile-required-star">*</span></label><select required value={profile.employmentType || ""} onChange={(e) => handleEmploymentChange(e.target.value)} className={getFieldClass()}><option value="">Select Employment Type</option>{employmentTypes.map((item) => <option key={item.id} value={item.displayName}>{item.displayName}</option>)}</select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Gender<span className="profile-required-star">*</span></label><select required value={profile.gender || ""} onChange={(e) => handleChange("gender", e.target.value)} className={getFieldClass()}><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Date of Birth<span className="profile-required-star">*</span></label><input required type="date" value={profile.dateOfBirth || ""} onChange={(e) => handleChange("dateOfBirth", e.target.value)} className={getFieldClass()} /></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Blood Group<span className="profile-required-star">*</span></label><select required value={profile.bloodGroup || ""} onChange={(e) => handleChange("bloodGroup", e.target.value)} className={getFieldClass()}><option value="">Select Blood Group</option>{["A+","A-","B+","B-","AB+","AB-","O+","O-"].map((group) => <option key={group}>{group}</option>)}</select></div>
@@ -316,7 +313,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
           <div className="border-b border-slate-100 pb-2.5"><h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider flex items-center gap-2"><Briefcase className="w-4 h-4 text-emerald-600" />4. Official Details</h2></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
             {(employmentCode === "permanent" || employmentCode === "deputation") && <>
-              <div><label className="block font-semibold text-slate-700 mb-1">Designation<span className="profile-required-star">*</span></label><input required value={profile.designation || ""} onChange={(e) => handleChange("designation", e.target.value)} className={getFieldClass()} /></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Designation<span className="profile-required-star">*</span></label><select required value={profile.designationId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=designationOptions.find(d=>Number(d.id)===id);setProfile(p=>({...p,designationId:id,designation:x?.designationName||""}));}} className={getFieldClass()}><option value="">Select Designation</option>{designationOptions.map(x=><option key={x.id} value={x.id}>{x.designationName}</option>)}</select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Department / Cell<span className="profile-required-star">*</span></label><select required value={profile.departmentId ?? ""} onChange={(e) => handleChange("departmentId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Department / Cell</option>{[...departmentUnits,...cellUnits].map((unit) => <option key={unit.id} value={unit.id}>{unit.unitName}</option>)}</select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">Reporting Officer<span className="profile-required-star">*</span></label><select required value={profile.reportingOfficerId ?? ""} onChange={(e) => handleChange("reportingOfficerId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Reporting Officer</option>{renderOfficerOptions()}</select></div>
             </>}
@@ -332,13 +329,13 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
             </>}
             {(employmentCode === "phd_scholar" || employmentCode === "intern") && <div><label className="block font-semibold text-slate-700 mb-1">PI<span className="profile-required-star">*</span></label><select required value={profile.piUserId ?? ""} onChange={(e) => handleChange("piUserId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select PI</option>{renderOfficerOptions()}</select></div>}
             {employmentCode === "msc_student" && <>
-              <div><label className="block font-semibold text-slate-700 mb-1">Stream<span className="profile-required-star">*</span></label><input required value={profile.stream || ""} onChange={(e) => handleChange("stream", e.target.value)} className={getFieldClass()} /></div>
-              <div><label className="block font-semibold text-slate-700 mb-1">Batch<span className="profile-required-star">*</span></label><select required value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}</select></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Stream<span className="profile-required-star">*</span></label><select required value={profile.streamId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=streams.find(v=>Number(v.id)===id);setProfile(p=>({...p,streamId:id,stream:x?.streamName||"",mscBatchId:null,batchId:null}));}} className={getFieldClass()}><option value="">Select Stream</option>{streams.map(x=><option key={x.id} value={x.id}>{x.streamName}</option>)}</select></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Batch<span className="profile-required-star">*</span></label><select required value={profile.mscBatchId ?? profile.batchId ?? ""} onChange={e=>handleChange("mscBatchId",e.target.value?Number(e.target.value):null)} className={getFieldClass()}><option value="">Select MSc Batch</option>{mscBatchOptions.map(x=><option key={x.id} value={x.id}>{x.batchName} ({x.batchCode})</option>)}</select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">PI<span className="profile-required-star">*</span></label><select required value={profile.piUserId ?? ""} onChange={(e) => handleChange("piUserId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select PI</option>{renderOfficerOptions()}</select></div>
             </>}
             {employmentCode === "diploma_trainee" && <>
-              <div><label className="block font-semibold text-slate-700 mb-1">Course Name<span className="profile-required-star">*</span></label><input required value={profile.courseName || ""} onChange={(e) => handleChange("courseName", e.target.value)} className={getFieldClass()} /></div>
-              <div><label className="block font-semibold text-slate-700 mb-1">Batch<span className="profile-required-star">*</span></label><select required value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}</select></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Course Name<span className="profile-required-star">*</span></label><select required value={profile.courseId ?? ""} onChange={e=>{const id=e.target.value?Number(e.target.value):null;const x=courses.find(v=>Number(v.id)===id);setProfile(p=>({...p,courseId:id,courseName:x?.courseName||"",traineeBatchId:null,batchId:null}));}} className={getFieldClass()}><option value="">Select Course</option>{courses.map(x=><option key={x.id} value={x.id}>{x.courseName}</option>)}</select></div>
+              <div><label className="block font-semibold text-slate-700 mb-1">Batch<span className="profile-required-star">*</span></label><select required value={profile.traineeBatchId ?? profile.batchId ?? ""} onChange={e=>handleChange("traineeBatchId",e.target.value?Number(e.target.value):null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>{traineeBatchOptions.map(x=><option key={x.id} value={x.id}>{x.batchName} ({x.batchCode})</option>)}</select></div>
               <div><label className="block font-semibold text-slate-700 mb-1">PI<span className="profile-required-star">*</span></label><select required value={profile.piUserId ?? ""} onChange={(e) => handleChange("piUserId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select PI</option>{renderOfficerOptions()}</select></div>
             </>}
             <div><label className="block font-semibold text-slate-700 mb-1">Date of Joining<span className="profile-required-star">*</span></label><input required type="date" value={profile.dateOfJoining || ""} onChange={(e) => handleChange("dateOfJoining", e.target.value)} className={getFieldClass()} /></div>

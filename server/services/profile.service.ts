@@ -325,7 +325,7 @@ async function getAuthoritativeUser(
 
 async function validateEmploymentType(
   employmentType: EmploymentType,
-): Promise<void> {
+): Promise<number> {
   const [rows]: any = await db.query(
     `
       SELECT id
@@ -342,6 +342,7 @@ async function validateEmploymentType(
       "Selected Employment Type is not available.",
     );
   }
+  return Number(rows[0].id);
 }
 
 /* ============================================================
@@ -445,59 +446,9 @@ async function getActiveUserReference(
    BATCH VALIDATION
    ============================================================ */
 
-async function validateBatch(
-  batchId: number | null,
-  employmentType: EmploymentType,
-): Promise<void> {
-  const batchRequired =
-    employmentType ===
-      EMPLOYMENT_TYPES.MSC_STUDENT ||
-    employmentType ===
-      EMPLOYMENT_TYPES.DIPLOMA_TRAINEE;
+async function validateBatch(batchId:number|null,employmentType:EmploymentType):Promise<void>{if(employmentType!==EMPLOYMENT_TYPES.MSC_STUDENT&&employmentType!==EMPLOYMENT_TYPES.DIPLOMA_TRAINEE){if(batchId!==null)throw new Error("Batch is not applicable for the selected Employment Type.");return;}if(batchId===null)throw new Error("Batch is required.");const table=employmentType===EMPLOYMENT_TYPES.MSC_STUDENT?"profile_msc_batches":"profile_trainee_batches";const [rows]:any=await db.query(`SELECT id FROM ${table} WHERE id=? AND status='active' LIMIT 1`,[batchId]);if(!rows?.length)throw new Error("Selected Batch is not available.");}
 
-  if (!batchRequired) {
-    if (batchId !== null) {
-      throw new Error(
-        "Batch is not applicable for the selected Employment Type.",
-      );
-    }
-
-    return;
-  }
-
-  if (batchId === null) {
-    throw new Error(
-      "Batch is required.",
-    );
-  }
-
-  const expectedSeries =
-    employmentType ===
-    EMPLOYMENT_TYPES.MSC_STUDENT
-      ? "msc"
-      : "diploma_trainee";
-
-  const [rows]: any = await db.query(
-    `
-      SELECT b.id
-      FROM profile_batches b
-      INNER JOIN profile_batch_series s
-        ON s.id = b.series_id
-      WHERE b.id = ?
-        AND b.status = 'active'
-        AND s.status = 'active'
-        AND s.series_type = ?
-      LIMIT 1
-    `,
-    [batchId, expectedSeries],
-  );
-
-  if (!rows?.length) {
-    throw new Error(
-      "Selected Batch does not belong to the selected Employment Type.",
-    );
-  }
-}
+async function validateProfileMasterReferences(input:any,employmentType:EmploymentType,employmentTypeId:number){let designationId:number|null=null,streamId:number|null=null,courseId:number|null=null,mscBatchId:number|null=null,traineeBatchId:number|null=null,streamName:string|null=null,courseName:string|null=null;const needs=new Set<EmploymentType>([EMPLOYMENT_TYPES.PERMANENT,EMPLOYMENT_TYPES.DEPUTATION,EMPLOYMENT_TYPES.CONTRACTUAL,EMPLOYMENT_TYPES.RESEARCHER_PROJECT_STAFF]).has(employmentType);if(needs){designationId=validateId(input.designationId,"Designation");const [r]:any=await db.query(`SELECT id FROM profile_designation_masters WHERE id=? AND employment_type_id=? AND status='active' LIMIT 1`,[designationId,employmentTypeId]);if(!r?.length)throw new Error("Selected Designation is invalid for the selected Employment Type.");}if(employmentType===EMPLOYMENT_TYPES.MSC_STUDENT){streamId=validateId(input.streamId,"Stream");mscBatchId=validateId(input.mscBatchId??input.batchId,"MSc Batch");const [r]:any=await db.query(`SELECT stream_name FROM profile_stream_masters WHERE id=? AND status='active' LIMIT 1`,[streamId]);if(!r?.length)throw new Error("Selected Stream is invalid.");streamName=String(r[0].stream_name);const [b]:any=await db.query(`SELECT id FROM profile_msc_batches WHERE id=? AND stream_id=? AND status='active' LIMIT 1`,[mscBatchId,streamId]);if(!b?.length)throw new Error("Selected MSc Batch does not belong to the selected Stream.");}if(employmentType===EMPLOYMENT_TYPES.DIPLOMA_TRAINEE){courseId=validateId(input.courseId,"Course");traineeBatchId=validateId(input.traineeBatchId??input.batchId,"Trainee Batch");const [r]:any=await db.query(`SELECT course_name FROM profile_course_masters WHERE id=? AND status='active' LIMIT 1`,[courseId]);if(!r?.length)throw new Error("Selected Course is invalid.");courseName=String(r[0].course_name);const [b]:any=await db.query(`SELECT id FROM profile_trainee_batches WHERE id=? AND course_id=? AND status='active' LIMIT 1`,[traineeBatchId,courseId]);if(!b?.length)throw new Error("Selected Trainee Batch does not belong to the selected Course.");}return{designationId,streamId,courseId,mscBatchId,traineeBatchId,streamName,courseName};}
 
 /* ============================================================
    BANK VALIDATION
@@ -1223,9 +1174,7 @@ export async function saveApplicantProfile(
     );
   }
 
-  await validateEmploymentType(
-    employmentType,
-  );
+  const employmentTypeId=await validateEmploymentType(employmentType);
 
   const gender = requireString(
     input.gender,
@@ -1255,6 +1204,8 @@ export async function saveApplicantProfile(
       employmentType,
       dateOfBirth,
     );
+
+  const masterReferences=await validateProfileMasterReferences(input,employmentType,employmentTypeId);
 
   /* ==========================================================
      BANK
@@ -1293,6 +1244,7 @@ export async function saveApplicantProfile(
       authoritativeName,
 
     employmentType,
+    employmentTypeId,
 
     gender,
 
@@ -1322,12 +1274,15 @@ export async function saveApplicantProfile(
 
     designation:
       employmentFields.designation,
+    designationId: masterReferences.designationId,
 
     stream:
-      employmentFields.stream,
+      masterReferences.streamName ?? employmentFields.stream,
+    streamId: masterReferences.streamId,
 
     courseName:
-      employmentFields.courseName,
+      masterReferences.courseName ?? employmentFields.courseName,
+    courseId: masterReferences.courseId,
 
     /*
      * This is derived from the selected master record.
@@ -1351,6 +1306,8 @@ export async function saveApplicantProfile(
     projectId:
       employmentFields.projectId,
 
+    organizationId: employmentFields.departmentId ?? employmentFields.projectId ?? null,
+
     reportingOfficerId:
       employmentFields.reportingOfficerId,
 
@@ -1360,8 +1317,9 @@ export async function saveApplicantProfile(
     piUserId:
       employmentFields.piUserId,
 
-    batchId:
-      employmentFields.batchId,
+    batchId: masterReferences.mscBatchId ?? masterReferences.traineeBatchId ?? employmentFields.batchId,
+    mscBatchId: masterReferences.mscBatchId,
+    traineeBatchId: masterReferences.traineeBatchId,
 
     dateOfJoining:
       employmentFields.dateOfJoining,
