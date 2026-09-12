@@ -1,0 +1,222 @@
+name: Finalize Profile Integration
+
+on:
+  push:
+    branches: [production-readiness-cleanup]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip profile-finalize]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+
+      - name: Patch profile UI and service integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          ui = Path('src/features/profile/pages/UserProfilePage.tsx')
+          s = ui.read_text()
+          s = s.replace('  ProfileBatch,\n', '  ProfileDesignation,\n  ProfileMscBatch,\n  ProfileCourse,\n  ProfileTraineeBatch,\n  ProfileStream,\n')
+          s = s.replace('  getBatches,\n', '  getDesignations,\n  getMscBatches,\n  getCourses,\n  getTraineeBatches,\n  getStreams,\n')
+          s = s.replace('  const [batches, setBatches] = useState<ProfileBatch[]>([]);\n', '  const [designations, setDesignations] = useState<ProfileDesignation[]>([]);\n  const [streams, setStreams] = useState<ProfileStream[]>([]);\n  const [mscBatches, setMscBatches] = useState<ProfileMscBatch[]>([]);\n  const [courses, setCourses] = useState<ProfileCourse[]>([]);\n  const [traineeBatches, setTraineeBatches] = useState<ProfileTraineeBatch[]>([]);\n')
+          s = re.sub(r'  const batchOptions = useMemo\(\(\) => \{.*?\n  \}, \[batches, employmentCode\]\);', '''  const designationOptions = useMemo(() => designations.filter((item) => Number(item.employmentTypeId) === Number(profile.employmentTypeId)), [designations, profile.employmentTypeId]);
+  const mscBatchOptions = useMemo(() => mscBatches.filter((item) => Number(item.streamId) === Number(profile.streamId)), [mscBatches, profile.streamId]);
+  const traineeBatchOptions = useMemo(() => traineeBatches.filter((item) => Number(item.courseId) === Number(profile.courseId)), [traineeBatches, profile.courseId]);''', s, count=1, flags=re.S)
+
+          old_load = '''        const [savedProfile, employment, units, bankList, batchList, officerList] = await Promise.all([
+          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getBatches(), getProfileOfficers(),
+        ]);'''
+          new_load = '''        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList] = await Promise.all([
+          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(),
+        ]);'''
+          if old_load not in s: raise SystemExit('UI load block not found')
+          s = s.replace(old_load, new_load, 1)
+          old_sets = '        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setBatches(batchList); setOfficers(officerList);\n        if (savedProfile) setProfile(toFormState(savedProfile));'
+          new_sets = '''        setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setDesignations(designationList); setStreams(streamList); setMscBatches(mscBatchList); setCourses(courseList); setTraineeBatches(traineeBatchList); setOfficers(officerList);
+        if (savedProfile) {
+          const employmentMaster = employment.find((item) => item.displayName === savedProfile.employmentType || item.code === savedProfile.employmentType);
+          setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? employmentMaster?.id ?? null });
+        }'''
+          if old_sets not in s: raise SystemExit('UI state assignment block not found')
+          s = s.replace(old_sets, new_sets, 1)
+
+          start = s.index('  const handleEmploymentChange = (value: string) => {')
+          end = s.index('\n\n  const handleProfilePhotoChange', start)
+          new_handler = '''  const handleEmploymentChange = (value: string) => {
+    const selected = employmentTypes.find((item) => item.displayName === value || item.code === value);
+    const displayName = selected?.displayName || value;
+    setProfile((previous) => ({
+      ...previous, employmentType: displayName, employmentTypeId: selected?.id ?? null, departmentId: null, projectId: null, organizationId: null, supervisingOfficerId: null,
+      supervisingOfficerName: "", reportingOfficerId: null, reportingManagerId: null, piUserId: null, batchId: null, mscBatchId: null, traineeBatchId: null,
+      designation: "", designationId: null, stream: "", streamId: null, courseName: "", courseId: null, bankName: isBankRequired(displayName) ? previous.bankName : null,
+      accountNo: isBankRequired(displayName) ? previous.accountNo : null, ifscCode: isBankRequired(displayName) ? previous.ifscCode : null,
+      panNo: isBankRequired(displayName) ? previous.panNo : null, validUpTo: isPermanent(displayName) ? "" : previous.validUpTo,
+    }));
+    setSaveError(""); setPhotoError(""); setValidationAttempted(false);
+  };'''
+          s = s[:start] + new_handler + s[end:]
+
+          s = s.replace('        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "",', '        salutation: profile.salutation || null, applicantName: profile.applicantName || "", employmentType: profile.employmentType || "", employmentTypeId: profile.employmentTypeId ?? null,', 1)
+          s = s.replace('        designation: profile.designation || null, stream: profile.stream || null, courseName: profile.courseName || null,', '        designation: profile.designation || null, designationId: profile.designationId ?? null, stream: profile.stream || null, streamId: profile.streamId ?? null, courseName: profile.courseName || null, courseId: profile.courseId ?? null,', 1)
+          s = s.replace('        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, reportingOfficerId:', '        departmentId: profile.departmentId ?? null, projectId: profile.projectId ?? null, organizationId: profile.organizationId ?? profile.departmentId ?? profile.projectId ?? null, reportingOfficerId:', 1)
+          s = s.replace('        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? null,', '        reportingManagerId: profile.reportingManagerId ?? null, piUserId: profile.piUserId ?? null, batchId: profile.batchId ?? profile.mscBatchId ?? profile.traineeBatchId ?? null, mscBatchId: profile.mscBatchId ?? null, traineeBatchId: profile.traineeBatchId ?? null,', 1)
+          s = s.replace('value={item.code}>{item.displayName}</option>', 'value={item.displayName}>{item.displayName}</option>', 1)
+
+          designation_input = '<input required value={profile.designation || ""} onChange={(e) => handleChange("designation", e.target.value)} className={getFieldClass()} />'
+          designation_select = '<select required value={profile.designationId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = designationOptions.find((d) => Number(d.id) === id); setProfile((previous) => ({ ...previous, designationId: id, designation: item?.designationName || "" })); }} className={getFieldClass()}><option value="">Select Designation</option>{designationOptions.map((item) => <option key={item.id} value={item.id}>{item.designationName}</option>)}</select>'
+          s = s.replace(designation_input, designation_select)
+
+          stream_input = '<input required value={profile.stream || ""} onChange={(e) => handleChange("stream", e.target.value)} className={getFieldClass()} />'
+          stream_select = '<select required value={profile.streamId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = streams.find((stream) => Number(stream.id) === id); setProfile((previous) => ({ ...previous, streamId: id, stream: item?.streamName || "", mscBatchId: null, batchId: null })); }} className={getFieldClass()}><option value="">Select Stream</option>{streams.map((item) => <option key={item.id} value={item.id}>{item.streamName}</option>)}</select>'
+          s = s.replace(stream_input, stream_select)
+
+          course_input = '<input required value={profile.courseName || ""} onChange={(e) => handleChange("courseName", e.target.value)} className={getFieldClass()} />'
+          course_select = '<select required value={profile.courseId ?? ""} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; const item = courses.find((course) => Number(course.id) === id); setProfile((previous) => ({ ...previous, courseId: id, courseName: item?.courseName || "", traineeBatchId: null, batchId: null })); }} className={getFieldClass()}><option value="">Select Course</option>{courses.map((item) => <option key={item.id} value={item.id}>{item.courseName}</option>)}</select>'
+          s = s.replace(course_input, course_select)
+
+          s = s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}', '{mscBatchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchName} ({batch.batchCode})</option>)}', 1)
+          s = s.replace('{batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchLabel}</option>)}', '{traineeBatchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batchName} ({batch.batchCode})</option>)}', 1)
+          s = s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>', 'value={profile.mscBatchId ?? profile.batchId ?? ""} onChange={(e) => handleChange("mscBatchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select MSc Batch</option>', 1)
+          s = s.replace('value={profile.batchId ?? ""} onChange={(e) => handleChange("batchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>', 'value={profile.traineeBatchId ?? profile.batchId ?? ""} onChange={(e) => handleChange("traineeBatchId", e.target.value ? Number(e.target.value) : null)} className={getFieldClass()}><option value="">Select Diploma Batch</option>', 1)
+          ui.write_text(s)
+
+          svc = Path('server/services/profile.service.ts')
+          p = svc.read_text()
+          p = p.replace('async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<void> {', 'async function validateEmploymentType(\n  employmentType: EmploymentType,\n): Promise<number> {', 1)
+          p = p.replace('  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION', '  if (!rows?.length) {\n    throw new Error(\n      "Selected Employment Type is not available.",\n    );\n  }\n\n  return Number(rows[0].id);\n}\n\n/* ============================================================\n   ORG MASTER VALIDATION', 1)
+
+          old_batch = re.compile(r'async function validateBatch\(\n  batchId: number \| null,\n  employmentType: EmploymentType,\n\): Promise<void> \{.*?\n\}\n\n/\* ============================================================\n   BANK VALIDATION', re.S)
+          new_batch = '''async function validateBatch(
+  batchId: number | null,
+  employmentType: EmploymentType,
+): Promise<void> {
+  const batchRequired = employmentType === EMPLOYMENT_TYPES.MSC_STUDENT || employmentType === EMPLOYMENT_TYPES.DIPLOMA_TRAINEE;
+  if (!batchRequired) {
+    if (batchId !== null) throw new Error("Batch is not applicable for the selected Employment Type.");
+    return;
+  }
+  if (batchId === null) throw new Error("Batch is required.");
+  const table = employmentType === EMPLOYMENT_TYPES.MSC_STUDENT ? "profile_msc_batches" : "profile_trainee_batches";
+  const [rows]: any = await db.query(`SELECT id FROM ${table} WHERE id = ? AND status = 'active' LIMIT 1`, [batchId]);
+  if (!rows?.length) throw new Error("Selected Batch is not available.");
+}
+
+/* ============================================================
+   BANK VALIDATION'''
+          p, n = old_batch.subn(new_batch, p, count=1)
+          if n != 1: raise SystemExit('service batch validator not found')
+
+          marker = '/* ============================================================\n   BANK VALIDATION'
+          helper = '''/* ============================================================
+   PROFILE MASTER REFERENCE VALIDATION
+   ============================================================ */
+
+async function validateProfileMasterReferences(
+  input: any,
+  employmentType: EmploymentType,
+  employmentTypeId: number,
+): Promise<{
+  designationId: number | null;
+  streamId: number | null;
+  courseId: number | null;
+  mscBatchId: number | null;
+  traineeBatchId: number | null;
+  streamName: string | null;
+  courseName: string | null;
+}> {
+  let designationId: number | null = null;
+  let streamId: number | null = null;
+  let courseId: number | null = null;
+  let mscBatchId: number | null = null;
+  let traineeBatchId: number | null = null;
+  let streamName: string | null = null;
+  let courseName: string | null = null;
+
+  const designationRequired = new Set<EmploymentType>([
+    EMPLOYMENT_TYPES.PERMANENT, EMPLOYMENT_TYPES.DEPUTATION, EMPLOYMENT_TYPES.CONTRACTUAL, EMPLOYMENT_TYPES.RESEARCHER_PROJECT_STAFF,
+  ]).has(employmentType);
+  if (designationRequired) {
+    designationId = validateId(input.designationId, "Designation");
+    const [rows]: any = await db.query(`SELECT designation_name FROM profile_designation_masters WHERE id = ? AND employment_type_id = ? AND status = 'active' LIMIT 1`, [designationId, employmentTypeId]);
+    if (!rows?.length) throw new Error("Selected Designation is invalid for the selected Employment Type.");
+  } else if (input.designationId !== undefined && input.designationId !== null) {
+    throw new Error("Designation is not applicable for the selected Employment Type.");
+  }
+
+  if (employmentType === EMPLOYMENT_TYPES.MSC_STUDENT) {
+    streamId = validateId(input.streamId, "Stream");
+    mscBatchId = validateId(input.mscBatchId ?? input.batchId, "MSc Batch");
+    const [streamRows]: any = await db.query(`SELECT stream_name FROM profile_stream_masters WHERE id = ? AND status = 'active' LIMIT 1`, [streamId]);
+    if (!streamRows?.length) throw new Error("Selected Stream is invalid.");
+    streamName = String(streamRows[0].stream_name);
+    const [batchRows]: any = await db.query(`SELECT id FROM profile_msc_batches WHERE id = ? AND stream_id = ? AND status = 'active' LIMIT 1`, [mscBatchId, streamId]);
+    if (!batchRows?.length) throw new Error("Selected MSc Batch does not belong to the selected Stream.");
+  }
+
+  if (employmentType === EMPLOYMENT_TYPES.DIPLOMA_TRAINEE) {
+    courseId = validateId(input.courseId, "Course");
+    traineeBatchId = validateId(input.traineeBatchId ?? input.batchId, "Trainee Batch");
+    const [courseRows]: any = await db.query(`SELECT course_name FROM profile_course_masters WHERE id = ? AND status = 'active' LIMIT 1`, [courseId]);
+    if (!courseRows?.length) throw new Error("Selected Course is invalid.");
+    courseName = String(courseRows[0].course_name);
+    const [batchRows]: any = await db.query(`SELECT id FROM profile_trainee_batches WHERE id = ? AND course_id = ? AND status = 'active' LIMIT 1`, [traineeBatchId, courseId]);
+    if (!batchRows?.length) throw new Error("Selected Trainee Batch does not belong to the selected Course.");
+  }
+
+  return { designationId, streamId, courseId, mscBatchId, traineeBatchId, streamName, courseName };
+}
+
+'''
+          p = p.replace(marker, helper + marker, 1)
+          p = p.replace('  await validateEmploymentType(\n    employmentType,\n  );', '  const employmentTypeId = await validateEmploymentType(\n    employmentType,\n  );', 1)
+          needle = '''  const employmentFields =
+    await validateEmploymentSpecificFields(
+      input,
+      employmentType,
+      dateOfBirth,
+    );'''
+          replacement = needle + '''
+
+  const masterReferences = await validateProfileMasterReferences(
+    input,
+    employmentType,
+    employmentTypeId,
+  );'''
+          if needle not in p: raise SystemExit('employment fields call not found')
+          p = p.replace(needle, replacement, 1)
+          p = p.replace('    employmentType,\n\n    gender,', '    employmentType,\n    employmentTypeId,\n\n    gender,', 1)
+          p = p.replace('    designation:\n      employmentFields.designation,', '    designation:\n      employmentFields.designation,\n    designationId:\n      masterReferences.designationId,', 1)
+          p = p.replace('    stream:\n      employmentFields.stream,', '    stream:\n      masterReferences.streamName ?? employmentFields.stream,\n    streamId:\n      masterReferences.streamId,', 1)
+          p = p.replace('    courseName:\n      employmentFields.courseName,', '    courseName:\n      masterReferences.courseName ?? employmentFields.courseName,\n    courseId:\n      masterReferences.courseId,', 1)
+          p = p.replace('    projectId:\n      employmentFields.projectId,', '    projectId:\n      employmentFields.projectId,\n\n    organizationId:\n      employmentFields.departmentId ?? employmentFields.projectId ?? null,', 1)
+          p = p.replace('    batchId:\n      employmentFields.batchId,', '    batchId:\n      masterReferences.mscBatchId ?? masterReferences.traineeBatchId ?? employmentFields.batchId,\n    mscBatchId:\n      masterReferences.mscBatchId,\n    traineeBatchId:\n      masterReferences.traineeBatchId,', 1)
+          svc.write_text(p)
+          print('profile UI/service patch complete')
+          PY
+
+      - name: Validate changes
+        run: |
+          git diff --check
+          npm ci
+          npm run lint
+
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/features/profile/pages/UserProfilePage.tsx server/services/profile.service.ts
+          git diff --cached --check
+          git commit -m 'fix: connect profile form to profile masters [skip profile-finalize]'
+          git rm -f .github/workflows/finalize-profile-integration.yml
+          git commit -m 'chore: remove temporary profile integration workflow [skip profile-finalize]'
+          git push origin production-readiness-cleanup
