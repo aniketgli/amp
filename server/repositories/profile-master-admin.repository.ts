@@ -19,9 +19,128 @@ export interface CreateBatchInput {
   endYear: number;
 }
 
-export async function createOrgUnit(
-  input: CreateOrgUnitInput,
-) {
+export interface AdminProfileOrgUnit {
+  id: number;
+  unitType: "department" | "cell" | "project";
+  unitName: string;
+  description: string | null;
+  status: "active" | "inactive";
+}
+
+export interface AdminProfileBank {
+  id: number;
+  bankName: string;
+  bankCode: string | null;
+  status: "active" | "inactive";
+}
+
+export interface AdminProfileBatch {
+  id: number;
+  seriesId: number;
+  seriesType: "msc" | "diploma_trainee";
+  seriesName: string;
+  batchNumber: number;
+  batchLabel: string;
+  startYear: number;
+  endYear: number;
+  status: "active" | "inactive";
+}
+
+/* ============================================================
+   ADMIN MASTER LISTS
+   IMPORTANT:
+   These queries intentionally return BOTH active and inactive
+   records so Administrator can reactivate inactive masters.
+   ============================================================ */
+
+export async function listAllOrgUnits(): Promise<AdminProfileOrgUnit[]> {
+  const [rows]: any = await db.query(
+    `
+      SELECT
+        id,
+        unit_type,
+        unit_name,
+        description,
+        status
+      FROM profile_org_units
+      ORDER BY
+        unit_type ASC,
+        unit_name ASC
+    `,
+  );
+
+  return (rows || []).map((row: any) => ({
+    id: Number(row.id),
+    unitType: row.unit_type,
+    unitName: row.unit_name,
+    description: row.description ?? null,
+    status: row.status,
+  }));
+}
+
+export async function listAllBanks(): Promise<AdminProfileBank[]> {
+  const [rows]: any = await db.query(
+    `
+      SELECT
+        id,
+        bank_name,
+        bank_code,
+        status
+      FROM profile_bank_masters
+      ORDER BY
+        bank_name ASC
+    `,
+  );
+
+  return (rows || []).map((row: any) => ({
+    id: Number(row.id),
+    bankName: row.bank_name,
+    bankCode: row.bank_code ?? null,
+    status: row.status,
+  }));
+}
+
+export async function listAllBatches(): Promise<AdminProfileBatch[]> {
+  const [rows]: any = await db.query(
+    `
+      SELECT
+        b.id,
+        b.series_id,
+        s.series_type,
+        s.series_name,
+        b.batch_number,
+        b.batch_label,
+        b.start_year,
+        b.end_year,
+        b.status
+      FROM profile_batches b
+      INNER JOIN profile_batch_series s
+        ON s.id = b.series_id
+      ORDER BY
+        s.series_type ASC,
+        b.start_year DESC,
+        b.batch_number DESC
+    `,
+  );
+
+  return (rows || []).map((row: any) => ({
+    id: Number(row.id),
+    seriesId: Number(row.series_id),
+    seriesType: row.series_type,
+    seriesName: row.series_name,
+    batchNumber: Number(row.batch_number),
+    batchLabel: row.batch_label,
+    startYear: Number(row.start_year),
+    endYear: Number(row.end_year),
+    status: row.status,
+  }));
+}
+
+/* ============================================================
+   ORGANIZATION UNITS
+   ============================================================ */
+
+export async function createOrgUnit(input: CreateOrgUnitInput) {
   const [result]: any = await db.query(
     `
       INSERT INTO profile_org_units (
@@ -32,11 +151,7 @@ export async function createOrgUnit(
       )
       VALUES (?, ?, ?, 'active')
     `,
-    [
-      input.unitType,
-      input.unitName,
-      input.description || null,
-    ],
+    [input.unitType, input.unitName, input.description || null],
   );
 
   return {
@@ -46,10 +161,7 @@ export async function createOrgUnit(
   };
 }
 
-export async function updateOrgUnit(
-  id: number,
-  input: CreateOrgUnitInput,
-) {
+export async function updateOrgUnit(id: number, input: CreateOrgUnitInput) {
   await db.query(
     `
       UPDATE profile_org_units
@@ -60,12 +172,7 @@ export async function updateOrgUnit(
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `,
-    [
-      input.unitType,
-      input.unitName,
-      input.description || null,
-      id,
-    ],
+    [input.unitType, input.unitName, input.description || null, id],
   );
 
   const [rows]: any = await db.query(
@@ -102,9 +209,11 @@ export async function setOrgUnitStatus(
   );
 }
 
-export async function createBank(
-  input: CreateBankInput,
-) {
+/* ============================================================
+   BANKS
+   ============================================================ */
+
+export async function createBank(input: CreateBankInput) {
   const [result]: any = await db.query(
     `
       INSERT INTO profile_bank_masters (
@@ -114,10 +223,7 @@ export async function createBank(
       )
       VALUES (?, ?, 'active')
     `,
-    [
-      input.bankName,
-      input.bankCode || null,
-    ],
+    [input.bankName, input.bankCode || null],
   );
 
   return {
@@ -127,10 +233,7 @@ export async function createBank(
   };
 }
 
-export async function updateBank(
-  id: number,
-  input: CreateBankInput,
-) {
+export async function updateBank(id: number, input: CreateBankInput) {
   await db.query(
     `
       UPDATE profile_bank_masters
@@ -140,11 +243,7 @@ export async function updateBank(
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `,
-    [
-      input.bankName,
-      input.bankCode || null,
-      id,
-    ],
+    [input.bankName, input.bankCode || null, id],
   );
 
   const [rows]: any = await db.query(
@@ -164,10 +263,7 @@ export async function updateBank(
   return rows?.[0] || null;
 }
 
-export async function setBankStatus(
-  id: number,
-  status: "active" | "inactive",
-) {
+export async function setBankStatus(id: number, status: "active" | "inactive") {
   await db.query(
     `
       UPDATE profile_bank_masters
@@ -180,9 +276,11 @@ export async function setBankStatus(
   );
 }
 
-export async function createBatch(
-  input: CreateBatchInput,
-) {
+/* ============================================================
+   BATCHES
+   ============================================================ */
+
+export async function createBatch(input: CreateBatchInput) {
   const [result]: any = await db.query(
     `
       INSERT INTO profile_batches (
@@ -211,10 +309,7 @@ export async function createBatch(
   };
 }
 
-export async function updateBatch(
-  id: number,
-  input: CreateBatchInput,
-) {
+export async function updateBatch(id: number, input: CreateBatchInput) {
   await db.query(
     `
       UPDATE profile_batches

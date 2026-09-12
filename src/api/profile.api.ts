@@ -28,6 +28,10 @@ export type {
   ProfileOrgUnitType,
 } from "../types/profile";
 
+/* ============================================================
+   RESPONSE TYPES
+   ============================================================ */
+
 interface ProfileResponse {
   success: boolean;
   message?: string;
@@ -48,6 +52,56 @@ interface PincodeResponse {
     district: string;
     state: string;
   };
+}
+
+/* ============================================================
+   ADMIN PROFILE MASTER TYPES
+   ============================================================ */
+
+export interface AdminProfileOrgUnit {
+  id: number;
+  unitType: ProfileOrgUnitType;
+  unitName: string;
+  description: string | null;
+  status: "active" | "inactive";
+}
+
+export interface AdminProfileBank {
+  id: number;
+  bankName: string;
+  bankCode: string | null;
+  status: "active" | "inactive";
+}
+
+export interface AdminProfileBatch {
+  id: number;
+  seriesId: number;
+  seriesType: ProfileBatchSeriesType;
+  seriesName: string;
+  batchNumber: number;
+  batchLabel: string;
+  startYear: number;
+  endYear: number;
+  status: "active" | "inactive";
+}
+
+export interface ProfileOrgUnitAdminPayload {
+  unitType: ProfileOrgUnitType;
+  unitName: string;
+  description?: string | null;
+}
+
+export interface ProfileBankAdminPayload {
+  bankName: string;
+  bankCode?: string | null;
+}
+
+export interface ProfileBatchAdminPayload {
+  seriesId: number;
+  batchNumber: number;
+  batchLabel: string;
+  startYear: number;
+  endYear: number;
 }
 
 /* ============================================================
@@ -99,6 +153,11 @@ export async function getEmploymentTypes(): Promise<
    ORGANIZATION UNITS
    ============================================================ */
 
+/**
+ * Normal profile API.
+ *
+ * Returns active organization units only.
+ */
 export async function getOrgUnits(
   types?: ProfileOrgUnitType[],
 ): Promise<ProfileOrgUnit[]> {
@@ -119,10 +178,94 @@ export async function getOrgUnits(
   return response.data ?? [];
 }
 
+/**
+ * Administrator API.
+ *
+ * Returns all organization units, including inactive records.
+ */
+export async function getAdminProfileOrgUnits(): Promise<
+  AdminProfileOrgUnit[]
+> {
+  const response = await apiRequest<MasterResponse<AdminProfileOrgUnit[]>>(
+    "/api/admin/profile-masters/org-units",
+    {
+      method: "GET",
+    },
+  );
+
+  return response.data ?? [];
+}
+
+export async function createProfileOrgUnit(
+  payload: ProfileOrgUnitAdminPayload,
+): Promise<AdminProfileOrgUnit> {
+  const response = await apiRequest<MasterResponse<AdminProfileOrgUnit>>(
+    "/api/admin/profile-masters/org-units",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(
+      response.message || "Organization unit could not be created.",
+    );
+  }
+
+  return response.data;
+}
+
+export async function updateProfileOrgUnit(
+  id: number,
+  payload: ProfileOrgUnitAdminPayload,
+): Promise<AdminProfileOrgUnit> {
+  const response = await apiRequest<MasterResponse<AdminProfileOrgUnit>>(
+    `/api/admin/profile-masters/org-units/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(
+      response.message || "Organization unit could not be updated.",
+    );
+  }
+
+  return response.data;
+}
+
+export async function updateProfileOrgUnitStatus(
+  id: number,
+  status: "active" | "inactive",
+): Promise<{ id: number; status: "active" | "inactive" }> {
+  const response = await apiRequest<
+    MasterResponse<{ id: number; status: "active" | "inactive" }>
+  >(`/api/admin/profile-masters/org-units/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.data) {
+    throw new Error(
+      response.message || "Organization unit status could not be updated.",
+    );
+  }
+
+  return response.data;
+}
+
 /* ============================================================
    BANKS
    ============================================================ */
 
+/**
+ * Normal profile API.
+ *
+ * Returns active banks only.
+ */
 export async function getBanks(): Promise<ProfileBank[]> {
   const response = await apiRequest<MasterResponse<ProfileBank[]>>(
     "/api/profile/masters/banks",
@@ -132,6 +275,77 @@ export async function getBanks(): Promise<ProfileBank[]> {
   );
 
   return response.data ?? [];
+}
+
+/**
+ * Administrator API.
+ *
+ * Returns all banks, including inactive records.
+ */
+export async function getAdminProfileBanks(): Promise<AdminProfileBank[]> {
+  const response = await apiRequest<MasterResponse<AdminProfileBank[]>>(
+    "/api/admin/profile-masters/banks",
+    {
+      method: "GET",
+    },
+  );
+
+  return response.data ?? [];
+}
+
+export async function createProfileBank(
+  payload: ProfileBankAdminPayload,
+): Promise<AdminProfileBank> {
+  const response = await apiRequest<MasterResponse<AdminProfileBank>>(
+    "/api/admin/profile-masters/banks",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(response.message || "Bank could not be created.");
+  }
+
+  return response.data;
+}
+
+export async function updateProfileBank(
+  id: number,
+  payload: ProfileBankAdminPayload,
+): Promise<AdminProfileBank> {
+  const response = await apiRequest<MasterResponse<AdminProfileBank>>(
+    `/api/admin/profile-masters/banks/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(response.message || "Bank could not be updated.");
+  }
+
+  return response.data;
+}
+
+export async function updateProfileBankStatus(
+  id: number,
+  status: "active" | "inactive",
+): Promise<{ id: number; status: "active" | "inactive" }> {
+  const response = await apiRequest<
+    MasterResponse<{ id: number; status: "active" | "inactive" }>
+  >(`/api/admin/profile-masters/banks/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.data) {
+    throw new Error(response.message || "Bank status could not be updated.");
+  }
+
+  return response.data;
 }
 
 /* ============================================================
@@ -161,6 +375,11 @@ export async function getBatchSeries(
    BATCHES
    ============================================================ */
 
+/**
+ * Normal profile API.
+ *
+ * Returns active batches only.
+ */
 export async function getBatches(
   seriesType?: ProfileBatchSeriesType,
 ): Promise<ProfileBatch[]> {
@@ -175,6 +394,77 @@ export async function getBatches(
   });
 
   return response.data ?? [];
+}
+
+/**
+ * Administrator API.
+ *
+ * Returns all batches, including inactive records.
+ */
+export async function getAdminProfileBatches(): Promise<AdminProfileBatch[]> {
+  const response = await apiRequest<MasterResponse<AdminProfileBatch[]>>(
+    "/api/admin/profile-masters/batches",
+    {
+      method: "GET",
+    },
+  );
+
+  return response.data ?? [];
+}
+
+export async function createProfileBatch(
+  payload: ProfileBatchAdminPayload,
+): Promise<AdminProfileBatch> {
+  const response = await apiRequest<MasterResponse<AdminProfileBatch>>(
+    "/api/admin/profile-masters/batches",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(response.message || "Batch could not be created.");
+  }
+
+  return response.data;
+}
+
+export async function updateProfileBatch(
+  id: number,
+  payload: ProfileBatchAdminPayload,
+): Promise<AdminProfileBatch> {
+  const response = await apiRequest<MasterResponse<AdminProfileBatch>>(
+    `/api/admin/profile-masters/batches/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(response.message || "Batch could not be updated.");
+  }
+
+  return response.data;
+}
+
+export async function updateProfileBatchStatus(
+  id: number,
+  status: "active" | "inactive",
+): Promise<{ id: number; status: "active" | "inactive" }> {
+  const response = await apiRequest<
+    MasterResponse<{ id: number; status: "active" | "inactive" }>
+  >(`/api/admin/profile-masters/batches/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.data) {
+    throw new Error(response.message || "Batch status could not be updated.");
+  }
+
+  return response.data;
 }
 
 /* ============================================================

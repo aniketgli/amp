@@ -4,6 +4,9 @@ import { authenticateToken } from "../middleware/auth";
 import { requireRole } from "../middleware/authorization";
 
 import {
+  getAdminOrgUnits,
+  getAdminBanks,
+  getAdminBatches,
   createOrgUnit,
   updateOrgUnit,
   updateOrgUnitStatus,
@@ -15,26 +18,34 @@ import {
   updateBatchStatus,
 } from "../controllers/profile-master-admin.controller";
 
-const requireAdministrator = requireRole(
-  "administrator",
-);
+const requireAdministrator = requireRole("administrator");
 
-export function registerProfileMasterAdminRoutes(
-  app: Express,
-) {
+export function registerProfileMasterAdminRoutes(app: Express) {
   /*
-   * Every master-data mutation requires:
+   * Every master-data operation requires:
    *
    * Authentication
-   *        ?
+   *        ↓
    * Administrator role from DB
-   *        ?
+   *        ↓
    * Controller
    *
    * Frontend role checks are NOT security boundaries.
    */
 
-  // Organization Units
+  // =========================================================
+  // ORGANIZATION UNITS
+  // =========================================================
+
+  // Admin list — includes active + inactive records
+  app.get(
+    "/api/admin/profile-masters/org-units",
+    authenticateToken,
+    requireAdministrator,
+    getAdminOrgUnits,
+  );
+
+  // Create
   app.post(
     "/api/admin/profile-masters/org-units",
     authenticateToken,
@@ -42,6 +53,7 @@ export function registerProfileMasterAdminRoutes(
     createOrgUnit,
   );
 
+  // Update
   app.put(
     "/api/admin/profile-masters/org-units/:id",
     authenticateToken,
@@ -49,6 +61,7 @@ export function registerProfileMasterAdminRoutes(
     updateOrgUnit,
   );
 
+  // Activate / deactivate
   app.patch(
     "/api/admin/profile-masters/org-units/:id/status",
     authenticateToken,
@@ -56,7 +69,19 @@ export function registerProfileMasterAdminRoutes(
     updateOrgUnitStatus,
   );
 
-  // Banks
+  // =========================================================
+  // BANKS
+  // =========================================================
+
+  // Admin list — includes active + inactive records
+  app.get(
+    "/api/admin/profile-masters/banks",
+    authenticateToken,
+    requireAdministrator,
+    getAdminBanks,
+  );
+
+  // Create
   app.post(
     "/api/admin/profile-masters/banks",
     authenticateToken,
@@ -64,6 +89,7 @@ export function registerProfileMasterAdminRoutes(
     createBank,
   );
 
+  // Update
   app.put(
     "/api/admin/profile-masters/banks/:id",
     authenticateToken,
@@ -71,6 +97,7 @@ export function registerProfileMasterAdminRoutes(
     updateBank,
   );
 
+  // Activate / deactivate
   app.patch(
     "/api/admin/profile-masters/banks/:id/status",
     authenticateToken,
@@ -78,7 +105,19 @@ export function registerProfileMasterAdminRoutes(
     updateBankStatus,
   );
 
-  // Batches
+  // =========================================================
+  // BATCHES
+  // =========================================================
+
+  // Admin list — includes active + inactive records
+  app.get(
+    "/api/admin/profile-masters/batches",
+    authenticateToken,
+    requireAdministrator,
+    getAdminBatches,
+  );
+
+  // Create
   app.post(
     "/api/admin/profile-masters/batches",
     authenticateToken,
@@ -86,6 +125,7 @@ export function registerProfileMasterAdminRoutes(
     createBatch,
   );
 
+  // Update
   app.put(
     "/api/admin/profile-masters/batches/:id",
     authenticateToken,
@@ -93,6 +133,7 @@ export function registerProfileMasterAdminRoutes(
     updateBatch,
   );
 
+  // Activate / deactivate
   app.patch(
     "/api/admin/profile-masters/batches/:id/status",
     authenticateToken,

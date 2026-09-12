@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ApplicantProfile } from "@/types";
 import { WiiLogo } from "../common/WiiLogo";
+import { getProfilePhotoUrl } from "../../api/profile.api";
 
 import {
   FileText,
@@ -8,10 +9,8 @@ import {
   UserCheck,
   ChevronDown,
   Search,
-  RefreshCw,
   KeyRound,
   Shield,
-  UserCog,
   LogOut,
   User,
   Lock,
@@ -265,7 +264,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
   pendingApprovalsCount,
-  onResetData,
   onSearch,
   onLogout,
 }) => {
@@ -275,6 +273,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   /* User dropdown open / close */
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+
+  /* Saved profile photo comes from the authenticated backend endpoint. */
+  const hasProfilePhoto = Boolean(userProfile?.profilePhotoPath);
+  const profilePhotoUrl = getProfilePhotoUrl();
+  const [profilePhotoLoadFailed, setProfilePhotoLoadFailed] = useState(false);
 
   /* Change password modal */
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -360,20 +363,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   /* =======================================================
      ROLE SWITCH
      -------------------------------------------------------
-     User ke assigned roles me se hi role select hoga.
-
-     Example:
-       User
-       Administrator
-
-     User click karega Administrator par:
-       currentRole = administrator
-       dashboard open
+     Only roles assigned by the backend can be selected.
   ======================================================= */
 
   const handleRoleSwitch = (roleCode: string) => {
-    // Security/UI guard: only a role received from the backend may be selected.
-    const isAssigned = rolesToDisplay.some((role) => role.code === roleCode);
+    const isAssigned = rolesToDisplay.some(
+      (role) => role.code === roleCode,
+    );
 
     if (!isAssigned) {
       console.warn("Blocked unassigned role switch:", roleCode);
@@ -381,19 +377,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       return;
     }
 
-    /* Same role par click hua to sirf dropdown close */
     if (roleCode === currentRole) {
       setIsRoleDropdownOpen(false);
       return;
     }
 
-    /* Parent/App ko new role batao */
+    /* Parent/App updates the active role. */
     onRoleChange(roleCode);
 
-    /* Role change ke baad dashboard par redirect */
+    /* Existing behavior: open the selected role's dashboard. */
     onTabChange("dashboard");
 
-    /* Dropdown close */
     setIsRoleDropdownOpen(false);
   };
 
@@ -592,7 +586,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 cursor-pointer
               "
             >
-              {/* User icon */}
+              {/* Saved profile photo / default User icon */}
 
               <div
                 className="
@@ -607,15 +601,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   flex items-center
                   justify-center
                   shrink-0
+                  overflow-hidden
                 "
               >
-                <User
-                  className="
-                    w-3.5 h-3.5
-                    text-emerald-700
-                    dark:text-emerald-400
-                  "
-                />
+                {hasProfilePhoto && !profilePhotoLoadFailed ? (
+                  <img
+                    src={profilePhotoUrl}
+                    alt="Profile photo"
+                    className="navbar-profile-photo w-full h-full object-cover"
+                    onError={() => setProfilePhotoLoadFailed(true)}
+                  />
+                ) : (
+                  <User
+                    className="
+                      w-3.5 h-3.5
+                      text-emerald-700
+                      dark:text-emerald-400
+                    "
+                  />
+                )}
               </div>
 
               {/* User name + active role */}
@@ -676,7 +680,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   absolute
                   right-0
                   mt-2
-                  w-80
+                  w-[clamp(13rem,22vw,17rem)]
                   max-w-[calc(100vw-1rem)]
                   bg-white
                   dark:bg-slate-900
@@ -745,62 +749,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     {activeRoleInfo.name}
                   </span>
-                </div>
-
-                {/* =============================================
-                    SWITCH ROLE PERSONA
-                ============================================= */}
+                </div>                {/* Assigned roles */}
 
                 <div className="p-2.5">
-                  <div
-                    className="
-                      px-2 py-1
-                      text-[10px]
-                      font-bold
-                      text-slate-400
-                      uppercase
-                      tracking-wider
-                      flex items-center
-                      justify-between
-                    "
-                  >
-                    <span
-                      className="
-                        flex items-center
-                        gap-1
-                      "
-                    >
-                      <UserCog
-                        className="
-                          w-3.5 h-3.5
-                          text-emerald-600
-                        "
-                      />
-                      SWITCH ROLE PERSONA
-                    </span>
-
-                    <span
-                      className="
-                        text-[9px]
-                        text-emerald-600
-                        font-semibold
-                      "
-                    >
-                      Redirects to Dashboard
-                    </span>
-                  </div>
-
-                  {/* =========================================
-                      ONLY DATABASE ASSIGNED ROLES
-                  ========================================= */}
-
                   <div className="space-y-1">
                     {rolesToDisplay.length === 0 ? (
                       <div
                         className="
-                          px-3 py-3
+                          px-3 py-2
                           text-xs
                           text-slate-500
+                          dark:text-slate-400
                         "
                       >
                         No roles assigned.
@@ -821,8 +780,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                               px-2.5 py-2
                               rounded-lg
                               text-xs
-                              transition-all
-                              cursor-pointer
                               ${
                                 isActive
                                   ? `
@@ -834,31 +791,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   : `
                                     text-slate-700
                                     dark:text-slate-300
-                                    hover:bg-slate-100
-                                    dark:hover:bg-slate-800
                                   `
                               }
                             `}
                           >
-                            <span
-                              className="
-                                flex items-center
-                                gap-2
-                              "
-                            >
-                              {/* Active indicator */}
-
+                            <span className="flex items-center gap-2">
                               <span
                                 className={`
                                   w-2 h-2
                                   rounded-full
                                   ${
-                                    isActive ? "bg-emerald-600" : "bg-slate-400"
+                                    isActive
+                                      ? "bg-emerald-600"
+                                      : "bg-slate-400"
                                   }
                                 `}
                               />
-
-                              {/* Role Name */}
 
                               <span className="font-semibold">
                                 {role.name ||
@@ -866,8 +814,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   role.code}
                               </span>
                             </span>
-
-                            {/* Active badge */}
 
                             {isActive && (
                               <span
@@ -891,7 +837,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                {/* =============================================
+{/* =============================================
                     ACCOUNT OPTIONS
                 ============================================= */}
 
@@ -931,39 +877,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       "
                     />
                     Change Password
-                  </button>
-
-                  {/* Reset Sample Data */}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onResetData();
-                      setIsRoleDropdownOpen(false);
-                    }}
-                    className="
-                      w-full
-                      text-left
-                      px-3 py-2
-                      rounded-xl
-                      text-xs
-                      font-medium
-                      flex items-center
-                      gap-2
-                      hover:bg-slate-200
-                      dark:hover:bg-slate-800
-                    "
-                  >
-                    <RefreshCw
-                      className="
-                        w-4 h-4
-                        text-slate-500
-                      "
-                    />
-                    Reset Sample Records
-                  </button>
-
-                  {/* Logout */}
+                  </button>{/* Logout */}
 
                   {onLogout && (
                     <button
@@ -986,7 +900,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       "
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign Out / Logout
+                      Logout
                     </button>
                   )}
                 </div>

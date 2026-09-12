@@ -69,7 +69,7 @@ export interface WorkflowStage {
 export const getDefaultFacilityWorkflow = (
   supervisor: string,
   assocNodal: string,
-  nodal: string
+  nodal: string,
 ): WorkflowStage[] => [
   {
     stageNumber: 1,
@@ -105,9 +105,7 @@ export const getDefaultFacilityWorkflow = (
   },
 ];
 
-export const getDefaultServiceWorkflow = (
-  manager: string
-): WorkflowStage[] => [
+export const getDefaultServiceWorkflow = (manager: string): WorkflowStage[] => [
   {
     stageNumber: 1,
     stageName: "Supervising Officer / PI Endorsement",
@@ -161,6 +159,57 @@ interface ServiceRecord {
   status: ServiceStatus;
   workflowStages?: WorkflowStage[];
 }
+
+interface ProfileMasterOrgUnit {
+  id: number;
+  unitType: string;
+  unitName: string;
+  description?: string | null;
+  status: string;
+}
+
+interface ProfileMasterBank {
+  id: number;
+  bankName: string;
+  bankCode?: string | null;
+  status: string;
+}
+
+interface ProfileMasterBatchSeries {
+  id: number;
+  seriesType: string;
+  seriesName: string;
+  status: string;
+}
+
+interface ProfileMasterBatch {
+  id: number;
+  seriesId: number;
+  seriesType: string;
+  seriesName: string;
+  batchNumber: string | number;
+  batchLabel?: string | null;
+  startYear?: number | null;
+  endYear?: number | null;
+  status: string;
+}
+
+interface ProfileMasterOfficer {
+  id: number | string;
+  fullName: string;
+  email?: string;
+  roles?: string[];
+}
+
+interface ProfileMasterEmploymentType {
+  id: number | string;
+  code?: string;
+  name?: string;
+  employmentType?: string;
+  label?: string;
+}
+
+type ProfileMasterSection = "org_units" | "banks" | "batches";
 
 interface AdminUser {
   id: string | number;
@@ -254,6 +303,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
   const [activeSubTab, setActiveSubTab] = useState<
     | "users"
+    | "profile_masters"
     | "masters"
     | "requisitions_override"
     | "system_config"
@@ -322,6 +372,59 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
   });
 
   /* =======================================================
+     PROFILE MASTERS
+  ======================================================= */
+
+  const [profileOrgUnits, setProfileOrgUnits] = useState<
+    ProfileMasterOrgUnit[]
+  >([]);
+  const [profileBanks, setProfileBanks] = useState<ProfileMasterBank[]>([]);
+  const [profileBatchSeries, setProfileBatchSeries] = useState<
+    ProfileMasterBatchSeries[]
+  >([]);
+  const [profileBatches, setProfileBatches] = useState<ProfileMasterBatch[]>(
+    [],
+  );
+  const [profileOfficers, setProfileOfficers] = useState<
+    ProfileMasterOfficer[]
+  >([]);
+  const [profileEmploymentTypes, setProfileEmploymentTypes] = useState<
+    ProfileMasterEmploymentType[]
+  >([]);
+  const [profileMastersLoading, setProfileMastersLoading] = useState(false);
+  const [profileMastersError, setProfileMastersError] = useState<string | null>(
+    null,
+  );
+  const [profileMasterSection, setProfileMasterSection] =
+    useState<ProfileMasterSection>("org_units");
+
+  const [profileMasterModal, setProfileMasterModal] =
+    useState<ProfileMasterSection | null>(null);
+  const [editingProfileOrgUnit, setEditingProfileOrgUnit] =
+    useState<ProfileMasterOrgUnit | null>(null);
+  const [editingProfileBank, setEditingProfileBank] =
+    useState<ProfileMasterBank | null>(null);
+  const [editingProfileBatch, setEditingProfileBatch] =
+    useState<ProfileMasterBatch | null>(null);
+
+  const [profileOrgUnitForm, setProfileOrgUnitForm] = useState({
+    unitType: "department",
+    unitName: "",
+    description: "",
+  });
+  const [profileBankForm, setProfileBankForm] = useState({
+    bankName: "",
+    bankCode: "",
+  });
+  const [profileBatchForm, setProfileBatchForm] = useState({
+    seriesId: "",
+    batchNumber: "",
+    batchLabel: "",
+    startYear: "",
+    endYear: "",
+  });
+
+  /* =======================================================
      WORKFLOW & STAGE EDITING
   ======================================================= */
   const [editingWorkflow, setEditingWorkflow] = useState<{
@@ -332,14 +435,22 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
   const handleOpenWorkflowModal = (
     type: "facility" | "service",
-    item: FacilityRecord | ServiceRecord
+    item: FacilityRecord | ServiceRecord,
   ) => {
     let stages: WorkflowStage[] = [];
-    if (item.workflowStages && Array.isArray(item.workflowStages) && item.workflowStages.length > 0) {
+    if (
+      item.workflowStages &&
+      Array.isArray(item.workflowStages) &&
+      item.workflowStages.length > 0
+    ) {
       stages = item.workflowStages;
     } else if (type === "facility") {
       const fac = item as FacilityRecord;
-      stages = getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal);
+      stages = getDefaultFacilityWorkflow(
+        fac.supervisor,
+        fac.assocNodal,
+        fac.nodal,
+      );
     } else {
       const srv = item as ServiceRecord;
       stages = getDefaultServiceWorkflow(srv.manager);
@@ -410,7 +521,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       const fac = editingWorkflow.item as FacilityRecord;
       setEditingWorkflow({
         ...editingWorkflow,
-        stages: getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal),
+        stages: getDefaultFacilityWorkflow(
+          fac.supervisor,
+          fac.assocNodal,
+          fac.nodal,
+        ),
       });
     } else {
       const srv = editingWorkflow.item as ServiceRecord;
@@ -428,20 +543,23 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     try {
       if (type === "facility") {
         const fac = item as FacilityRecord;
-        const response = await fetch(`/api/facilities/${encodeURIComponent(fac.id)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: fac.name,
-            dept: fac.dept || "Research Laboratories Division",
-            nodal: fac.nodal,
-            assocNodal: fac.assocNodal,
-            supervisor: fac.supervisor,
-            desc: fac.desc,
-            status: fac.status,
-            workflowStages: stages,
-          }),
-        });
+        const response = await fetch(
+          `/api/facilities/${encodeURIComponent(fac.id)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: fac.name,
+              dept: fac.dept || "Research Laboratories Division",
+              nodal: fac.nodal,
+              assocNodal: fac.assocNodal,
+              supervisor: fac.supervisor,
+              desc: fac.desc,
+              status: fac.status,
+              workflowStages: stages,
+            }),
+          },
+        );
         const data = await response.json();
         if (!response.ok || !data.success) {
           throw new Error(data.message || "Failed to update workflow.");
@@ -449,17 +567,20 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
         await fetchFacilities();
       } else {
         const srv = item as ServiceRecord;
-        const response = await fetch(`/api/services/${encodeURIComponent(srv.id)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: srv.name,
-            manager: srv.manager,
-            quota: srv.quota,
-            status: srv.status,
-            workflowStages: stages,
-          }),
-        });
+        const response = await fetch(
+          `/api/services/${encodeURIComponent(srv.id)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: srv.name,
+              manager: srv.manager,
+              quota: srv.quota,
+              status: srv.status,
+              workflowStages: stages,
+            }),
+          },
+        );
         const data = await response.json();
         if (!response.ok || !data.success) {
           throw new Error(data.message || "Failed to update workflow.");
@@ -620,7 +741,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}). Database may be starting up.`);
+        throw new Error(
+          `Server returned non-JSON response (${response.status} ${response.statusText}). Database may be starting up.`,
+        );
       }
 
       const data = await response.json();
@@ -655,7 +778,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
+        throw new Error(
+          `Server returned non-JSON response (${response.status} ${response.statusText}).`,
+        );
       }
 
       const data = await response.json();
@@ -688,7 +813,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
+        throw new Error(
+          `Server returned non-JSON response (${response.status} ${response.statusText}).`,
+        );
       }
 
       const data = await response.json();
@@ -709,6 +836,325 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
   };
 
   /* =======================================================
+     PROFILE MASTER DATA
+  ======================================================= */
+
+  const fetchProfileMasters = async () => {
+    setProfileMastersLoading(true);
+    setProfileMastersError(null);
+
+    try {
+      const responses = await Promise.all([
+        fetch("/api/admin/profile-masters/org-units", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/admin/profile-masters/banks", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/admin/profile-masters/batches", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/profile/masters/batch-series", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/profile/masters/officers", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/profile/masters/employment-types", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+      ]);
+
+      const payloads = await Promise.all(
+        responses.map(async (response) => {
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            throw new Error(
+              `Profile master API returned non-JSON response (${response.status} ${response.statusText}).`,
+            );
+          }
+
+          const data = await response.json();
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || "Unable to load profile masters.");
+          }
+
+          return data;
+        }),
+      );
+
+      setProfileOrgUnits(
+        Array.isArray(payloads[0].data) ? payloads[0].data : [],
+      );
+      setProfileBanks(Array.isArray(payloads[1].data) ? payloads[1].data : []);
+      setProfileBatches(
+        Array.isArray(payloads[2].data) ? payloads[2].data : [],
+      );
+      setProfileBatchSeries(
+        Array.isArray(payloads[3].data) ? payloads[3].data : [],
+      );
+      setProfileOfficers(
+        Array.isArray(payloads[4].data) ? payloads[4].data : [],
+      );
+      setProfileEmploymentTypes(
+        Array.isArray(payloads[5].data) ? payloads[5].data : [],
+      );
+    } catch (error: any) {
+      console.error("PROFILE MASTERS LOAD ERROR:", error);
+      setProfileMastersError(
+        error?.message || "Unable to load profile masters.",
+      );
+    } finally {
+      setProfileMastersLoading(false);
+    }
+  };
+
+  const profileMasterRequest = async (
+    endpoint: string,
+    method: "POST" | "PUT" | "PATCH",
+    body?: Record<string, unknown>,
+  ) => {
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error(
+        `Profile master API returned non-JSON response (${response.status} ${response.statusText}).`,
+      );
+    }
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Profile master operation failed.");
+    }
+
+    return data;
+  };
+
+  const openAddProfileMaster = (section: ProfileMasterSection) => {
+    setEditingProfileOrgUnit(null);
+    setEditingProfileBank(null);
+    setEditingProfileBatch(null);
+
+    if (section === "org_units") {
+      setProfileOrgUnitForm({
+        unitType: "department",
+        unitName: "",
+        description: "",
+      });
+    } else if (section === "banks") {
+      setProfileBankForm({
+        bankName: "",
+        bankCode: "",
+      });
+    } else {
+      setProfileBatchForm({
+        seriesId: profileBatchSeries[0] ? String(profileBatchSeries[0].id) : "",
+        batchNumber: "",
+        batchLabel: "",
+        startYear: "",
+        endYear: "",
+      });
+    }
+
+    setProfileMasterModal(section);
+  };
+
+  const openEditProfileOrgUnit = (item: ProfileMasterOrgUnit) => {
+    setEditingProfileOrgUnit(item);
+    setEditingProfileBank(null);
+    setEditingProfileBatch(null);
+    setProfileOrgUnitForm({
+      unitType: item.unitType || "department",
+      unitName: item.unitName || "",
+      description: item.description || "",
+    });
+    setProfileMasterModal("org_units");
+  };
+
+  const openEditProfileBank = (item: ProfileMasterBank) => {
+    setEditingProfileOrgUnit(null);
+    setEditingProfileBank(item);
+    setEditingProfileBatch(null);
+    setProfileBankForm({
+      bankName: item.bankName || "",
+      bankCode: item.bankCode || "",
+    });
+    setProfileMasterModal("banks");
+  };
+
+  const openEditProfileBatch = (item: ProfileMasterBatch) => {
+    setEditingProfileOrgUnit(null);
+    setEditingProfileBank(null);
+    setEditingProfileBatch(item);
+    setProfileBatchForm({
+      seriesId: String(item.seriesId),
+      batchNumber: String(item.batchNumber ?? ""),
+      batchLabel: item.batchLabel || "",
+      startYear: item.startYear == null ? "" : String(item.startYear),
+      endYear: item.endYear == null ? "" : String(item.endYear),
+    });
+    setProfileMasterModal("batches");
+  };
+
+  const handleSaveProfileOrgUnit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!profileOrgUnitForm.unitName.trim()) {
+      showToast("Organization unit name is required.");
+      return;
+    }
+
+    try {
+      await profileMasterRequest(
+        editingProfileOrgUnit
+          ? `/api/admin/profile-masters/org-units/${encodeURIComponent(String(editingProfileOrgUnit.id))}`
+          : "/api/admin/profile-masters/org-units",
+        editingProfileOrgUnit ? "PUT" : "POST",
+        {
+          unitType: profileOrgUnitForm.unitType,
+          unitName: profileOrgUnitForm.unitName.trim(),
+          description: profileOrgUnitForm.description.trim() || null,
+          ...(editingProfileOrgUnit
+            ? { status: editingProfileOrgUnit.status }
+            : {}),
+        },
+      );
+
+      await fetchProfileMasters();
+      setProfileMasterModal(null);
+      setEditingProfileOrgUnit(null);
+      showToast(
+        editingProfileOrgUnit
+          ? "Organization unit updated successfully."
+          : "Organization unit added successfully.",
+      );
+    } catch (error: any) {
+      console.error("PROFILE ORG UNIT SAVE ERROR:", error);
+      showToast(error?.message || "Unable to save organization unit.");
+    }
+  };
+
+  const handleSaveProfileBank = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!profileBankForm.bankName.trim()) {
+      showToast("Bank name is required.");
+      return;
+    }
+
+    try {
+      await profileMasterRequest(
+        editingProfileBank
+          ? `/api/admin/profile-masters/banks/${encodeURIComponent(String(editingProfileBank.id))}`
+          : "/api/admin/profile-masters/banks",
+        editingProfileBank ? "PUT" : "POST",
+        {
+          bankName: profileBankForm.bankName.trim(),
+          bankCode: profileBankForm.bankCode.trim() || null,
+          ...(editingProfileBank ? { status: editingProfileBank.status } : {}),
+        },
+      );
+
+      await fetchProfileMasters();
+      setProfileMasterModal(null);
+      setEditingProfileBank(null);
+      showToast(
+        editingProfileBank
+          ? "Bank updated successfully."
+          : "Bank added successfully.",
+      );
+    } catch (error: any) {
+      console.error("PROFILE BANK SAVE ERROR:", error);
+      showToast(error?.message || "Unable to save bank.");
+    }
+  };
+
+  const handleSaveProfileBatch = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!profileBatchForm.seriesId || !profileBatchForm.batchNumber.trim()) {
+      showToast("Batch series and batch number are required.");
+      return;
+    }
+
+    try {
+      await profileMasterRequest(
+        editingProfileBatch
+          ? `/api/admin/profile-masters/batches/${encodeURIComponent(String(editingProfileBatch.id))}`
+          : "/api/admin/profile-masters/batches",
+        editingProfileBatch ? "PUT" : "POST",
+        {
+          seriesId: Number(profileBatchForm.seriesId),
+          batchNumber: profileBatchForm.batchNumber.trim(),
+          batchLabel: profileBatchForm.batchLabel.trim() || null,
+          startYear: profileBatchForm.startYear
+            ? Number(profileBatchForm.startYear)
+            : null,
+          endYear: profileBatchForm.endYear
+            ? Number(profileBatchForm.endYear)
+            : null,
+          ...(editingProfileBatch
+            ? { status: editingProfileBatch.status }
+            : {}),
+        },
+      );
+
+      await fetchProfileMasters();
+      setProfileMasterModal(null);
+      setEditingProfileBatch(null);
+      showToast(
+        editingProfileBatch
+          ? "Batch updated successfully."
+          : "Batch added successfully.",
+      );
+    } catch (error: any) {
+      console.error("PROFILE BATCH SAVE ERROR:", error);
+      showToast(error?.message || "Unable to save batch.");
+    }
+  };
+
+  const handleToggleProfileMasterStatus = async (
+    section: ProfileMasterSection,
+    item: ProfileMasterOrgUnit | ProfileMasterBank | ProfileMasterBatch,
+  ) => {
+    const resource =
+      section === "org_units"
+        ? "org-units"
+        : section === "banks"
+          ? "banks"
+          : "batches";
+    const nextStatus = item.status === "active" ? "inactive" : "active";
+
+    try {
+      await profileMasterRequest(
+        `/api/admin/profile-masters/${resource}/${encodeURIComponent(String(item.id))}/status`,
+        "PATCH",
+        { status: nextStatus },
+      );
+
+      await fetchProfileMasters();
+      showToast(`Status changed to ${nextStatus.toUpperCase()}.`);
+    } catch (error: any) {
+      console.error("PROFILE MASTER STATUS ERROR:", error);
+      showToast(error?.message || "Unable to change status.");
+    }
+  };
+
+  /* =======================================================
      INITIAL DATABASE LOAD
   ======================================================= */
 
@@ -716,6 +1162,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     fetchUsers();
     fetchFacilities();
     fetchServices();
+    fetchProfileMasters();
   }, []);
 
   /* =======================================================
@@ -1469,6 +1916,18 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveSubTab("profile_masters")}
+            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
+              activeSubTab === "profile_masters"
+                ? "bg-purple-700 text-white"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            Profile Masters
+          </button>
+
+          <button
             onClick={() => setActiveSubTab("masters")}
             className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               activeSubTab === "masters"
@@ -1680,6 +2139,460 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       )}
 
       {/* =====================================================
+          PROFILE MASTERS
+      ===================================================== */}
+
+      {activeSubTab === "profile_masters" && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
+          <div className="flex flex-wrap justify-between items-start gap-4 border-b border-slate-200 pb-4">
+            <div>
+              <h2 className="font-extrabold text-slate-900 flex items-center gap-2">
+                <Database className="w-5 h-5 text-purple-600" />
+                Profile Masters
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Central profile master data used by the user profile module.
+                Changes are persisted in the database through administrator-only
+                APIs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchProfileMasters}
+              disabled={profileMastersLoading}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {profileMastersLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          {profileMastersError && (
+            <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
+              {profileMastersError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            {[
+              ["org_units", "Organization Units", profileOrgUnits.length],
+              ["banks", "Banks", profileBanks.length],
+              ["batches", "Batches", profileBatches.length],
+              ["series", "Batch Series", profileBatchSeries.length],
+              ["employment", "Employment Types", profileEmploymentTypes.length],
+              ["officers", "Profile Officers", profileOfficers.length],
+            ].map(([key, label, count]) => (
+              <div
+                key={String(key)}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="text-[10px] uppercase tracking-wide font-bold text-slate-500">
+                  {label}
+                </div>
+                <div className="text-xl font-extrabold text-slate-900 mt-1">
+                  {count}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+            {[
+              ["org_units", "Organization Units"],
+              ["banks", "Banks"],
+              ["batches", "Batches"],
+            ].map(([key, label]) => (
+              <button
+                key={String(key)}
+                type="button"
+                onClick={() =>
+                  setProfileMasterSection(key as ProfileMasterSection)
+                }
+                className={`px-3 py-2 rounded-lg text-xs font-bold ${
+                  profileMasterSection === key
+                    ? "bg-purple-700 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {profileMasterSection === "org_units" && (
+            <section>
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800">
+                    Organization Unit Master
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Department, cell and project values used by profile forms.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openAddProfileMaster("org_units")}
+                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Unit
+                </button>
+              </div>
+
+              {profileOrgUnits.length === 0 ? (
+                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
+                  No organization units found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Name</th>
+                        <th className="p-3">Description</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {profileOrgUnits.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-semibold uppercase">
+                            {item.unitType}
+                          </td>
+                          <td className="p-3 font-bold text-slate-900">
+                            {item.unitName}
+                          </td>
+                          <td className="p-3 text-slate-500">
+                            {item.description || "—"}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                item.status === "active"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {item.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditProfileOrgUnit(item)}
+                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
+                                title="Edit organization unit"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleProfileMasterStatus(
+                                    "org_units",
+                                    item,
+                                  )
+                                }
+                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
+                              >
+                                {item.status === "active"
+                                  ? "Deactivate"
+                                  : "Activate"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {profileMasterSection === "banks" && (
+            <section>
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800">Bank Master</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Banks available for profile bank details.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openAddProfileMaster("banks")}
+                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Bank
+                </button>
+              </div>
+
+              {profileBanks.length === 0 ? (
+                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
+                  No banks found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="p-3">Bank Name</th>
+                        <th className="p-3">Bank Code</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {profileBanks.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900">
+                            {item.bankName}
+                          </td>
+                          <td className="p-3 font-mono text-slate-600">
+                            {item.bankCode || "—"}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                item.status === "active"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {item.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditProfileBank(item)}
+                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
+                                title="Edit bank"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleProfileMasterStatus("banks", item)
+                                }
+                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
+                              >
+                                {item.status === "active"
+                                  ? "Deactivate"
+                                  : "Activate"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {profileMasterSection === "batches" && (
+            <section>
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800">Batch Master</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    MSc and Diploma Trainee batches are maintained separately by
+                    batch series.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openAddProfileMaster("batches")}
+                  disabled={profileBatchSeries.length === 0}
+                  className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:bg-slate-300"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Batch
+                </button>
+              </div>
+
+              {profileBatches.length === 0 ? (
+                <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">
+                  No batches found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="p-3">Series</th>
+                        <th className="p-3">Batch No.</th>
+                        <th className="p-3">Label</th>
+                        <th className="p-3">Period</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {profileBatches.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="p-3">
+                            <div className="font-bold">{item.seriesName}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {item.seriesType}
+                            </div>
+                          </td>
+                          <td className="p-3 font-bold">{item.batchNumber}</td>
+                          <td className="p-3 text-slate-600">
+                            {item.batchLabel || "—"}
+                          </td>
+                          <td className="p-3 text-slate-600">
+                            {item.startYear || "—"} – {item.endYear || "—"}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                item.status === "active"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {item.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditProfileBatch(item)}
+                                className="p-2 text-purple-700 hover:bg-purple-50 rounded-lg"
+                                title="Edit batch"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleProfileMasterStatus(
+                                    "batches",
+                                    item,
+                                  )
+                                }
+                                className="px-2 py-1 text-slate-600 hover:bg-slate-100 rounded-lg text-[10px] font-bold"
+                              >
+                                {item.status === "active"
+                                  ? "Deactivate"
+                                  : "Activate"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-6 grid md:grid-cols-2 gap-4">
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                  <h4 className="font-bold text-sm text-slate-800">
+                    Batch Series
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-1 mb-3">
+                    Series are backend master configuration and read-only here.
+                  </p>
+                  <div className="space-y-2">
+                    {profileBatchSeries.map((series) => (
+                      <div
+                        key={series.id}
+                        className="flex justify-between items-center bg-white border border-slate-200 rounded-lg p-3"
+                      >
+                        <div>
+                          <div className="font-semibold text-xs">
+                            {series.seriesName}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {series.seriesType}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          {series.status.toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                  <h4 className="font-bold text-sm text-slate-800">
+                    Profile Officers
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-1 mb-3">
+                    Officers, managers and PIs come from users and database
+                    roles.
+                  </p>
+                  <div className="max-h-56 overflow-y-auto space-y-2">
+                    {profileOfficers.map((officer) => (
+                      <div
+                        key={officer.id}
+                        className="bg-white border border-slate-200 rounded-lg p-3"
+                      >
+                        <div className="font-semibold text-xs">
+                          {officer.fullName}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {officer.email || "—"}
+                        </div>
+                        {Array.isArray(officer.roles) &&
+                          officer.roles.length > 0 && (
+                            <div className="text-[10px] text-purple-700 mt-1">
+                              {officer.roles.join(", ")}
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <div className="border-t border-slate-200 pt-5">
+            <h3 className="font-bold text-slate-800 text-sm">
+              Employment Types
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Employment types are system master values and are read-only from
+              this control panel.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {profileEmploymentTypes.map((item) => {
+                const label =
+                  item.name ||
+                  item.label ||
+                  item.employmentType ||
+                  item.code ||
+                  "Unnamed employment type";
+
+                return (
+                  <span
+                    key={item.id}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700"
+                  >
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
           FACILITIES + SERVICES MASTER
       ===================================================== */}
 
@@ -1762,9 +2675,14 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {facilitiesList.map((facility) => {
-                const stages = facility.workflowStages && facility.workflowStages.length > 0
-                  ? facility.workflowStages
-                  : getDefaultFacilityWorkflow(facility.supervisor, facility.assocNodal, facility.nodal);
+                const stages =
+                  facility.workflowStages && facility.workflowStages.length > 0
+                    ? facility.workflowStages
+                    : getDefaultFacilityWorkflow(
+                        facility.supervisor,
+                        facility.assocNodal,
+                        facility.nodal,
+                      );
 
                 return (
                   <div
@@ -1812,7 +2730,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                         </div>
 
                         {facility.desc && (
-                          <div className="pt-1 text-slate-500">{facility.desc}</div>
+                          <div className="pt-1 text-slate-500">
+                            {facility.desc}
+                          </div>
                         )}
                       </div>
 
@@ -1827,10 +2747,17 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                         <div className="flex flex-wrap items-center gap-1 text-[10px]">
                           {stages.map((stg, idx) => (
                             <React.Fragment key={stg.stageNumber || idx}>
-                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>
-                                {idx + 1}. {stg.stageName.split(' ')[0]}
+                              <span
+                                className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium"
+                                title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}
+                              >
+                                {idx + 1}. {stg.stageName.split(" ")[0]}
                               </span>
-                              {idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}
+                              {idx < stages.length - 1 && (
+                                <span className="text-slate-400 font-bold">
+                                  ➔
+                                </span>
+                              )}
                             </React.Fragment>
                           ))}
                         </div>
@@ -1849,7 +2776,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
                       <div className="flex gap-1">
                         <button
-                          onClick={() => handleOpenWorkflowModal("facility", facility)}
+                          onClick={() =>
+                            handleOpenWorkflowModal("facility", facility)
+                          }
                           className="p-1.5 text-purple-700 hover:bg-purple-50 rounded flex items-center gap-1 text-[11px] font-bold"
                           title="Configure Workflow Flow/Stages"
                         >
@@ -1923,9 +2852,10 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {servicesList.map((service) => {
-                const stages = service.workflowStages && service.workflowStages.length > 0
-                  ? service.workflowStages
-                  : getDefaultServiceWorkflow(service.manager);
+                const stages =
+                  service.workflowStages && service.workflowStages.length > 0
+                    ? service.workflowStages
+                    : getDefaultServiceWorkflow(service.manager);
 
                 return (
                   <div
@@ -1976,10 +2906,17 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                         <div className="flex flex-wrap items-center gap-1 text-[10px]">
                           {stages.map((stg, idx) => (
                             <React.Fragment key={stg.stageNumber || idx}>
-                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>
-                                {idx + 1}. {stg.stageName.split(' ')[0]}
+                              <span
+                                className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium"
+                                title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}
+                              >
+                                {idx + 1}. {stg.stageName.split(" ")[0]}
                               </span>
-                              {idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}
+                              {idx < stages.length - 1 && (
+                                <span className="text-slate-400 font-bold">
+                                  ➔
+                                </span>
+                              )}
                             </React.Fragment>
                           ))}
                         </div>
@@ -1996,7 +2933,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
                       <div className="flex gap-1">
                         <button
-                          onClick={() => handleOpenWorkflowModal("service", service)}
+                          onClick={() =>
+                            handleOpenWorkflowModal("service", service)
+                          }
                           className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded flex items-center gap-1 text-[11px] font-bold"
                           title="Configure Workflow Flow/Stages"
                         >
@@ -2157,8 +3096,333 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           COMPANY LOGO MASTER
       ===================================================== */}
 
-      {activeSubTab === "logo_branding" && (
-        <LogoBrandingMasterSection />
+      {activeSubTab === "logo_branding" && <LogoBrandingMasterSection />}
+
+      {/* =====================================================
+          PROFILE MASTER MODALS
+      ===================================================== */}
+
+      {profileMasterModal === "org_units" && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveProfileOrgUnit}
+            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
+          >
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900">
+                  {editingProfileOrgUnit
+                    ? "Edit Organization Unit"
+                    : "Add Organization Unit"}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Department, cell or project master record.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Unit Type
+                </label>
+                <select
+                  value={profileOrgUnitForm.unitType}
+                  onChange={(e) =>
+                    setProfileOrgUnitForm((current) => ({
+                      ...current,
+                      unitType: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white"
+                >
+                  <option value="department">Department</option>
+                  <option value="cell">Cell</option>
+                  <option value="project">Project</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Unit Name *
+                </label>
+                <input
+                  required
+                  value={profileOrgUnitForm.unitName}
+                  onChange={(e) =>
+                    setProfileOrgUnitForm((current) => ({
+                      ...current,
+                      unitName: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                  placeholder="Enter department / cell / project name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={profileOrgUnitForm.description}
+                  onChange={(e) =>
+                    setProfileOrgUnitForm((current) => ({
+                      ...current,
+                      description: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg min-h-20"
+                  placeholder="Optional description"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
+              >
+                {editingProfileOrgUnit ? "Save Changes" : "Add Unit"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {profileMasterModal === "banks" && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveProfileBank}
+            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
+          >
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900">
+                  {editingProfileBank ? "Edit Bank" : "Add Bank"}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Bank master used in profile bank details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Bank Name *
+                </label>
+                <input
+                  required
+                  value={profileBankForm.bankName}
+                  onChange={(e) =>
+                    setProfileBankForm((current) => ({
+                      ...current,
+                      bankName: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                  placeholder="Enter bank name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Bank Code
+                </label>
+                <input
+                  value={profileBankForm.bankCode}
+                  onChange={(e) =>
+                    setProfileBankForm((current) => ({
+                      ...current,
+                      bankCode: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                  placeholder="Optional bank code"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
+              >
+                {editingProfileBank ? "Save Changes" : "Add Bank"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {profileMasterModal === "batches" && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveProfileBatch}
+            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
+          >
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900">
+                  {editingProfileBatch ? "Edit Batch" : "Add Batch"}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Batch belongs to an existing batch series.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Batch Series *
+                </label>
+                <select
+                  required
+                  value={profileBatchForm.seriesId}
+                  onChange={(e) =>
+                    setProfileBatchForm((current) => ({
+                      ...current,
+                      seriesId: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white"
+                >
+                  <option value="">Select batch series</option>
+                  {profileBatchSeries.map((series) => (
+                    <option key={series.id} value={series.id}>
+                      {series.seriesName} ({series.seriesType})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Batch Number *
+                </label>
+                <input
+                  required
+                  value={profileBatchForm.batchNumber}
+                  onChange={(e) =>
+                    setProfileBatchForm((current) => ({
+                      ...current,
+                      batchNumber: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                  placeholder="e.g. 2026-27"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Batch Label
+                </label>
+                <input
+                  value={profileBatchForm.batchLabel}
+                  onChange={(e) =>
+                    setProfileBatchForm((current) => ({
+                      ...current,
+                      batchLabel: e.target.value,
+                    }))
+                  }
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                  placeholder="Optional display label"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Start Year
+                  </label>
+                  <input
+                    type="number"
+                    value={profileBatchForm.startYear}
+                    onChange={(e) =>
+                      setProfileBatchForm((current) => ({
+                        ...current,
+                        startYear: e.target.value,
+                      }))
+                    }
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                    placeholder="2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    End Year
+                  </label>
+                  <input
+                    type="number"
+                    value={profileBatchForm.endYear}
+                    onChange={(e) =>
+                      setProfileBatchForm((current) => ({
+                        ...current,
+                        endYear: e.target.value,
+                      }))
+                    }
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
+                    placeholder="2027"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
+              <button
+                type="button"
+                onClick={() => setProfileMasterModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
+              >
+                {editingProfileBatch ? "Save Changes" : "Add Batch"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* =====================================================
@@ -2739,7 +4003,9 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           <div className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl my-8 max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <div className={`p-2 rounded-lg ${editingWorkflow.type === 'facility' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                <div
+                  className={`p-2 rounded-lg ${editingWorkflow.type === "facility" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}
+                >
                   <GitMerge className="w-5 h-5" />
                 </div>
                 <div>
@@ -2747,7 +4013,11 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                     Configure Approval Workflow Stages
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Set sequence of dealing persons & officers for <span className="font-bold text-slate-800">{editingWorkflow.item.name}</span> ({editingWorkflow.item.id})
+                    Set sequence of dealing persons & officers for{" "}
+                    <span className="font-bold text-slate-800">
+                      {editingWorkflow.item.name}
+                    </span>{" "}
+                    ({editingWorkflow.item.id})
                   </p>
                 </div>
               </div>
@@ -2764,7 +4034,8 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
             <div className="overflow-y-auto py-4 space-y-4 flex-grow pr-1">
               {editingWorkflow.stages.length === 0 ? (
                 <div className="py-8 text-center border border-dashed border-slate-300 rounded-xl text-slate-500 text-xs">
-                  No workflow stages defined. Click &quot;Add Stage&quot; below to add one.
+                  No workflow stages defined. Click &quot;Add Stage&quot; below
+                  to add one.
                 </div>
               ) : (
                 editingWorkflow.stages.map((stg, index) => (
@@ -2825,7 +4096,10 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                           onChange={(e) => {
                             const newStages = [...editingWorkflow.stages];
                             newStages[index].stageName = e.target.value;
-                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                            setEditingWorkflow({
+                              ...editingWorkflow,
+                              stages: newStages,
+                            });
                           }}
                           placeholder="e.g. Technical Verification"
                           className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
@@ -2845,35 +4119,73 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
                             // Auto populate officer name based on item if applicable
                             if (role === "reporting_manager") {
-                              newStages[index].dealingOfficerName = "Applicant's Supervising Officer (PI)";
-                            } else if (role === "supervisor" && editingWorkflow.type === "facility") {
-                              const fac = editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName = fac.supervisor || "Lab Technical Supervisor";
-                            } else if (role === "assoc_nodal" && editingWorkflow.type === "facility") {
-                              const fac = editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName = fac.assocNodal || "Associate Nodal Officer";
-                            } else if (role === "nodal" && editingWorkflow.type === "facility") {
-                              const fac = editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName = fac.nodal || "Nodal Officer";
-                            } else if (role === "manager" && editingWorkflow.type === "service") {
+                              newStages[index].dealingOfficerName =
+                                "Applicant's Supervising Officer (PI)";
+                            } else if (
+                              role === "supervisor" &&
+                              editingWorkflow.type === "facility"
+                            ) {
+                              const fac =
+                                editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName =
+                                fac.supervisor || "Lab Technical Supervisor";
+                            } else if (
+                              role === "assoc_nodal" &&
+                              editingWorkflow.type === "facility"
+                            ) {
+                              const fac =
+                                editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName =
+                                fac.assocNodal || "Associate Nodal Officer";
+                            } else if (
+                              role === "nodal" &&
+                              editingWorkflow.type === "facility"
+                            ) {
+                              const fac =
+                                editingWorkflow.item as FacilityRecord;
+                              newStages[index].dealingOfficerName =
+                                fac.nodal || "Nodal Officer";
+                            } else if (
+                              role === "manager" &&
+                              editingWorkflow.type === "service"
+                            ) {
                               const srv = editingWorkflow.item as ServiceRecord;
-                              newStages[index].dealingOfficerName = srv.manager || "Service Manager";
+                              newStages[index].dealingOfficerName =
+                                srv.manager || "Service Manager";
                             } else if (role === "it_head") {
-                              newStages[index].dealingOfficerName = "IT Officer / System Admin";
+                              newStages[index].dealingOfficerName =
+                                "IT Officer / System Admin";
                             }
 
-                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                            setEditingWorkflow({
+                              ...editingWorkflow,
+                              stages: newStages,
+                            });
                           }}
                           className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
                         >
-                          <option value="reporting_manager">Reporting Manager / PI (Applicant Supervisor)</option>
-                          <option value="supervisor">Lab Technical Supervisor</option>
-                          <option value="assoc_nodal">Associate Nodal Officer</option>
+                          <option value="reporting_manager">
+                            Reporting Manager / PI (Applicant Supervisor)
+                          </option>
+                          <option value="supervisor">
+                            Lab Technical Supervisor
+                          </option>
+                          <option value="assoc_nodal">
+                            Associate Nodal Officer
+                          </option>
                           <option value="nodal">Nodal Officer</option>
-                          <option value="manager">Service In-Charge Manager</option>
-                          <option value="it_head">IT Head / Admin Officer</option>
-                          <option value="section_head">Section Head / Director</option>
-                          <option value="custom">Specific Officer / User</option>
+                          <option value="manager">
+                            Service In-Charge Manager
+                          </option>
+                          <option value="it_head">
+                            IT Head / Admin Officer
+                          </option>
+                          <option value="section_head">
+                            Section Head / Director
+                          </option>
+                          <option value="custom">
+                            Specific Officer / User
+                          </option>
                         </select>
                       </div>
 
@@ -2886,8 +4198,12 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                             value={stg.dealingOfficerName}
                             onChange={(e) => {
                               const newStages = [...editingWorkflow.stages];
-                              newStages[index].dealingOfficerName = e.target.value;
-                              setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                              newStages[index].dealingOfficerName =
+                                e.target.value;
+                              setEditingWorkflow({
+                                ...editingWorkflow,
+                                stages: newStages,
+                              });
                             }}
                             className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
                           >
@@ -2896,7 +4212,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                               const name = getDisplayName(u);
                               return (
                                 <option key={u.id} value={name}>
-                                  {name} ({u.designation || 'Officer'})
+                                  {name} ({u.designation || "Officer"})
                                 </option>
                               );
                             })}
@@ -2907,8 +4223,12 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                             value={stg.dealingOfficerName}
                             onChange={(e) => {
                               const newStages = [...editingWorkflow.stages];
-                              newStages[index].dealingOfficerName = e.target.value;
-                              setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                              newStages[index].dealingOfficerName =
+                                e.target.value;
+                              setEditingWorkflow({
+                                ...editingWorkflow,
+                                stages: newStages,
+                              });
                             }}
                             placeholder="Officer Name / Designation"
                             className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
@@ -2925,14 +4245,25 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                           onChange={(e) => {
                             const newStages = [...editingWorkflow.stages];
                             newStages[index].actionType = e.target.value as any;
-                            setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                            setEditingWorkflow({
+                              ...editingWorkflow,
+                              stages: newStages,
+                            });
                           }}
                           className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
                         >
-                          <option value="endorsement">Endorsement / Recommendation</option>
-                          <option value="verification">Technical Verification / Inspection</option>
-                          <option value="approval">Final Officer Approval</option>
-                          <option value="provisioning">Provisioning & Clearance</option>
+                          <option value="endorsement">
+                            Endorsement / Recommendation
+                          </option>
+                          <option value="verification">
+                            Technical Verification / Inspection
+                          </option>
+                          <option value="approval">
+                            Final Officer Approval
+                          </option>
+                          <option value="provisioning">
+                            Provisioning & Clearance
+                          </option>
                         </select>
                       </div>
                     </div>
@@ -2945,11 +4276,17 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
                         onChange={(e) => {
                           const newStages = [...editingWorkflow.stages];
                           newStages[index].isMandatory = e.target.checked;
-                          setEditingWorkflow({ ...editingWorkflow, stages: newStages });
+                          setEditingWorkflow({
+                            ...editingWorkflow,
+                            stages: newStages,
+                          });
                         }}
                         className="rounded text-purple-600 focus:ring-purple-500"
                       />
-                      <label htmlFor={`mandatory-${index}`} className="text-xs font-semibold text-slate-700">
+                      <label
+                        htmlFor={`mandatory-${index}`}
+                        className="text-xs font-semibold text-slate-700"
+                      >
                         Mandatory Stage (Request cannot skip this step)
                       </label>
                     </div>
