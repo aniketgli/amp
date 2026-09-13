@@ -7,6 +7,9 @@ const administrator = requireRole("administrator");
 
 export function registerProfileMasterAdminRoutes(app: Express) {
   app.get("/api/admin/profile-masters/employment-types", authenticateToken, administrator, controller.getAdminEmploymentTypes);
+  app.post("/api/admin/profile-masters/employment-types", authenticateToken, administrator, controller.createEmploymentType);
+  app.put("/api/admin/profile-masters/employment-types/:id", authenticateToken, administrator, controller.updateEmploymentType);
+  app.patch("/api/admin/profile-masters/employment-types/:id/status", authenticateToken, administrator, controller.updateEmploymentTypeStatus);
   app.get("/api/admin/profile-masters/org-units", authenticateToken, administrator, controller.getAdminOrgUnits);
   app.post("/api/admin/profile-masters/org-units", authenticateToken, administrator, controller.createOrgUnit);
   app.put("/api/admin/profile-masters/org-units/:id", authenticateToken, administrator, controller.updateOrgUnit);

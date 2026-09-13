@@ -27,6 +27,9 @@ export async function getLegacyBatches(req: Request, res: Response) {
   }
 }
 
+export async function createEmploymentType(req:Request,res:Response){try{return ok(res,await service.addEmploymentType(req.body),"Employment type created successfully.",201);}catch(e){return fail(res,e,"Unable to create employment type.");}}
+export async function updateEmploymentType(req:Request,res:Response){try{return ok(res,await service.editEmploymentType(id(req),req.body),"Employment type updated successfully.");}catch(e){return fail(res,e,"Unable to update employment type.");}}
+export async function updateEmploymentTypeStatus(req:Request,res:Response){try{return ok(res,await service.changeEmploymentTypeStatus(id(req),req.body?.status),"Employment type status updated successfully.");}catch(e){return fail(res,e,"Unable to update employment type status.");}}
 export async function createOrgUnit(req:Request,res:Response){try{return ok(res,await service.addOrgUnit(req.body),"Organization created successfully.",201);}catch(e){return fail(res,e,"Unable to create organization.");}}
 export async function updateOrgUnit(req:Request,res:Response){try{return ok(res,await service.editOrgUnit(id(req),req.body),"Organization updated successfully.");}catch(e){return fail(res,e,"Unable to update organization.");}}
 export async function updateOrgUnitStatus(req:Request,res:Response){try{return ok(res,await service.changeOrgUnitStatus(id(req),req.body?.status),"Organization status updated successfully.");}catch(e){return fail(res,e,"Unable to update organization status.");}}

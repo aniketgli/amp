@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   getAdminProfileEmploymentTypes,
+  createProfileEmploymentType,
+  updateProfileEmploymentType,
+  updateProfileEmploymentTypeStatus,
   getAdminProfileOrgUnits,
   getAdminProfileBanks,
   getAdminProfileDesignations,
@@ -418,6 +421,7 @@ function ProfileMastersPanel() {
   const openCreate = (target: ProfileMasterTab) => {
     setForm({ mode: "create", id: null });
     const base: Record<string, string> = {};
+    if (target === "employment") { base.code = ""; base.displayName = ""; }
     if (target === "organizations") base.unitType = "department";
     if (target === "msc_batches") {
       base.streamId = streams[0] ? String(streams[0].id) : "";
@@ -439,6 +443,7 @@ function ProfileMastersPanel() {
   const openEdit = (target: ProfileMasterTab, item: any) => {
     setForm({ mode: "edit", id: Number(item.id) });
     const v: Record<string, string> = {};
+    if (target === "employment") { v.code = item.code; v.displayName = item.displayName; }
     if (target === "banks") { v.bankName = item.bankName; v.bankCode = item.bankCode; }
     if (target === "organizations") { v.unitType = item.unitType; v.unitName = item.unitName; v.unitCode = item.unitCode; v.description = item.description || ""; }
     if (target === "designations") { v.employmentTypeId = String(item.employmentTypeId); v.designationName = item.designationName; v.designationCode = item.designationCode; }
@@ -457,7 +462,11 @@ function ProfileMastersPanel() {
     setError(null);
     try {
       const id = form.id as number;
-      if (modal === "banks") {
+      if (modal === "employment") {
+        const p = { code: values.code?.trim() || "", displayName: values.displayName?.trim() || "" };
+        if (!p.code || !p.displayName) throw new Error("Employment Type and Employment Type Code are required.");
+        form.mode === "edit" ? await updateProfileEmploymentType(id, p) : await createProfileEmploymentType(p);
+      } else if (modal === "banks") {
         const p = { bankName: values.bankName?.trim() || "", bankCode: values.bankCode?.trim() || "" };
         if (!p.bankName || !p.bankCode) throw new Error("Bank Name and Bank Code are required.");
         form.mode === "edit" ? await updateProfileBank(id, p) : await createProfileBank(p);
@@ -494,10 +503,10 @@ function ProfileMastersPanel() {
   };
 
   const toggle = async (target: ProfileMasterTab, item: any) => {
-    if (target === "employment") return;
     const next = item.status === "active" ? "inactive" : "active";
     try {
-      if (target === "banks") await updateProfileBankStatus(item.id, next);
+      if (target === "employment") await updateProfileEmploymentTypeStatus(item.id, next);
+      else if (target === "banks") await updateProfileBankStatus(item.id, next);
       else if (target === "organizations") await updateProfileOrgUnitStatus(item.id, next);
       else if (target === "designations") await updateProfileDesignationStatus(item.id, next);
       else if (target === "streams") await updateProfileStreamStatus(item.id, next);
@@ -525,7 +534,7 @@ function ProfileMastersPanel() {
   );
 
   const renderTable = () => {
-    if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><td className="p-3 text-right text-[10px] font-bold text-slate-400">System Defined</td></>} />;
+    if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} /></>} />;
     if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} /></>} />;
     if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} /></>} />;
     if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3 capitalize">{item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} /></>} />;
@@ -535,7 +544,7 @@ function ProfileMastersPanel() {
     return <ManagementTable headers={["Course", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={traineeBatches} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("trainee_batches", item)} onToggle={() => void toggle("trainee_batches", item)} /></>} />;
   };
 
-  const modalTitle = tab === "banks" ? "Bank" : tab === "designations" ? "Designation" : tab === "organizations" ? "Organization" : tab === "streams" ? "Stream" : tab === "msc_batches" ? "MSc Batch" : tab === "courses" ? "Course" : "Trainee Batch";
+  const modalTitle = tab === "employment" ? "Employment Type" : tab === "banks" ? "Bank" : tab === "designations" ? "Designation" : tab === "organizations" ? "Organization" : tab === "streams" ? "Stream" : tab === "msc_batches" ? "MSc Batch" : tab === "courses" ? "Course" : "Trainee Batch";
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
@@ -548,16 +557,17 @@ function ProfileMastersPanel() {
         {MASTER_TABS.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`shrink-0 px-3 py-2.5 text-[11px] font-bold border-b-2 ${tab === item.key ? "border-purple-700 text-purple-700" : "border-transparent text-slate-500 hover:text-slate-800"}`}>{item.label}</button>)}
       </div>
       <div className="flex flex-wrap justify-between items-center gap-3">
-        <div><h3 className="font-bold text-slate-800">{MASTER_TABS.find((x) => x.key === tab)?.label}</h3><p className="text-[11px] text-slate-500 mt-1">{tab === "employment" ? "System-defined employment types; values cannot be added or deleted." : "Manage active and inactive master records from the database."}</p></div>
-        {tab !== "employment" && <button type="button" onClick={() => openCreate(tab)} className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"><PlusCircle className="w-4 h-4" />Add New</button>}
+        <div><h3 className="font-bold text-slate-800">{MASTER_TABS.find((x) => x.key === tab)?.label}</h3><p className="text-[11px] text-slate-500 mt-1">Manage active and inactive master records from the database.</p></div>
+        {<button type="button" onClick={() => openCreate(tab)} className="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"><PlusCircle className="w-4 h-4" />Add New</button>}
       </div>
       {loading ? <div className="py-12 text-center text-sm text-slate-500">Loading profile masters...</div> : renderTable()}
 
-      {modal && modal !== "employment" && (
+      {modal && (
         <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
           <form onSubmit={save} className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-5"><div><h3 className="font-extrabold text-slate-900">{form.mode === "edit" ? `Edit ${modalTitle}` : `Add ${modalTitle}`}</h3><p className="text-[11px] text-slate-500 mt-1">Changes are saved to the database.</p></div><button type="button" onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-4 h-4" /></button></div>
             <div className="space-y-4">
+              {modal === "employment" && <>{input("displayName", "Employment Type")} {input("code", "Employment Type Code")}</>}
               {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}
               {modal === "organizations" && <>{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
               {modal === "designations" && <>{select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}

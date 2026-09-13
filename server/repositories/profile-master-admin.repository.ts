@@ -3,6 +3,7 @@ import { db } from "../db/connection";
 export type MasterStatus = "active" | "inactive";
 export type ProfileOrgUnitType = "department" | "cell" | "project";
 
+export interface CreateEmploymentTypeInput { code: string; displayName: string; }
 export interface CreateOrgUnitInput { unitType: ProfileOrgUnitType; unitName: string; unitCode: string; description?: string | null; }
 export interface CreateBankInput { bankName: string; bankCode: string; }
 export interface CreateDesignationInput { employmentTypeId: number; designationName: string; designationCode: string; }
@@ -15,6 +16,10 @@ export async function listAllEmploymentTypes() {
   const [rows]: any = await db.query(`SELECT id, code, display_name, status FROM profile_employment_types ORDER BY id ASC`);
   return (rows || []).map((row: any) => ({ id: Number(row.id), code: String(row.code), displayName: String(row.display_name), status: row.status as MasterStatus }));
 }
+export async function createEmploymentType(input: CreateEmploymentTypeInput) { const [r]: any = await db.query(`INSERT INTO profile_employment_types (code, display_name, status) VALUES (?, ?, 'active')`, [input.code, input.displayName]); const [rows]: any = await db.query(`SELECT id, code, display_name, status FROM profile_employment_types WHERE id = ?`, [r.insertId]); return rows?.[0] ?? null; }
+export async function updateEmploymentType(id: number, input: CreateEmploymentTypeInput) { await db.query(`UPDATE profile_employment_types SET code=?, display_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [input.code, input.displayName, id]); const [rows]: any = await db.query(`SELECT id, code, display_name, status FROM profile_employment_types WHERE id=?`, [id]); return rows?.[0] ?? null; }
+export async function setEmploymentTypeStatus(id:number,status:MasterStatus){await db.query(`UPDATE profile_employment_types SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,[status,id]);}
+
 export async function listAllOrgUnits() {
   const [rows]: any = await db.query(`SELECT id, unit_type, unit_name, unit_code, description, status FROM profile_org_units ORDER BY unit_type ASC, unit_name ASC`);
   return (rows || []).map((row: any) => ({ id: Number(row.id), unitType: row.unit_type as ProfileOrgUnitType, unitName: String(row.unit_name), unitCode: String(row.unit_code ?? ""), description: row.description ?? null, status: row.status as MasterStatus }));

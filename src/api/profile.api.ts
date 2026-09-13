@@ -11,6 +11,7 @@ export interface AdminProfileStream extends ProfileStream { status:MasterStatus;
 export interface AdminProfileMscBatch extends ProfileMscBatch { status:MasterStatus; }
 export interface AdminProfileCourse extends ProfileCourse { status:MasterStatus; }
 export interface AdminProfileTraineeBatch extends ProfileTraineeBatch { status:MasterStatus; }
+export interface ProfileEmploymentTypeAdminPayload { code:string; displayName:string; }
 export interface ProfileOrgUnitAdminPayload { unitType:ProfileOrgUnitType; unitName:string; unitCode:string; description?:string|null; }
 export interface ProfileBankAdminPayload { bankName:string; bankCode:string; }
 export interface ProfileDesignationAdminPayload { employmentTypeId:number; designationName:string; designationCode:string; }
@@ -33,6 +34,9 @@ export async function getBatchSeries(seriesType?:ProfileBatchSeriesType){const e
 export async function getBatches(seriesType?:ProfileBatchSeriesType){const endpoint=seriesType?`/api/profile/masters/batches?seriesType=${encodeURIComponent(seriesType)}`:"/api/profile/masters/batches";const r=await apiRequest<MasterResponse<ProfileBatch[]>>(endpoint,{method:"GET"});return r.data??[];}
 async function adminRequest<T>(endpoint:string,method:"GET"|"POST"|"PUT"|"PATCH",body?:unknown){const r=await apiRequest<MasterResponse<T>>(endpoint,{method,...(body===undefined?{}:{body:JSON.stringify(body)})});if(!r.data)throw new Error(r.message||"Profile master operation failed.");return r.data;}
 export const getAdminProfileEmploymentTypes=()=>adminRequest<ProfileEmploymentTypeMaster[]>("/api/admin/profile-masters/employment-types","GET");
+export const createProfileEmploymentType=(p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>("/api/admin/profile-masters/employment-types","POST",p);
+export const updateProfileEmploymentType=(id:number,p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>(`/api/admin/profile-masters/employment-types/${id}`,"PUT",p);
+export const updateProfileEmploymentTypeStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/employment-types/${id}/status`,"PATCH",{status});
 export const getAdminProfileOrgUnits=()=>adminRequest<AdminProfileOrgUnit[]>("/api/admin/profile-masters/org-units","GET");
 export const getAdminProfileBanks=()=>adminRequest<AdminProfileBank[]>("/api/admin/profile-masters/banks","GET");
 export const getAdminProfileDesignations=()=>adminRequest<AdminProfileDesignation[]>("/api/admin/profile-masters/designations","GET");
