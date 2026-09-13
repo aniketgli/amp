@@ -17,7 +17,7 @@ jobs:
           ref: production-readiness-cleanup
           fetch-depth: 0
 
-      - name: Repair accidental save-path edit and inspect modal
+      - name: Finalize designation master link
         shell: bash
         run: |
           python3 <<'PY'
@@ -27,33 +27,28 @@ jobs:
           path = Path('src/features/admin/components/ProfileMastersSection.tsx')
           text = path.read_text(encoding='utf-8')
 
-          # Remove the previous mistaken insertion from the save payload.
           bad = re.compile(r'designationName:\s*<div className="space-y-1\.5">.*?</div>\s*values\.designationName\?\.trim\(\)\s*\|\|\s*""', re.S)
-          text, removed = bad.subn('designationName: values.designationName?.trim() || ""', text, count=1)
-          if removed != 1:
-              raise SystemExit(f'Expected to repair one accidental save-path edit, repaired {removed}')
-          path.write_text(text, encoding='utf-8')
+          text, _ = bad.subn('designationName: values.designationName?.trim() || ""', text, count=1)
 
-          lines = text.splitlines()
-          needles = ('Designation Name', 'designationName', 'designationCode', 'modal === "designations"')
-          hits = []
-          for i, line in enumerate(lines):
-              if any(n in line for n in needles):
-                  hits.append(i)
-          selected = []
-          for i in hits:
-              selected.extend(range(max(0, i-8), min(len(lines), i+9)))
-          selected = sorted(set(selected))
-          Path('debug_designation_ui.txt').write_text(
-              '\n'.join(f'{i+1}: {lines[i]}' for i in selected), encoding='utf-8'
-          )
+          old = 'select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")'
+          new = 'select("employmentTypeId", "Employment Type", activeEmploymentTypes, "id", "displayName")'
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('Designation Employment Type select pattern not found')
+
+          path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Commit inspection
+      - name: Commit final UI fix
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/features/admin/components/ProfileMastersSection.tsx debug_designation_ui.txt
-          git commit -m "chore: inspect designation modal structure [skip ci]"
+          git add src/features/admin/components/ProfileMastersSection.tsx
+          if git diff --cached --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git commit -m "fix: link designation master to employment type [skip ci]"
           git push origin production-readiness-cleanup
