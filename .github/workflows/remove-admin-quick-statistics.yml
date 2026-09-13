@@ -23,18 +23,23 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path("src/features/admin/pages/AdminControlPage.tsx")
           text = path.read_text(encoding="utf-8")
 
-          pattern = r'\n\s*\{\/\* QUICK STATISTICS \*\/\}\n\n\s*<div className=\\"bg-slate-800 border border-slate-700 rounded-xl p-4 min-w-\[260px\] text-xs space-y-2\\">.*?\n\s*</div>\n\s*</div>\n\s*</div>'
-          replacement = "\n      </div>"
-          updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          start_marker = "        {/* QUICK STATISTICS */}"
+          end_marker = "        </div>\n      </div>"
 
-          if count != 1:
-              raise SystemExit(f"Expected exactly one QUICK STATISTICS panel, found {count}")
+          start = text.find(start_marker)
+          if start == -1:
+              raise SystemExit("QUICK STATISTICS panel not found")
 
+          end = text.find(end_marker, start)
+          if end == -1:
+              raise SystemExit("QUICK STATISTICS panel end not found")
+
+          end += len("        </div>")
+          updated = text[:start] + text[end:]
           path.write_text(updated, encoding="utf-8")
           PY
 
