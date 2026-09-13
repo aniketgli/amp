@@ -110,6 +110,11 @@ export function ProfileMastersPanel() {
   const [modal, setModal] = useState<ProfileMasterTab | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
 
+  // Only active parent masters are available when creating/editing dependent masters.
+  const activeEmploymentTypes = employmentTypes.filter((item) => String(item.status).toLowerCase() === "active");
+  const activeStreams = streams.filter((item) => String(item.status).toLowerCase() === "active");
+  const activeCourses = courses.filter((item) => String(item.status).toLowerCase() === "active");
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -162,18 +167,18 @@ export function ProfileMastersPanel() {
     if (target === "employment") { base.code = ""; base.displayName = ""; }
     if (target === "organizations") base.unitType = ORG_UNIT_TYPE_OPTIONS[0].id;
     if (target === "msc_batches") {
-      base.streamId = streams[0] ? String(streams[0].id) : "";
+      base.streamId = activeStreams[0] ? String(activeStreams[0].id) : "";
       base.batchNumber = nextBatchNumber("msc", base.streamId);
       base.validityStartYear = String(new Date().getFullYear());
       base.validityEndYear = String(new Date().getFullYear() + 2);
     }
     if (target === "trainee_batches") {
-      base.courseId = courses[0] ? String(courses[0].id) : "";
+      base.courseId = activeCourses[0] ? String(activeCourses[0].id) : "";
       base.batchNumber = nextBatchNumber("trainee", base.courseId);
       base.validityStartYear = String(new Date().getFullYear());
       base.validityEndYear = String(new Date().getFullYear() + 1);
     }
-    if (target === "designations") base.employmentTypeId = employmentTypes[0] ? String(employmentTypes[0].id) : "";
+    if (target === "designations") base.employmentTypeId = activeEmploymentTypes[0] ? String(activeEmploymentTypes[0].id) : "";
     setValues(base);
     setModal(target);
   };
