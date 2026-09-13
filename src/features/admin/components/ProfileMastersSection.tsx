@@ -218,7 +218,23 @@ export function ProfileMastersPanel() {
         if (!p.unitName || !p.unitCode) throw new Error("Organization Name and Organization Code are required.");
         form.mode === "edit" ? await updateProfileOrgUnit(id, p) : await createProfileOrgUnit(p);
       } else if (modal === "designations") {
-        const p = { employmentTypeId: Number(values.employmentTypeId), designationName: values.designationName?.trim() || "", designationCode: values.designationCode?.trim() || "" };
+        const p = { employmentTypeId: Number(values.employmentTypeId), designationName: <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-slate-600">Employment Type</label>
+      <select
+        value={values.employmentTypeId || ""}
+        onChange={(e) => setValues((prev) => ({ ...prev, employmentTypeId: e.target.value }))}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+        required
+      >
+        <option value="">Select Employment Type</option>
+        {activeEmploymentTypes.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.displayName} ({item.code})
+          </option>
+        ))}
+      </select>
+    </div>
+              values.designationName?.trim() || "", designationCode: values.designationCode?.trim() || "" };
         if (!p.employmentTypeId || !p.designationName || !p.designationCode) throw new Error("Employment Type, Designation Name and Designation Code are required.");
         form.mode === "edit" ? await updateProfileDesignation(id, p) : await createProfileDesignation(p);
       } else if (modal === "streams") {
