@@ -1,0 +1,87 @@
+184:   };
+185: 
+186:   const openEdit = (target: ProfileMasterTab, item: any) => {
+187:     setForm({ mode: "edit", id: Number(item.id) });
+188:     const v: Record<string, string> = {};
+189:     if (target === "employment") { v.code = item.code; v.displayName = item.displayName; }
+190:     if (target === "banks") { v.bankName = item.bankName; v.bankCode = item.bankCode; }
+191:     if (target === "organizations") { v.unitType = item.unitType; v.unitName = item.unitName; v.unitCode = item.unitCode; v.description = item.description || ""; }
+192:     if (target === "designations") { v.employmentTypeId = String(item.employmentTypeId); v.designationName = item.designationName; v.designationCode = item.designationCode; }
+193:     if (target === "streams") { v.streamName = item.streamName; v.streamCode = item.streamCode; }
+194:     if (target === "courses") { v.courseName = item.courseName; v.courseCode = item.courseCode; }
+195:     if (target === "msc_batches") { v.streamId = String(item.streamId); v.batchNumber = String(item.batchNumber); v.batchName = item.batchName; v.batchCode = item.batchCode; v.validityStartYear = String(item.validityStartYear); v.validityEndYear = String(item.validityEndYear); }
+196:     if (target === "trainee_batches") { v.courseId = String(item.courseId); v.batchNumber = String(item.batchNumber); v.batchName = item.batchName; v.batchCode = item.batchCode; v.validityStartYear = String(item.validityStartYear); v.validityEndYear = String(item.validityEndYear); }
+197:     setValues(v);
+198:     setModal(target);
+199:   };
+200: 
+212:       } else if (modal === "banks") {
+213:         const p = { bankName: values.bankName?.trim() || "", bankCode: values.bankCode?.trim() || "" };
+214:         if (!p.bankName || !p.bankCode) throw new Error("Bank Name and Bank Code are required.");
+215:         form.mode === "edit" ? await updateProfileBank(id, p) : await createProfileBank(p);
+216:       } else if (modal === "organizations") {
+217:         const p = { unitType: values.unitType as any, unitName: values.unitName?.trim() || "", unitCode: values.unitCode?.trim() || "", description: values.description?.trim() || null };
+218:         if (!p.unitName || !p.unitCode) throw new Error("Organization Name and Organization Code are required.");
+219:         form.mode === "edit" ? await updateProfileOrgUnit(id, p) : await createProfileOrgUnit(p);
+220:       } else if (modal === "designations") {
+221:         const p = { employmentTypeId: Number(values.employmentTypeId), designationName: values.designationName?.trim() || "", designationCode: values.designationCode?.trim() || "" };
+222:         if (!p.employmentTypeId || !p.designationName || !p.designationCode) throw new Error("Employment Type, Designation Name and Designation Code are required.");
+223:         form.mode === "edit" ? await updateProfileDesignation(id, p) : await createProfileDesignation(p);
+224:       } else if (modal === "streams") {
+225:         const p = { streamName: values.streamName?.trim() || "", streamCode: values.streamCode?.trim() || "" };
+226:         if (!p.streamName || !p.streamCode) throw new Error("Stream Name and Stream Code are required.");
+227:         form.mode === "edit" ? await updateProfileStream(id, p) : await createProfileStream(p);
+228:       } else if (modal === "courses") {
+229:         const p = { courseName: values.courseName?.trim() || "", courseCode: values.courseCode?.trim() || "" };
+230:         if (!p.courseName || !p.courseCode) throw new Error("Course Name and Course Code are required.");
+273:       <select required value={values[key] || ""} onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))} className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white">
+274:         <option value="">Select {label}</option>
+275:         {options.map((o) => <option key={o.id} value={o[valueKey]}>{o[labelKey]}</option>)}
+276:       </select>
+277:     </div>
+278:   );
+279: 
+280:   const deleteMaster = async (target: ProfileMasterTab, item: any) => {
+281:     if (!window.confirm(`Delete ${item.displayName || item.bankName || item.designationName || item.unitName || item.streamName || item.batchName || item.courseName || "this master record"}? This action cannot be undone.`)) return;
+282:     try {
+283:       if (target === "employment") { await deleteProfileEmploymentType(item.id); setEmploymentTypes((rows) => rows.filter((row) => row.id !== item.id)); }
+284:       else if (target === "banks") { await deleteProfileBank(item.id); setBanks((rows) => rows.filter((row) => row.id !== item.id)); }
+285:       else if (target === "organizations") { await deleteProfileOrgUnit(item.id); setOrganizations((rows) => rows.filter((row) => row.id !== item.id)); }
+286:       else if (target === "designations") { await deleteProfileDesignation(item.id); setDesignations((rows) => rows.filter((row) => row.id !== item.id)); }
+287:       else if (target === "streams") { await deleteProfileStream(item.id); setStreams((rows) => rows.filter((row) => row.id !== item.id)); }
+288:       else if (target === "msc_batches") { await deleteProfileMscBatch(item.id); setMscBatches((rows) => rows.filter((row) => row.id !== item.id)); }
+289:       else if (target === "courses") { await deleteProfileCourse(item.id); setCourses((rows) => rows.filter((row) => row.id !== item.id)); }
+304:     else if (target === "msc_batches") setMscBatches(update(mscBatches));
+305:     else if (target === "courses") setCourses(update(courses));
+306:     else setTraineeBatches(update(traineeBatches));
+307:   };
+308: 
+309:   const renderTable = () => {
+310:     if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} onDelete={() => void deleteMaster("employment", item)} /></>} />;
+311:     if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} onDelete={() => void deleteMaster("banks", item)} /></>} />;
+312:     if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} onDelete={() => void deleteMaster("designations", item)} /></>} />;
+313:     if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3">{ORG_UNIT_TYPE_LABELS[item.unitType] || item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} onDelete={() => void deleteMaster("organizations", item)} /></>} />;
+314:     if (tab === "streams") return <ManagementTable headers={["Stream Name", "Stream Code", "Status", "Actions"]} rows={streams} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-mono text-slate-600">{item.streamCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("streams", item)} onToggle={() => void toggle("streams", item)} onDelete={() => void deleteMaster("streams", item)} /></>} />;
+315:     if (tab === "msc_batches") return <ManagementTable headers={["Stream", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={mscBatches} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("msc_batches", item)} onToggle={() => void toggle("msc_batches", item)} onDelete={() => void deleteMaster("msc_batches", item)} /></>} />;
+316:     if (tab === "courses") return <ManagementTable headers={["Course Name", "Course Code", "Status", "Actions"]} rows={courses} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-mono text-slate-600">{item.courseCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("courses", item)} onToggle={() => void toggle("courses", item)} onDelete={() => void deleteMaster("courses", item)} /></>} />;
+317:     return <ManagementTable headers={["Course", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={traineeBatches} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("trainee_batches", item)} onToggle={() => void toggle("trainee_batches", item)} onDelete={() => void deleteMaster("trainee_batches", item)} /></>} />;
+318:   };
+319: 
+320:   const modalTitle = tab === "employment" ? "Employment Type" : tab === "banks" ? "Bank" : tab === "designations" ? "Designation" : tab === "organizations" ? "Organization" : tab === "streams" ? "Stream" : tab === "msc_batches" ? "MSc Batch" : tab === "courses" ? "Course" : "Trainee Batch";
+338:       {modal && (
+339:         <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
+340:           <form onSubmit={save} className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+341:             <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-5"><div><h3 className="font-extrabold text-slate-900">{form.mode === "edit" ? `Edit ${modalTitle}` : `Add ${modalTitle}`}</h3><p className="text-[11px] text-slate-500 mt-1">Changes are saved to the database.</p></div><button type="button" onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-4 h-4" /></button></div>
+342:             <div className="space-y-4">
+343:               {modal === "employment" && <>{input("displayName", "Employment Type")} {input("code", "Employment Type Code")}</>}
+344:               {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}
+345:               {modal === "organizations" && <>{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
+346:               {modal === "designations" && <>{select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}
+347:               {modal === "streams" && <>{input("streamName", "Stream Name")} {input("streamCode", "Stream Code")}</>}
+348:               {modal === "courses" && <>{input("courseName", "Course Name")} {input("courseCode", "Course Code")}</>}
+349:               {modal === "msc_batches" && <>{select("streamId", "Stream", streams.filter((x) => x.status === "active"), "id", "streamName")} {input("batchNumber", "Batch Number", true, "number")} {input("batchName", "Batch Name")} {input("batchCode", "Batch Code")} <div className="grid grid-cols-2 gap-3">{input("validityStartYear", "Validity From", true, "number")}{input("validityEndYear", "Validity To", true, "number")}</div></>}
+350:               {modal === "trainee_batches" && <>{select("courseId", "Course", courses.filter((x) => x.status === "active"), "id", "courseName")} {input("batchNumber", "Batch Number", true, "number")} {input("batchName", "Batch Name")} {input("batchCode", "Batch Code")} <div className="grid grid-cols-2 gap-3">{input("validityStartYear", "Validity From", true, "number")}{input("validityEndYear", "Validity To", true, "number")}</div></>}
+351:             </div>
+352:             <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5"><button type="button" onClick={closeModal} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold">Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold disabled:opacity-50">{saving ? "Saving..." : form.mode === "edit" ? "Save Changes" : "Add"}</button></div>
+353:           </form>
+354:         </div>
