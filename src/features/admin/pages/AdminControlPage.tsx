@@ -1913,27 +1913,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
           </p>
         </div>
 
-        {/* QUICK STATISTICS */}
 
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 min-w-[260px] text-xs space-y-2">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Total System Users</span>
-
-            <b>{managedUsers.length}</b>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-slate-400">Facilities Master</span>
-
-            <b className="text-emerald-300">{facilitiesList.length}</b>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-slate-400">Services Master</span>
-
-            <b className="text-purple-300">{servicesList.length}</b>
-          </div>
-        </div>
       </div>
 
       {/* =====================================================
