@@ -435,60 +435,28 @@ export async function getAllRequisitions() {
     `
     SELECT
       r.id,
-      r.applicant_id,
-      r.requisition_type,
-      r.status,
-      r.requisition_mode,
-      r.renewal_reason,
-      r.remarks,
-      r.submitted_at,
-      r.updated_at,
-
-      u.full_name AS user_full_name,
-      u.email AS user_email,
-      u.phone AS user_phone,
-      u.intercom_extension,
-
-      p.salutation,
-      p.applicant_name,
-      p.gender,
-      p.date_of_birth,
-      p.blood_group,
-      p.mobile_no,
-      p.personal_email,
-      p.wii_official_email,
-      p.address,
-      p.city,
-      p.state,
-      p.pincode,
-      p.designation,
-      p.department_cell_project,
-      p.supervising_officer_id,
-      p.supervising_officer_name,
-      p.date_of_joining,
-      p.valid_up_to,
-      p.pan_no,
-      p.bank_name,
-      p.account_no,
-      p.ifsc_code,
-      p.office_order_file_name,
-      p.biometric_id
-
+      r.applicant_id
     FROM requisitions r
-
     INNER JOIN users u
       ON u.id = r.applicant_id
-
-    LEFT JOIN applicant_profiles p
-      ON p.user_id = r.applicant_id
-
     ORDER BY
       r.submitted_at DESC,
       r.id DESC
     `,
   );
 
-  return rows || [];
+  const requisitionIds = (rows || [])
+    .map((row: any) => String(row?.id || "").trim())
+    .filter(Boolean);
+
+  // The UI consumes the normalized RequisitionRecord shape.
+  // Reuse getRequisitionById() so list and detail responses have
+  // exactly the same frontend-compatible structure.
+  const requisitions = await Promise.all(
+    requisitionIds.map((id: string) => getRequisitionById(id)),
+  );
+
+  return requisitions.filter(Boolean);
 }
 
 // ------------------------------------------------------------
