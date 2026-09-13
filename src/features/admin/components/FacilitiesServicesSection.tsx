@@ -1,6 +1,19 @@
 import React from "react";
 import { Building2, Edit3, GitMerge, PlusCircle, Trash2, Wrench } from "lucide-react";
 
+const getDefaultFacilityWorkflow = (supervisor: string, assocNodal: string, nodal: string): any[] => [
+  { stageNumber: 1, stageName: "Supervising Officer / PI Endorsement", dealingOfficerName: "Applicant's Supervising Officer (PI)" },
+  { stageNumber: 2, stageName: "Technical Supervisor Verification", dealingOfficerName: supervisor || "Lab Technical Supervisor" },
+  { stageNumber: 3, stageName: "Associate Nodal Officer Review", dealingOfficerName: assocNodal || "Associate Nodal Officer" },
+  { stageNumber: 4, stageName: "Nodal Officer Final Approval", dealingOfficerName: nodal || "Nodal Officer" },
+];
+
+const getDefaultServiceWorkflow = (manager: string): any[] => [
+  { stageNumber: 1, stageName: "Supervising Officer / PI Endorsement", dealingOfficerName: "Applicant's Supervising Officer (PI)" },
+  { stageNumber: 2, stageName: "In-Charge Manager Verification", dealingOfficerName: manager || "Service In-Charge Manager" },
+  { stageNumber: 3, stageName: "IT Head / Admin Provisioning", dealingOfficerName: "IT Officer / System Admin" },
+];
+
 interface FacilitiesServicesSectionProps {
   facilitiesList: any[];
   facilitiesLoading: boolean;
