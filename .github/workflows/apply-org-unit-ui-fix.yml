@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, 'chore: apply org unit types and remove admin tab counts') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,62 +29,59 @@ jobs:
                   raise SystemExit(f'Expected text not found in {path}: {old!r}')
               p.write_text(text.replace(old, new), encoding='utf-8')
 
-          replace(
+          def replace_if_present(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old in text:
+                  p.write_text(text.replace(old, new), encoding='utf-8')
+                  return True
+              return False
+
+          changed = False
+          changed |= replace_if_present(
               'src/features/admin/pages/AdminControlPage.tsx',
               'User Roles & Accounts ({managedUsers.length})',
               'User Roles & Accounts',
           )
-          replace(
+          changed |= replace_if_present(
               'src/features/admin/pages/AdminControlPage.tsx',
               'Facilities & Services ({facilitiesList.length + servicesList.length}\n            )',
               'Facilities & Services',
           )
 
-          replace(
-              'src/features/admin/components/ProfileMastersSection.tsx',
-              'const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
-              'const ORG_UNIT_TYPE_OPTIONS = [\n  { id: "department", name: "Department" },\n  { id: "cell", name: "Cell" },\n  { id: "project", name: "Project" },\n  { id: "section", name: "Section" },\n  { id: "labs_facility", name: "Labs & Facility" },\n];\n\nconst ORG_UNIT_TYPE_LABELS: Record<string, string> = Object.fromEntries(ORG_UNIT_TYPE_OPTIONS.map((item) => [item.id, item.name]));\n\nconst MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
-          )
-          replace(
-              'src/features/admin/components/ProfileMastersSection.tsx',
-              'if (target === "organizations") base.unitType = "department";',
-              'if (target === "organizations") base.unitType = ORG_UNIT_TYPE_OPTIONS[0].id;',
-          )
-          replace(
-              'src/features/admin/components/ProfileMastersSection.tsx',
-              '<td className="p-3 capitalize">{item.unitType}</td>',
-              '<td className="p-3">{ORG_UNIT_TYPE_LABELS[item.unitType] || item.unitType}</td>',
-          )
-          replace(
-              'src/features/admin/components/ProfileMastersSection.tsx',
-              '{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")}',
-              '{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")}',
-          )
+          profile = Path('src/features/admin/components/ProfileMastersSection.tsx')
+          profile_text = profile.read_text(encoding='utf-8')
+          if 'const ORG_UNIT_TYPE_OPTIONS' not in profile_text:
+              profile_text = profile_text.replace(
+                  'const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
+                  'const ORG_UNIT_TYPE_OPTIONS = [\n  { id: "department", name: "Department" },\n  { id: "cell", name: "Cell" },\n  { id: "project", name: "Project" },\n  { id: "section", name: "Section" },\n  { id: "labs_facility", name: "Labs & Facility" },\n];\n\nconst ORG_UNIT_TYPE_LABELS: Record<string, string> = Object.fromEntries(ORG_UNIT_TYPE_OPTIONS.map((item) => [item.id, item.name]));\n\nconst MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
+              )
+              changed = True
+          for old, new in [
+              ('if (target === "organizations") base.unitType = "department";', 'if (target === "organizations") base.unitType = ORG_UNIT_TYPE_OPTIONS[0].id;'),
+              ('<td className="p-3 capitalize">{item.unitType}</td>', '<td className="p-3">{ORG_UNIT_TYPE_LABELS[item.unitType] || item.unitType}</td>'),
+              ('{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")}', '{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")}'),
+          ]:
+              if old in profile_text:
+                  profile_text = profile_text.replace(old, new)
+                  changed = True
+          profile.write_text(profile_text, encoding='utf-8')
 
-          replace(
+          changed |= replace_if_present(
               'server/services/profile-master-admin.service.ts',
               'const ORG_TYPES = new Set(["department", "cell", "project"]);',
               'const ORG_TYPES = new Set(["department", "cell", "project", "section", "labs_facility"]);',
           )
-          replace(
-              'server/repositories/profile-master-admin.repository.ts',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
-          )
-          replace(
-              'server/repositories/profile-master.repository.ts',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
-          )
-          replace(
+          for path in ['server/repositories/profile-master-admin.repository.ts', 'server/repositories/profile-master.repository.ts', 'src/types/profile.ts']:
+              changed |= replace_if_present(
+                  path,
+                  'export type ProfileOrgUnitType = "department" | "cell" | "project";',
+                  'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
+              )
+          changed |= replace_if_present(
               'server/repositories/profile-master.repository.ts',
               'const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project"]);',
               'const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project", "section", "labs_facility"]);',
-          )
-          replace(
-              'src/types/profile.ts',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
-              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
           )
 
           migration = Path('database/migrations/009_profile_org_unit_types.sql')
@@ -94,8 +90,9 @@ jobs:
                   """-- ============================================================================\n-- AMP PROFILE ORGANIZATION UNIT TYPES\n-- Migration 009\n-- Adds Section and Labs & Facility to the organization master.\n-- Existing Department / Cell / Project data is preserved.\n-- ============================================================================\n\nALTER TABLE profile_org_units\n    MODIFY COLUMN unit_type ENUM(\n        'department',\n        'cell',\n        'project',\n        'section',\n        'labs_facility'\n    ) NOT NULL;\n\n-- ============================================================================\n-- MIGRATION COMPLETE\n-- ============================================================================\n""",
                   encoding='utf-8',
               )
+              changed = True
 
-          print('Changes applied.')
+          print('Changes required:', changed)
           PY
 
       - name: Commit changes
