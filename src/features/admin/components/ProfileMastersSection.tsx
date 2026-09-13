@@ -32,6 +32,14 @@ import {
   createProfileTraineeBatch,
   updateProfileTraineeBatch,
   updateProfileTraineeBatchStatus,
+  deleteProfileEmploymentType,
+  deleteProfileOrgUnit,
+  deleteProfileBank,
+  deleteProfileDesignation,
+  deleteProfileStream,
+  deleteProfileMscBatch,
+  deleteProfileCourse,
+  deleteProfileTraineeBatch,
 } from "@/api/profile.api";
 import { Database, Edit3, PlusCircle, Trash2, X } from "lucide-react";
 
@@ -65,7 +73,14 @@ const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [
 
 
 function MasterStatusBadge({status}:{status:string}){const active=String(status).toLowerCase()==="active";return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${active?"bg-emerald-50 text-emerald-700":"bg-slate-100 text-slate-500"}`}><span className={`w-1.5 h-1.5 rounded-full ${active?"bg-emerald-500":"bg-slate-400"}`}/>{active?"Active":"Inactive"}</span>;}
-function ActionCell({item,onEdit,onToggle}:{item:any;onEdit:()=>void;onToggle:()=>void}){const active=String(item.status).toLowerCase()==="active";const resource=item.displayName?"employment-types":item.bankName?"banks":item.designationName?"designations":item.unitName?"org-units":item.streamName?"streams":item.courseName&&item.batchName?"trainee-batches":item.courseName?"courses":item.batchName?"msc-batches":null;const onDelete=async()=>{if(!resource||!window.confirm("Delete this master record? This action cannot be undone."))return;try{const r=await fetch(`/api/admin/profile-masters/${resource}/${encodeURIComponent(String(item.id))}`,{method:"DELETE"});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Unable to delete record.");window.location.reload();}catch(e){window.alert(e instanceof Error?e.message:"Unable to delete record.");}};return <td className="px-4 py-3"><div className="flex items-center justify-end gap-2"><button type="button" title={active?"Deactivate":"Activate"} aria-label={active?"Deactivate":"Activate"} onClick={onToggle} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${active?"bg-emerald-500":"bg-slate-300"}`}><span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${active?"translate-x-6":"translate-x-1"}`}/></button><button type="button" title="Edit" aria-label="Edit" onClick={onEdit} className="p-1.5 rounded-md text-purple-700 hover:bg-purple-50"><Edit3 className="w-4 h-4"/></button><button type="button" title="Delete" aria-label="Delete" onClick={onDelete} className="p-1.5 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4"/></button></div></td>;}
+function ActionCell({item,onEdit,onToggle,onDelete}:{item:any;onEdit:()=>void;onToggle:()=>void;onDelete:()=>void}){
+  const active=String(item.status).toLowerCase()==="active";
+  return <td className="px-4 py-3"><div className="flex items-center justify-end gap-2">
+    <button type="button" title={active?"Deactivate":"Activate"} aria-label={active?"Deactivate":"Activate"} onClick={onToggle} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${active?"bg-emerald-500":"bg-slate-300"}`}><span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${active?"translate-x-6":"translate-x-1"}`}/></button>
+    <button type="button" title="Edit" aria-label="Edit" onClick={onEdit} className="p-1.5 rounded-md text-purple-700 hover:bg-purple-50"><Edit3 className="w-4 h-4"/></button>
+    <button type="button" title="Delete" aria-label="Delete" onClick={onDelete} className="p-1.5 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4"/></button>
+  </div></td>;
+}
 function ManagementTable({headers,rows,render}:{headers:string[];rows:any[];render:(item:any)=>React.ReactNode}){return <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 border-b border-slate-200"><tr>{headers.map((h,i)=><th key={h} className={`px-4 py-3 text-[10px] uppercase tracking-wider font-extrabold text-slate-500 ${i===headers.length-1?"text-right":""}`}>{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.length===0?<tr><td colSpan={headers.length} className="px-4 py-12 text-center text-slate-400">No records found.</td></tr>:rows.map(item=><tr key={item.id} className="hover:bg-slate-50/70 transition-colors">{render(item)}</tr>)}</tbody></table></div>;}
 
 export function ProfileMastersPanel() {
@@ -170,7 +185,7 @@ export function ProfileMastersPanel() {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!modal || modal === "employment") return;
+    if (!modal) return;
     setSaving(true);
     setError(null);
     try {
@@ -226,7 +241,8 @@ export function ProfileMastersPanel() {
       else if (target === "msc_batches") await updateProfileMscBatchStatus(item.id, next);
       else if (target === "courses") await updateProfileCourseStatus(item.id, next);
       else if (target === "trainee_batches") await updateProfileTraineeBatchStatus(item.id, next);
-      await load();
+      updateLocalStatus(target, Number(item.id), next);
+      setError(null);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to change status."); }
   };
 
@@ -246,15 +262,44 @@ export function ProfileMastersPanel() {
     </div>
   );
 
+  const deleteMaster = async (target: ProfileMasterTab, item: any) => {
+    if (!window.confirm(`Delete ${item.displayName || item.bankName || item.designationName || item.unitName || item.streamName || item.batchName || item.courseName || "this master record"}? This action cannot be undone.`)) return;
+    try {
+      if (target === "employment") { await deleteProfileEmploymentType(item.id); setEmploymentTypes((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "banks") { await deleteProfileBank(item.id); setBanks((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "organizations") { await deleteProfileOrgUnit(item.id); setOrganizations((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "designations") { await deleteProfileDesignation(item.id); setDesignations((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "streams") { await deleteProfileStream(item.id); setStreams((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "msc_batches") { await deleteProfileMscBatch(item.id); setMscBatches((rows) => rows.filter((row) => row.id !== item.id)); }
+      else if (target === "courses") { await deleteProfileCourse(item.id); setCourses((rows) => rows.filter((row) => row.id !== item.id)); }
+      else { await deleteProfileTraineeBatch(item.id); setTraineeBatches((rows) => rows.filter((row) => row.id !== item.id)); }
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to delete master record.");
+    }
+  };
+
+  const updateLocalStatus = (target: ProfileMasterTab, id: number, status: string) => {
+    const update = (rows: any[]) => rows.map((row) => row.id === id ? { ...row, status } : row);
+    if (target === "employment") setEmploymentTypes(update(employmentTypes));
+    else if (target === "banks") setBanks(update(banks));
+    else if (target === "organizations") setOrganizations(update(organizations));
+    else if (target === "designations") setDesignations(update(designations));
+    else if (target === "streams") setStreams(update(streams));
+    else if (target === "msc_batches") setMscBatches(update(mscBatches));
+    else if (target === "courses") setCourses(update(courses));
+    else setTraineeBatches(update(traineeBatches));
+  };
+
   const renderTable = () => {
-    if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} /></>} />;
-    if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} /></>} />;
-    if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} /></>} />;
-    if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3 capitalize">{item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} /></>} />;
-    if (tab === "streams") return <ManagementTable headers={["Stream Name", "Stream Code", "Status", "Actions"]} rows={streams} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-mono text-slate-600">{item.streamCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("streams", item)} onToggle={() => void toggle("streams", item)} /></>} />;
-    if (tab === "msc_batches") return <ManagementTable headers={["Stream", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={mscBatches} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("msc_batches", item)} onToggle={() => void toggle("msc_batches", item)} /></>} />;
-    if (tab === "courses") return <ManagementTable headers={["Course Name", "Course Code", "Status", "Actions"]} rows={courses} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-mono text-slate-600">{item.courseCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("courses", item)} onToggle={() => void toggle("courses", item)} /></>} />;
-    return <ManagementTable headers={["Course", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={traineeBatches} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("trainee_batches", item)} onToggle={() => void toggle("trainee_batches", item)} /></>} />;
+    if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} onDelete={() => void deleteMaster("employment", item)} /></>} />;
+    if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} onDelete={() => void deleteMaster("banks", item)} /></>} />;
+    if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} onDelete={() => void deleteMaster("designations", item)} /></>} />;
+    if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3 capitalize">{item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} onDelete={() => void deleteMaster("organizations", item)} /></>} />;
+    if (tab === "streams") return <ManagementTable headers={["Stream Name", "Stream Code", "Status", "Actions"]} rows={streams} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-mono text-slate-600">{item.streamCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("streams", item)} onToggle={() => void toggle("streams", item)} onDelete={() => void deleteMaster("streams", item)} /></>} />;
+    if (tab === "msc_batches") return <ManagementTable headers={["Stream", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={mscBatches} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("msc_batches", item)} onToggle={() => void toggle("msc_batches", item)} onDelete={() => void deleteMaster("msc_batches", item)} /></>} />;
+    if (tab === "courses") return <ManagementTable headers={["Course Name", "Course Code", "Status", "Actions"]} rows={courses} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-mono text-slate-600">{item.courseCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("courses", item)} onToggle={() => void toggle("courses", item)} onDelete={() => void deleteMaster("courses", item)} /></>} />;
+    return <ManagementTable headers={["Course", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={traineeBatches} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("trainee_batches", item)} onToggle={() => void toggle("trainee_batches", item)} onDelete={() => void deleteMaster("trainee_batches", item)} /></>} />;
   };
 
   const modalTitle = tab === "employment" ? "Employment Type" : tab === "banks" ? "Bank" : tab === "designations" ? "Designation" : tab === "organizations" ? "Organization" : tab === "streams" ? "Stream" : tab === "msc_batches" ? "MSc Batch" : tab === "courses" ? "Course" : "Trainee Batch";
@@ -263,7 +308,7 @@ export function ProfileMastersPanel() {
     <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
       <div className="flex flex-wrap justify-between items-start gap-4 border-b border-slate-200 pb-4">
         <div><h2 className="font-extrabold text-slate-900 flex items-center gap-2"><Database className="w-5 h-5 text-purple-600" />Profile Masters</h2><p className="text-xs text-slate-500 mt-1">Central database masters used by the user profile module.</p></div>
-        <button type="button" onClick={() => void load()} disabled={loading} className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{loading ? "Refreshing..." : "Refresh"}</button>
+        
       </div>
       {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">{error}</div>}
       <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-slate-200">

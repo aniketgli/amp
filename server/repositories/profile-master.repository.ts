@@ -103,6 +103,7 @@ export async function getEmploymentTypes(): Promise<ProfileEmploymentTypeMaster[
   const [rows]: any = await db.query(`
     SELECT id, code, display_name, status
     FROM profile_employment_types
+    WHERE status = 'active'
     ORDER BY id ASC
   `);
   return (rows || []).map((row: any) => ({ id: Number(row.id), code: String(row.code), displayName: String(row.display_name), status: row.status }));
