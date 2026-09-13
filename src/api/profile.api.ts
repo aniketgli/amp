@@ -32,11 +32,12 @@ export async function getTraineeBatches(courseId?:number){const endpoint=courseI
 export async function getProfileOfficers(){const r=await apiRequest<MasterResponse<ProfileOfficer[]>>("/api/profile/masters/officers",{method:"GET"});return r.data??[];}
 export async function getBatchSeries(seriesType?:ProfileBatchSeriesType){const endpoint=seriesType?`/api/profile/masters/batch-series?seriesType=${encodeURIComponent(seriesType)}`:"/api/profile/masters/batch-series";const r=await apiRequest<MasterResponse<ProfileBatchSeries[]>>(endpoint,{method:"GET"});return r.data??[];}
 export async function getBatches(seriesType?:ProfileBatchSeriesType){const endpoint=seriesType?`/api/profile/masters/batches?seriesType=${encodeURIComponent(seriesType)}`:"/api/profile/masters/batches";const r=await apiRequest<MasterResponse<ProfileBatch[]>>(endpoint,{method:"GET"});return r.data??[];}
-async function adminRequest<T>(endpoint:string,method:"GET"|"POST"|"PUT"|"PATCH",body?:unknown){const r=await apiRequest<MasterResponse<T>>(endpoint,{method,...(body===undefined?{}:{body:JSON.stringify(body)})});if(!r.data)throw new Error(r.message||"Profile master operation failed.");return r.data;}
+async function adminRequest<T>(endpoint:string,method:"GET"|"POST"|"PUT"|"PATCH"|"DELETE",body?:unknown){const r=await apiRequest<MasterResponse<T>>(endpoint,{method,...(body===undefined?{}:{body:JSON.stringify(body)})});if(!r.data)throw new Error(r.message||"Profile master operation failed.");return r.data;}
 export const getAdminProfileEmploymentTypes=()=>adminRequest<ProfileEmploymentTypeMaster[]>("/api/admin/profile-masters/employment-types","GET");
 export const createProfileEmploymentType=(p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>("/api/admin/profile-masters/employment-types","POST",p);
 export const updateProfileEmploymentType=(id:number,p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>(`/api/admin/profile-masters/employment-types/${id}`,"PUT",p);
 export const updateProfileEmploymentTypeStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/employment-types/${id}/status`,"PATCH",{status});
+export const deleteProfileEmploymentType=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/employment-types/${id}`,"DELETE");
 export const getAdminProfileOrgUnits=()=>adminRequest<AdminProfileOrgUnit[]>("/api/admin/profile-masters/org-units","GET");
 export const getAdminProfileBanks=()=>adminRequest<AdminProfileBank[]>("/api/admin/profile-masters/banks","GET");
 export const getAdminProfileDesignations=()=>adminRequest<AdminProfileDesignation[]>("/api/admin/profile-masters/designations","GET");
@@ -44,24 +45,31 @@ export const getAdminProfileStreams=()=>adminRequest<AdminProfileStream[]>("/api
 export const getAdminProfileMscBatches=()=>adminRequest<AdminProfileMscBatch[]>("/api/admin/profile-masters/msc-batches","GET");
 export const getAdminProfileCourses=()=>adminRequest<AdminProfileCourse[]>("/api/admin/profile-masters/courses","GET");
 export const getAdminProfileTraineeBatches=()=>adminRequest<AdminProfileTraineeBatch[]>("/api/admin/profile-masters/trainee-batches","GET");
+export const deleteProfileOrgUnit=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/org-units/${id}`,"DELETE");
 export const createProfileOrgUnit=(p:ProfileOrgUnitAdminPayload)=>adminRequest<AdminProfileOrgUnit>("/api/admin/profile-masters/org-units","POST",p);
 export const updateProfileOrgUnit=(id:number,p:ProfileOrgUnitAdminPayload)=>adminRequest<AdminProfileOrgUnit>(`/api/admin/profile-masters/org-units/${id}`,"PUT",p);
 export const updateProfileOrgUnitStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/org-units/${id}/status`,"PATCH",{status});
+export const deleteProfileBank=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/banks/${id}`,"DELETE");
 export const createProfileBank=(p:ProfileBankAdminPayload)=>adminRequest<AdminProfileBank>("/api/admin/profile-masters/banks","POST",p);
 export const updateProfileBank=(id:number,p:ProfileBankAdminPayload)=>adminRequest<AdminProfileBank>(`/api/admin/profile-masters/banks/${id}`,"PUT",p);
 export const updateProfileBankStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/banks/${id}/status`,"PATCH",{status});
+export const deleteProfileDesignation=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/designations/${id}`,"DELETE");
 export const createProfileDesignation=(p:ProfileDesignationAdminPayload)=>adminRequest<AdminProfileDesignation>("/api/admin/profile-masters/designations","POST",p);
 export const updateProfileDesignation=(id:number,p:ProfileDesignationAdminPayload)=>adminRequest<AdminProfileDesignation>(`/api/admin/profile-masters/designations/${id}`,"PUT",p);
 export const updateProfileDesignationStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/designations/${id}/status`,"PATCH",{status});
+export const deleteProfileStream=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/streams/${id}`,"DELETE");
 export const createProfileStream=(p:ProfileStreamAdminPayload)=>adminRequest<AdminProfileStream>("/api/admin/profile-masters/streams","POST",p);
 export const updateProfileStream=(id:number,p:ProfileStreamAdminPayload)=>adminRequest<AdminProfileStream>(`/api/admin/profile-masters/streams/${id}`,"PUT",p);
 export const updateProfileStreamStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/streams/${id}/status`,"PATCH",{status});
+export const deleteProfileMscBatch=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/msc-batches/${id}`,"DELETE");
 export const createProfileMscBatch=(p:ProfileMscBatchAdminPayload)=>adminRequest<AdminProfileMscBatch>("/api/admin/profile-masters/msc-batches","POST",p);
 export const updateProfileMscBatch=(id:number,p:ProfileMscBatchAdminPayload)=>adminRequest<AdminProfileMscBatch>(`/api/admin/profile-masters/msc-batches/${id}`,"PUT",p);
 export const updateProfileMscBatchStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/msc-batches/${id}/status`,"PATCH",{status});
+export const deleteProfileCourse=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/courses/${id}`,"DELETE");
 export const createProfileCourse=(p:ProfileCourseAdminPayload)=>adminRequest<AdminProfileCourse>("/api/admin/profile-masters/courses","POST",p);
 export const updateProfileCourse=(id:number,p:ProfileCourseAdminPayload)=>adminRequest<AdminProfileCourse>(`/api/admin/profile-masters/courses/${id}`,"PUT",p);
 export const updateProfileCourseStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/courses/${id}/status`,"PATCH",{status});
+export const deleteProfileTraineeBatch=(id:number)=>adminRequest<{id:number}>(`/api/admin/profile-masters/trainee-batches/${id}`,"DELETE");
 export const createProfileTraineeBatch=(p:ProfileTraineeBatchAdminPayload)=>adminRequest<AdminProfileTraineeBatch>("/api/admin/profile-masters/trainee-batches","POST",p);
 export const updateProfileTraineeBatch=(id:number,p:ProfileTraineeBatchAdminPayload)=>adminRequest<AdminProfileTraineeBatch>(`/api/admin/profile-masters/trainee-batches/${id}`,"PUT",p);
 export const updateProfileTraineeBatchStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/trainee-batches/${id}/status`,"PATCH",{status});
