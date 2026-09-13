@@ -1,7 +1,7 @@
 import { listAllEmploymentTypes, listAllOrgUnits, listAllBanks, listAllDesignations, listAllStreams, listAllMscBatches, listAllCourses, listAllTraineeBatches, createEmploymentType, updateEmploymentType, setEmploymentTypeStatus, deleteEmploymentType, createOrgUnit, updateOrgUnit, setOrgUnitStatus, deleteOrgUnit, createBank, updateBank, setBankStatus, deleteBank, createDesignation, updateDesignation, setDesignationStatus, deleteDesignation, createStream, updateStream, setStreamStatus, deleteStream, createMscBatch, updateMscBatch, setMscBatchStatus, deleteMscBatch, createCourse, updateCourse, setCourseStatus, deleteCourse, createTraineeBatch, updateTraineeBatch, setTraineeBatchStatus, deleteTraineeBatch } from "../repositories/profile-master-admin.repository";
 import { db } from "../db/connection";
 
-const ORG_TYPES = new Set(["department", "cell", "project"]);
+const ORG_TYPES = new Set(["department", "cell", "project", "section", "labs_facility"]);
 function text(value: unknown): string { return value == null ? "" : String(value).trim(); }
 function required(value: unknown, label: string, max: number): string { const result=text(value); if(!result) throw new Error(`${label} is required.`); if(result.length>max) throw new Error(`${label} cannot exceed ${max} characters.`); return result; }
 function id(value: unknown, label: string): number { const result=Number(value); if(!Number.isSafeInteger(result)||result<=0) throw new Error(`${label} must be a valid positive integer.`); return result; }

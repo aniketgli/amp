@@ -1951,7 +1951,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            User Roles & Accounts ({managedUsers.length})
+            User Roles & Accounts
           </button>
 
           <button
@@ -1975,8 +1975,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            Facilities & Services ({facilitiesList.length + servicesList.length}
-            )
+            Facilities & Services
           </button>
 
           <button

@@ -60,6 +60,16 @@ interface ProfileMasterFormState {
   id: number | null;
 }
 
+const ORG_UNIT_TYPE_OPTIONS = [
+  { id: "department", name: "Department" },
+  { id: "cell", name: "Cell" },
+  { id: "project", name: "Project" },
+  { id: "section", name: "Section" },
+  { id: "labs_facility", name: "Labs & Facility" },
+];
+
+const ORG_UNIT_TYPE_LABELS: Record<string, string> = Object.fromEntries(ORG_UNIT_TYPE_OPTIONS.map((item) => [item.id, item.name]));
+
 const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [
   { key: "employment", label: "Employment Type" },
   { key: "banks", label: "Bank Master" },
@@ -150,7 +160,7 @@ export function ProfileMastersPanel() {
     setForm({ mode: "create", id: null });
     const base: Record<string, string> = {};
     if (target === "employment") { base.code = ""; base.displayName = ""; }
-    if (target === "organizations") base.unitType = "department";
+    if (target === "organizations") base.unitType = ORG_UNIT_TYPE_OPTIONS[0].id;
     if (target === "msc_batches") {
       base.streamId = streams[0] ? String(streams[0].id) : "";
       base.batchNumber = nextBatchNumber("msc", base.streamId);
@@ -295,7 +305,7 @@ export function ProfileMastersPanel() {
     if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} onDelete={() => void deleteMaster("employment", item)} /></>} />;
     if (tab === "banks") return <ManagementTable headers={["Bank Name", "Bank Code", "Status", "Actions"]} rows={banks} render={(item) => <><td className="p-3 font-semibold">{item.bankName}</td><td className="p-3 font-mono text-slate-600">{item.bankCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("banks", item)} onToggle={() => void toggle("banks", item)} onDelete={() => void deleteMaster("banks", item)} /></>} />;
     if (tab === "designations") return <ManagementTable headers={["Type", "Designation Name", "Designation Code", "Status", "Actions"]} rows={designations} render={(item) => <><td className="p-3 font-semibold">{item.employmentTypeName}</td><td className="p-3 font-semibold">{item.designationName}</td><td className="p-3 font-mono text-slate-600">{item.designationCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("designations", item)} onToggle={() => void toggle("designations", item)} onDelete={() => void deleteMaster("designations", item)} /></>} />;
-    if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3 capitalize">{item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} onDelete={() => void deleteMaster("organizations", item)} /></>} />;
+    if (tab === "organizations") return <ManagementTable headers={["Type", "Organization Name", "Organization Code", "Status", "Actions"]} rows={organizations} render={(item) => <><td className="p-3">{ORG_UNIT_TYPE_LABELS[item.unitType] || item.unitType}</td><td className="p-3 font-semibold">{item.unitName}</td><td className="p-3 font-mono text-slate-600">{item.unitCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("organizations", item)} onToggle={() => void toggle("organizations", item)} onDelete={() => void deleteMaster("organizations", item)} /></>} />;
     if (tab === "streams") return <ManagementTable headers={["Stream Name", "Stream Code", "Status", "Actions"]} rows={streams} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-mono text-slate-600">{item.streamCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("streams", item)} onToggle={() => void toggle("streams", item)} onDelete={() => void deleteMaster("streams", item)} /></>} />;
     if (tab === "msc_batches") return <ManagementTable headers={["Stream", "Batch Name", "Batch Code", "Validity", "Status", "Actions"]} rows={mscBatches} render={(item) => <><td className="p-3 font-semibold">{item.streamName}</td><td className="p-3 font-semibold">{item.batchName}</td><td className="p-3 font-mono text-slate-600">{item.batchCode}</td><td className="p-3">{item.validityStartYear}–{item.validityEndYear}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("msc_batches", item)} onToggle={() => void toggle("msc_batches", item)} onDelete={() => void deleteMaster("msc_batches", item)} /></>} />;
     if (tab === "courses") return <ManagementTable headers={["Course Name", "Course Code", "Status", "Actions"]} rows={courses} render={(item) => <><td className="p-3 font-semibold">{item.courseName}</td><td className="p-3 font-mono text-slate-600">{item.courseCode}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("courses", item)} onToggle={() => void toggle("courses", item)} onDelete={() => void deleteMaster("courses", item)} /></>} />;
@@ -327,7 +337,7 @@ export function ProfileMastersPanel() {
             <div className="space-y-4">
               {modal === "employment" && <>{input("displayName", "Employment Type")} {input("code", "Employment Type Code")}</>}
               {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}
-              {modal === "organizations" && <>{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
+              {modal === "organizations" && <>{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
               {modal === "designations" && <>{select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}
               {modal === "streams" && <>{input("streamName", "Stream Name")} {input("streamCode", "Stream Code")}</>}
               {modal === "courses" && <>{input("courseName", "Course Name")} {input("courseCode", "Course Code")}</>}

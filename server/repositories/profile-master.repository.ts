@@ -1,6 +1,6 @@
 import { db } from "../db/connection";
 
-export type ProfileOrgUnitType = "department" | "cell" | "project";
+export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";
 export type MasterStatus = "active" | "inactive";
 
 export interface ProfileEmploymentTypeMaster {
@@ -110,7 +110,7 @@ export async function getEmploymentTypes(): Promise<ProfileEmploymentTypeMaster[
 }
 
 export async function getOrgUnits(unitTypes?: ProfileOrgUnitType[]): Promise<ProfileOrgUnitMaster[]> {
-  const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project"]);
+  const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project", "section", "labs_facility"]);
   const requested = unitTypes?.filter((type) => allowed.has(type)) ?? ["department", "cell", "project"];
   if (!requested.length) return [];
   const placeholders = requested.map(() => "?").join(", ");

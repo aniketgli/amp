@@ -1,7 +1,7 @@
 import { db } from "../db/connection";
 
 export type MasterStatus = "active" | "inactive";
-export type ProfileOrgUnitType = "department" | "cell" | "project";
+export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";
 
 export interface CreateEmploymentTypeInput { code: string; displayName: string; }
 export interface CreateOrgUnitInput { unitType: ProfileOrgUnitType; unitName: string; unitCode: string; description?: string | null; }

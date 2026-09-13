@@ -3,7 +3,7 @@
    ============================================================ */
 
 export type ProfileEmploymentType = "Permanent" | "Deputation" | "Contractual" | "Researcher / Project Staff" | "MSc Student" | "PhD Scholar" | "Diploma Trainee" | "Intern";
-export type ProfileOrgUnitType = "department" | "cell" | "project";
+export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";
 export type ProfileBatchSeriesType = "msc" | "diploma_trainee";
 export type MasterStatus = "active" | "inactive";
 
