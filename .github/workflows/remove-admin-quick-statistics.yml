@@ -1,0 +1,47 @@
+name: Remove Admin Quick Statistics
+
+on:
+  push:
+    branches:
+      - production-readiness-cleanup
+    paths-ignore:
+      - .github/workflows/remove-admin-quick-statistics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remove-panel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+
+      - name: Remove quick statistics panel
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("src/features/admin/pages/AdminControlPage.tsx")
+          text = path.read_text(encoding="utf-8")
+
+          pattern = r'\n\s*\{\/\* QUICK STATISTICS \*\/\}\n\n\s*<div className=\\"bg-slate-800 border border-slate-700 rounded-xl p-4 min-w-\[260px\] text-xs space-y-2\\">.*?\n\s*</div>\n\s*</div>\n\s*</div>'
+          replacement = "\n      </div>"
+          updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+
+          if count != 1:
+              raise SystemExit(f"Expected exactly one QUICK STATISTICS panel, found {count}")
+
+          path.write_text(updated, encoding="utf-8")
+          PY
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/admin/pages/AdminControlPage.tsx
+          git commit -m "chore: remove admin quick statistics panel"
+          git push origin production-readiness-cleanup
