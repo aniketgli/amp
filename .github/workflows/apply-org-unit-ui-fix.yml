@@ -1,0 +1,120 @@
+name: Apply org unit UI fix
+
+on:
+  push:
+    branches: [production-readiness-cleanup]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: apply org unit types and remove admin tab counts') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+
+      - name: Apply changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected text not found in {path}: {old!r}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          # Remove dynamic counts from the admin sub-navigation labels.
+          replace(
+              'src/features/admin/pages/AdminControlPage.tsx',
+              'User Roles & Accounts ({managedUsers.length})',
+              'User Roles & Accounts',
+          )
+          replace(
+              'src/features/admin/pages/AdminControlPage.tsx',
+              'Facilities & Services ({facilitiesList.length + servicesList.length}\n            )',
+              'Facilities & Services',
+          )
+
+          # Add the requested organization unit types and keep their labels human-readable.
+          replace(
+              'src/features/admin/components/ProfileMastersSection.tsx',
+              'const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
+              'const ORG_UNIT_TYPE_OPTIONS = [\n  { id: "department", name: "Department" },\n  { id: "cell", name: "Cell" },\n  { id: "project", name: "Project" },\n  { id: "section", name: "Section" },\n  { id: "labs_facility", name: "Labs & Facility" },\n];\n\nconst ORG_UNIT_TYPE_LABELS: Record<string, string> = Object.fromEntries(ORG_UNIT_TYPE_OPTIONS.map((item) => [item.id, item.name]));\n\nconst MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
+          )
+          replace(
+              'src/features/admin/components/ProfileMastersSection.tsx',
+              'if (target === "organizations") base.unitType = "department";',
+              'if (target === "organizations") base.unitType = ORG_UNIT_TYPE_OPTIONS[0].id;',
+          )
+          replace(
+              'src/features/admin/components/ProfileMastersSection.tsx',
+              '<td className="p-3 capitalize">{item.unitType}</td>',
+              '<td className="p-3">{ORG_UNIT_TYPE_LABELS[item.unitType] || item.unitType}</td>',
+          )
+          replace(
+              'src/features/admin/components/ProfileMastersSection.tsx',
+              '{select("unitType", "Type", [{id:"department",name:"Department"},{id:"cell",name:"Cell"},{id:"project",name:"Project"}], "id", "name")}',
+              '{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")}',
+          )
+
+          # Keep backend and TypeScript master types in sync with the database enum.
+          replace(
+              'server/services/profile-master-admin.service.ts',
+              'const ORG_TYPES = new Set(["department", "cell", "project"]);',
+              'const ORG_TYPES = new Set(["department", "cell", "project", "section", "labs_facility"]);',
+          )
+          replace(
+              'server/repositories/profile-master-admin.repository.ts',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
+          )
+          replace(
+              'server/repositories/profile-master.repository.ts',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
+          )
+          replace(
+              'server/repositories/profile-master.repository.ts',
+              'const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project"]);',
+              'const allowed = new Set<ProfileOrgUnitType>(["department", "cell", "project", "section", "labs_facility"]);',
+          )
+          replace(
+              'src/types/profile.ts',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project";',
+              'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
+          )
+
+          # Add a forward-only DB migration for existing installations.
+          migration = Path('database/migrations/009_profile_org_unit_types.sql')
+          if not migration.exists():
+              migration.write_text(
+                  """-- ============================================================================\n-- AMP PROFILE ORGANIZATION UNIT TYPES\n-- Migration 009\n-- Adds Section and Labs & Facility to the organization master.\n-- Existing Department / Cell / Project data is preserved.\n-- ============================================================================\n\nALTER TABLE profile_org_units\n    MODIFY COLUMN unit_type ENUM(\n        'department',\n        'cell',\n        'project',\n        'section',\n        'labs_facility'\n    ) NOT NULL;\n\n-- ============================================================================\n-- MIGRATION COMPLETE\n-- ============================================================================\n""",
+                  encoding='utf-8',
+              )
+
+          print('Changes applied.')
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/admin/pages/AdminControlPage.tsx \
+                  src/features/admin/components/ProfileMastersSection.tsx \
+                  server/services/profile-master-admin.service.ts \
+                  server/repositories/profile-master-admin.repository.ts \
+                  server/repositories/profile-master.repository.ts \
+                  src/types/profile.ts \
+                  database/migrations/009_profile_org_unit_types.sql
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: apply org unit types and remove admin tab counts"
+          git push origin production-readiness-cleanup
