@@ -18,8 +18,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply changes
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           def replace(path, old, new):
@@ -29,7 +30,6 @@ jobs:
                   raise SystemExit(f'Expected text not found in {path}: {old!r}')
               p.write_text(text.replace(old, new), encoding='utf-8')
 
-          # Remove dynamic counts from the admin sub-navigation labels.
           replace(
               'src/features/admin/pages/AdminControlPage.tsx',
               'User Roles & Accounts ({managedUsers.length})',
@@ -41,7 +41,6 @@ jobs:
               'Facilities & Services',
           )
 
-          # Add the requested organization unit types and keep their labels human-readable.
           replace(
               'src/features/admin/components/ProfileMastersSection.tsx',
               'const MASTER_TABS: { key: ProfileMasterTab; label: string }[] = [',
@@ -63,7 +62,6 @@ jobs:
               '{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")}',
           )
 
-          # Keep backend and TypeScript master types in sync with the database enum.
           replace(
               'server/services/profile-master-admin.service.ts',
               'const ORG_TYPES = new Set(["department", "cell", "project"]);',
@@ -90,7 +88,6 @@ jobs:
               'export type ProfileOrgUnitType = "department" | "cell" | "project" | "section" | "labs_facility";',
           )
 
-          # Add a forward-only DB migration for existing installations.
           migration = Path('database/migrations/009_profile_org_unit_types.sql')
           if not migration.exists():
               migration.write_text(
@@ -99,6 +96,7 @@ jobs:
               )
 
           print('Changes applied.')
+          PY
 
       - name: Commit changes
         shell: bash
