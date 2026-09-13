@@ -1456,3 +1456,91 @@ export async function saveApplicantProfile(
     connection.release();
   }
 }
+
+
+/* ============================================================
+   ROLE-AWARE PERSONNEL DIRECTORY
+   ============================================================ */
+
+export interface ProfileDirectoryEntry {
+  userId: number;
+  applicantName: string;
+  salutation: string | null;
+  personalEmail: string | null;
+  wiiOfficialEmail: string | null;
+  designation: string | null;
+  departmentCellProject: string | null;
+  employmentType: string | null;
+  biometricId: string | null;
+}
+
+const DIRECTORY_ADMIN_ROLES = new Set([
+  "admin",
+  "administrator",
+  "super_admin",
+  "system_administrator",
+]);
+
+export async function getProfileDirectoryForActor(actorUserId: number, actorRole: string): Promise<ProfileDirectoryEntry[]> {
+  const role = String(actorRole || "").trim().toLowerCase();
+  const select = `
+    SELECT ap.user_id, ap.salutation, ap.applicant_name, ap.personal_email,
+           ap.wii_official_email, ap.designation, ap.department_cell_project,
+           ap.employment_type, ap.biometric_id
+    FROM applicant_profiles ap
+    INNER JOIN users u ON u.id = ap.user_id
+  `;
+  const mapRows = (rows: any[]): ProfileDirectoryEntry[] => rows.map((row) => ({
+    userId: Number(row.user_id),
+    applicantName: String(row.applicant_name || ""),
+    salutation: row.salutation == null ? null : String(row.salutation),
+    personalEmail: row.personal_email == null ? null : String(row.personal_email),
+    wiiOfficialEmail: row.wii_official_email == null ? null : String(row.wii_official_email),
+    designation: row.designation == null ? null : String(row.designation),
+    departmentCellProject: row.department_cell_project == null ? null : String(row.department_cell_project),
+    employmentType: row.employment_type == null ? null : String(row.employment_type),
+    biometricId: row.biometric_id == null ? null : String(row.biometric_id),
+  }));
+
+  if (DIRECTORY_ADMIN_ROLES.has(role)) {
+    const [rows]: any = await db.query(
+      `${select} WHERE u.status = 'active' AND ap.user_id <> ? ORDER BY ap.applicant_name ASC`,
+      [actorUserId],
+    );
+    return mapRows(rows || []);
+  }
+
+  const [actorRows]: any = await db.query(
+    `SELECT department_id, project_id, organization_id FROM applicant_profiles WHERE user_id = ? LIMIT 1`,
+    [actorUserId],
+  );
+  const actor = actorRows?.[0] || {};
+  const departmentId = actor.department_id == null ? null : Number(actor.department_id);
+  const projectId = actor.project_id == null ? null : Number(actor.project_id);
+  const organizationId = actor.organization_id == null ? null : Number(actor.organization_id);
+
+  const [rows]: any = await db.query(
+    `${select}
+     WHERE u.status = 'active'
+       AND ap.user_id <> ?
+       AND (
+         ap.reporting_officer_id = ? OR
+         ap.reporting_manager_id = ? OR
+         ap.pi_user_id = ? OR
+         ap.supervising_officer_id = ? OR
+         (? IS NOT NULL AND ap.department_id = ?) OR
+         (? IS NOT NULL AND ap.project_id = ?) OR
+         (? IS NOT NULL AND ap.organization_id = ?)
+       )
+     ORDER BY ap.applicant_name ASC`,
+    [actorUserId, actorUserId, actorUserId, actorUserId, actorUserId, departmentId, departmentId, projectId, projectId, organizationId, organizationId],
+  );
+  return mapRows(rows || []);
+}
+
+export async function canActorViewProfile(actorUserId: number, actorRole: string, targetUserId: number): Promise<boolean> {
+  const role = String(actorRole || "").trim().toLowerCase();
+  if (actorUserId === targetUserId) return !DIRECTORY_ADMIN_ROLES.has(role);
+  const allowed = await getProfileDirectoryForActor(actorUserId, role);
+  return allowed.some((entry) => entry.userId === targetUserId);
+}

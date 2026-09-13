@@ -4,6 +4,8 @@ export type { ApplicantProfile, ProfileBank, ProfileBatch, ProfileBatchSeriesTyp
 interface ProfileResponse { success:boolean; message?:string; profile?:ApplicantProfile; }
 interface MasterResponse<T> { success:boolean; message?:string; data?:T; }
 interface PincodeResponse { success:boolean; message?:string; data?:{pincode:string;district:string;state:string}; }
+export interface ProfileDirectoryEntry { userId:number; applicantName:string; salutation:string|null; personalEmail:string|null; wiiOfficialEmail:string|null; designation:string|null; departmentCellProject:string|null; employmentType:string|null; biometricId:string|null; }
+interface ProfileDirectoryResponse { success:boolean; message?:string; data?:ProfileDirectoryEntry[]; }
 export interface AdminProfileOrgUnit extends ProfileOrgUnit { status:MasterStatus; }
 export interface AdminProfileBank extends ProfileBank { status:MasterStatus; }
 export interface AdminProfileDesignation extends ProfileDesignation { status:MasterStatus; }
@@ -19,6 +21,9 @@ export interface ProfileStreamAdminPayload { streamName:string; streamCode:strin
 export interface ProfileMscBatchAdminPayload { streamId:number; batchNumber:number; batchName:string; batchCode:string; validityStartYear:number; validityEndYear:number; }
 export interface ProfileCourseAdminPayload { courseName:string; courseCode:string; }
 export interface ProfileTraineeBatchAdminPayload { courseId:number; batchNumber:number; batchName:string; batchCode:string; validityStartYear:number; validityEndYear:number; }
+export async function getProfileDirectory(){const r=await apiRequest<ProfileDirectoryResponse>("/api/profile/directory",{method:"GET"});return r.data??[];}
+export async function getUserProfile(userId:number|string){const r=await apiRequest<ProfileResponse>(`/api/profile/${encodeURIComponent(String(userId))}`,{method:"GET"});if(!r.profile)throw new Error(r.message||"Unable to load employee profile.");return r.profile;}
+export async function updateProfileAsAdmin(userId:number|string,profile:Record<string,unknown>){const r=await apiRequest<ProfileResponse>(`/api/admin/profile/${encodeURIComponent(String(userId))}`,{method:"PUT",body:JSON.stringify(profile)});if(!r.profile)throw new Error(r.message||"Administrator profile update did not return the saved profile.");return r.profile;}
 export async function getMyProfile(){const r=await apiRequest<ProfileResponse>("/api/profile",{method:"GET"});return r.profile??null;}
 export async function updateMyProfile(profile:Record<string,unknown>){const r=await apiRequest<ProfileResponse>("/api/profile",{method:"PUT",body:JSON.stringify(profile)});if(!r.profile)throw new Error(r.message||"Profile update did not return the saved profile.");return r.profile;}
 export async function getEmploymentTypes(){const r=await apiRequest<MasterResponse<ProfileEmploymentTypeMaster[]>>("/api/profile/masters/employment-types",{method:"GET"});return r.data??[];}

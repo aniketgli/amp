@@ -8,6 +8,8 @@ import {
   CreditCard,
   MapPin,
   Save,
+  Search,
+  X,
   User,
 } from "lucide-react";
 
@@ -25,6 +27,9 @@ import {
   getStreams,
   getEmploymentTypes,
   getMyProfile,
+  getProfileDirectory,
+  getUserProfile,
+  updateProfileAsAdmin,
   getOrgUnits,
   getProfileOfficers,
   getPincodeDetails,
@@ -35,6 +40,7 @@ import {
 
 import type { ApplicantProfile as LegacyApplicantProfile } from "@/types";
 import type { ProfileDesignation, ProfileMscBatch, ProfileCourse, ProfileTraineeBatch, ProfileStream } from "@/types/profile";
+import type { ProfileDirectoryEntry } from "@/api/profile.api";
 
 interface ProfileFormProps {
   initialProfile?: LegacyApplicantProfile;
@@ -112,8 +118,25 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState("");
   const [validationAttempted, setValidationAttempted] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [directoryEntries, setDirectoryEntries] = useState<ProfileDirectoryEntry[]>([]);
+  const [directorySearch, setDirectorySearch] = useState("");
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [selectedDirectoryUserId, setSelectedDirectoryUserId] = useState<number | null>(null);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
 
   const adminCanEditOfficialFields = isAdminRole(currentRole);
+  const directoryAdminRole = isAdminRole(currentRole);
+  const selfOnlyRole = ["applicant", "user"].includes(String(currentRole).toLowerCase());
+  const directoryCanBrowse = !selfOnlyRole;
+  const profileEditable = selfOnlyRole || (directoryAdminRole && selectedDirectoryUserId !== null && selectedDirectoryUserId !== currentUserId);
+  const visibleDirectoryEntries = useMemo(() => directoryEntries.filter((entry) => !directoryAdminRole || entry.userId !== currentUserId), [directoryEntries, directoryAdminRole, currentUserId]);
+  const filteredDirectoryEntries = useMemo(() => {
+    const q = directorySearch.trim().toLowerCase();
+    if (!q) return visibleDirectoryEntries;
+    return visibleDirectoryEntries.filter((entry) => [entry.applicantName, entry.personalEmail, entry.wiiOfficialEmail, entry.designation, entry.departmentCellProject, entry.employmentType, entry.biometricId].some((value) => String(value || "").toLowerCase().includes(q)));
+  }, [directorySearch, visibleDirectoryEntries]);
   const employmentCode = normalizeEmploymentCode(profile.employmentType);
   const isBankVisible = useMemo(() => Boolean(employmentCode) && isBankRequired(profile.employmentType || ""), [employmentCode, profile.employmentType]);
   const departmentUnits = useMemo(() => getUnits(orgUnits, "department"), [orgUnits]);
@@ -136,19 +159,38 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
     async function loadProfileData() {
       setLoading(true); setLoadError("");
       try {
-        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList] = await Promise.all([
-          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(),
+        const directoryPromise = directoryCanBrowse ? getProfileDirectory().catch(() => []) : Promise.resolve([] as ProfileDirectoryEntry[]);
+        const [savedProfile, employment, units, bankList, designationList, streamList, mscBatchList, courseList, traineeBatchList, officerList, directoryList] = await Promise.all([
+          getMyProfile(), getEmploymentTypes(), getOrgUnits(["department", "cell", "project"]), getBanks(), getDesignations(), getStreams(), getMscBatches(), getCourses(), getTraineeBatches(), getProfileOfficers(), directoryPromise,
         ]);
         if (cancelled) return;
         setEmploymentTypes(employment); setOrgUnits(units); setBanks(bankList); setDesignations(designationList); setStreams(streamList); setMscBatches(mscBatchList); setCourses(courseList); setTraineeBatches(traineeBatchList); setOfficers(officerList);
-        if (savedProfile) { const master=employment.find((x)=>x.displayName===savedProfile.employmentType||x.code===savedProfile.employmentType); setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? master?.id ?? null }); }
+        if (savedProfile) setCurrentUserId(Number(savedProfile.userId));
+        setDirectoryEntries(directoryList);
+        if (directoryCanBrowse && directoryList.length > 0) {
+          const firstEntry = directoryList[0];
+          setSelectedDirectoryUserId(firstEntry.userId);
+          setDirectorySearch(firstEntry.applicantName);
+          try {
+            const targetProfile = await getUserProfile(firstEntry.userId);
+            const master=employment.find((x)=>x.displayName===targetProfile.employmentType||x.code===targetProfile.employmentType);
+            setProfile({ ...toFormState(targetProfile), employmentTypeId: targetProfile.employmentTypeId ?? master?.id ?? null });
+          } catch (error) {
+            setDirectoryError(error instanceof Error ? error.message : "Unable to load authorized employee profile.");
+            if (savedProfile) { const master=employment.find((x)=>x.displayName===savedProfile.employmentType||x.code===savedProfile.employmentType); setSelectedDirectoryUserId(null); setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? master?.id ?? null }); }
+          }
+        } else if (savedProfile) {
+          const master=employment.find((x)=>x.displayName===savedProfile.employmentType||x.code===savedProfile.employmentType);
+          setSelectedDirectoryUserId(selfOnlyRole ? Number(savedProfile.userId) : null);
+          setProfile({ ...toFormState(savedProfile), employmentTypeId: savedProfile.employmentTypeId ?? master?.id ?? null });
+        }
       } catch (error) {
         if (!cancelled) setLoadError(error instanceof Error ? error.message : "Unable to load profile data.");
       } finally { if (!cancelled) setLoading(false); }
     }
     void loadProfileData();
     return () => { cancelled = true; };
-  }, []);
+  }, [currentRole]);
 
   useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
 
@@ -171,6 +213,25 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
     }).finally(() => { if (!cancelled) setPincodeLoading(false); });
     return () => { cancelled = true; };
   }, [profile.pincode]);
+
+  const handleDirectorySelect = async (entry: ProfileDirectoryEntry) => {
+    setDirectoryOpen(false);
+    setDirectorySearch(entry.applicantName);
+    setSelectedDirectoryUserId(entry.userId);
+    setDirectoryError("");
+    setDirectoryLoading(true);
+    try {
+      const targetProfile = await getUserProfile(entry.userId);
+      const master = employmentTypes.find((x) => x.displayName === targetProfile.employmentType || x.code === targetProfile.employmentType);
+      setProfile({ ...toFormState(targetProfile), employmentTypeId: targetProfile.employmentTypeId ?? master?.id ?? null });
+      setSaveError("");
+      setValidationAttempted(false);
+    } catch (error) {
+      setDirectoryError(error instanceof Error ? error.message : "Unable to load employee profile.");
+    } finally {
+      setDirectoryLoading(false);
+    }
+  };
 
   const handleChange = (field: keyof FormState, value: string | number | null) => {
     setSaveError(""); setPhotoError(""); setValidationAttempted(false);
@@ -202,6 +263,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving || loading) return;
+    if (!profileEditable) { setSaveError("This employee profile is read-only for your role."); return; }
     setValidationAttempted(true);
     if (pincodeError || pincodeLoading) {
       setSaveError(pincodeLoading ? "Please wait for PIN code verification to finish." : pincodeError);
@@ -225,7 +287,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
         panNo: isBankVisible ? profile.panNo || null : null, bankName: isBankVisible ? profile.bankName || null : null,
         accountNo: isBankVisible ? profile.accountNo || null : null, ifscCode: isBankVisible ? profile.ifscCode || null : null,
       };
-      let savedProfile = await updateMyProfile(payload);
+      const editingOtherProfile = directoryAdminRole && selectedDirectoryUserId !== null && selectedDirectoryUserId !== currentUserId;
+      let savedProfile = editingOtherProfile ? await updateProfileAsAdmin(selectedDirectoryUserId, payload) : await updateMyProfile(payload);
       if (pendingPhoto) {
         setIsPhotoUploading(true);
         try {
@@ -261,16 +324,31 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
         .profile-form .immutable-field { background-color:#e2e8f0; color:#475569; cursor:not-allowed; }
         .profile-form .normal-disabled-field { background-color:#fff; color:#1e293b; opacity:1; }
         .profile-required-star { color:#dc2626; font-weight:800; margin-left:2px; }
+        .profile-form.directory-readonly input, .profile-form.directory-readonly select, .profile-form.directory-readonly textarea { pointer-events:none; background-color:#f1f5f9 !important; color:#64748b !important; }
+        .profile-form.directory-readonly button[type="submit"] { display:none; }
       `}</style>
 
       {isSaved && <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg border border-slate-700 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-400" /><div><p className="text-xs font-bold">Profile Updated Successfully</p><p className="text-[11px] text-slate-300">The saved profile has been reloaded from the database.</p></div></div>}
 
-      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-hidden min-h-[140px]">
+      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-md relative overflow-visible min-h-[140px]">
         <div className="absolute top-0 right-0 w-80 h-full bg-emerald-500/5 pointer-events-none blur-2xl" />
-        <div className="relative z-10 space-y-2"><div className="flex flex-wrap items-center gap-2"><span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5" />Access Management Portal</span><span className="text-xs text-slate-400">Wildlife Institute of India</span></div><h1 className="text-lg sm:text-2xl font-extrabold tracking-tight">User Profile & Service Records</h1><p className="text-xs text-slate-300 leading-relaxed max-w-xl">Maintain official personal, employment, academic, project and bank records.</p></div>
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5" />Access Management Portal</span><span className="text-xs text-slate-400">• Wildlife Institute of India</span></div>
+            <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight">{selfOnlyRole ? "User Profile & Service Records" : "Admin Personnel Records & Directory"}</h1>
+            <p className="text-xs text-slate-300 leading-relaxed max-w-xl">{selfOnlyRole ? "Maintain your official personal, employment, academic, project and bank records." : "Search and inspect official service records, designations, and bank details for authorized personnel."}</p>
+          </div>
+          {directoryCanBrowse && <div className="relative z-30 w-full lg:w-[390px] shrink-0">
+            <div className="flex items-center justify-between gap-2 mb-1.5"><span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-300">Personnel Directory</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${directoryAdminRole ? "text-amber-300 bg-amber-950/60 border-amber-800" : "text-emerald-300 bg-emerald-950/60 border-emerald-800"}`}>{directoryAdminRole ? "ADMIN • EDIT" : "RELATED • VIEW"}</span></div>
+            <div className="relative"><div className="flex items-center gap-2 bg-slate-800/95 border border-slate-700 rounded-xl px-3 py-2 shadow-inner"><Search className="w-4 h-4 text-emerald-400 shrink-0" /><input type="text" value={directorySearch} onChange={(e) => { setDirectorySearch(e.target.value); setDirectoryOpen(true); }} onFocus={() => setDirectoryOpen(true)} placeholder="Search staff by name or email..." className="bg-transparent text-white placeholder-slate-400 focus:outline-none w-full text-xs min-w-0" />{directorySearch && <button type="button" onClick={() => { setDirectorySearch(""); setDirectoryOpen(true); }} className="p-0.5 text-slate-400 hover:text-white cursor-pointer"><X className="w-3.5 h-3.5" /></button>}</div>
+              {directoryOpen && <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto"><div className="p-2 border-b border-slate-800 bg-slate-950 flex items-center justify-between"><span className="text-[10px] font-bold text-slate-400">{directorySearch.trim() ? `MATCHING PERSONNEL (${filteredDirectoryEntries.length})` : `AUTHORIZED PERSONNEL (${visibleDirectoryEntries.length})`}</span><button type="button" onClick={() => setDirectoryOpen(false)} className="text-[10px] text-slate-400 hover:text-white cursor-pointer">Close</button></div>{directoryLoading && <div className="p-3 text-xs text-slate-400 text-center">Loading profile...</div>}{!directoryLoading && filteredDirectoryEntries.length === 0 && <div className="p-3 text-xs text-slate-400 text-center">No matching personnel profile found.</div>}{!directoryLoading && filteredDirectoryEntries.map((entry) => <button key={entry.userId} type="button" onClick={() => void handleDirectorySelect(entry)} className={`w-full text-left p-2.5 hover:bg-slate-800 flex items-center gap-2.5 border-b border-slate-800/60 transition-colors cursor-pointer ${selectedDirectoryUserId === entry.userId ? "bg-slate-800/90 border-l-4 border-l-emerald-400" : ""}`}><div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-800 flex items-center justify-center shrink-0"><User className="w-4 h-4 text-emerald-400" /></div><div className="flex-1 min-w-0"><div className="flex items-center justify-between gap-2"><span className="text-xs font-extrabold text-white truncate">{entry.salutation ? `${entry.salutation} ` : ""}{entry.applicantName}</span><span className="text-[10px] font-mono text-emerald-400">#{entry.userId}</span></div><p className="text-[11px] text-slate-400 truncate">{entry.designation || "—"} • {entry.departmentCellProject || entry.employmentType || "—"}</p></div></button>)}</div>}
+            </div>
+            {directoryError && <p className="mt-1.5 text-[10px] text-rose-300">{directoryError}</p>}
+          </div>}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className={`profile-form space-y-5 ${validationAttempted ? "validation-attempted" : ""}`} noValidate>
+      <form onSubmit={handleSubmit} className={`profile-form space-y-5 ${validationAttempted ? "validation-attempted" : ""} ${!profileEditable ? "directory-readonly" : ""}`} noValidate>
         {topError && !isSaved && <div className="w-full bg-rose-50 text-rose-700 px-4 py-3 rounded-xl border border-rose-200 flex items-start gap-2.5 text-xs shadow-sm"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" /><div className="min-w-0"><strong className="font-bold">Unable to save profile</strong><span className="mx-1">:</span><span>{topError}</span></div></div>}
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 sm:p-5 space-y-4">
@@ -279,7 +357,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ initialProfile, curren
             <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
               <div className="relative">
                 {photoPreview ? <img src={photoPreview} alt="Selected profile preview" className="w-36 h-36 rounded-2xl object-cover border-2 border-white shadow-xs ring-1 ring-slate-200" /> : <div className="w-36 h-36 rounded-2xl bg-slate-100 border-2 border-white shadow-xs ring-1 ring-slate-200 flex items-center justify-center"><User className="w-16 h-16 text-slate-400" /></div>}
-                {(currentRole === "applicant" || currentRole === "user" || adminCanEditOfficialFields) && <label title={isPhotoUploading ? "Saving profile photo..." : "Change profile photo"} className={`absolute bottom-0 right-0 p-1.5 rounded-lg shadow-xs ${isPhotoUploading ? "bg-slate-200 text-slate-400 cursor-wait" : "bg-white text-slate-600 hover:bg-slate-100 cursor-pointer"}`}><Camera className="w-3.5 h-3.5" /><input type="file" accept="image/jpeg,image/png,image/webp" disabled={isPhotoUploading || saving} onChange={handleProfilePhotoChange} className="hidden" /></label>}
+                {selfOnlyRole && <label title={isPhotoUploading ? "Saving profile photo..." : "Change profile photo"} className={`absolute bottom-0 right-0 p-1.5 rounded-lg shadow-xs ${isPhotoUploading ? "bg-slate-200 text-slate-400 cursor-wait" : "bg-white text-slate-600 hover:bg-slate-100 cursor-pointer"}`}><Camera className="w-3.5 h-3.5" /><input type="file" accept="image/jpeg,image/png,image/webp" disabled={isPhotoUploading || saving} onChange={handleProfilePhotoChange} className="hidden" /></label>}
               </div>
               {isPhotoUploading && <span className="text-[10px] text-slate-500">Saving photo...</span>}
             </div>

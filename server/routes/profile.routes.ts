@@ -9,6 +9,7 @@ import {
   getMyProfile,
   getMyProfilePhoto,
   getUserProfile,
+  getProfileDirectory,
   updateMyProfile,
   uploadProfilePhoto,
 } from "../controllers/profile.controller";
@@ -16,10 +17,17 @@ import { lookupProfilePincode } from "../controllers/profile-pincode.controller"
 
 const PROFILE_DIRECTORY_ROLES = [
   "admin",
+  "administrator",
   "super_admin",
+  "system_administrator",
   "supervisor",
+  "reporting_manager",
+  "manager",
+  "nodal_officer",
+  "associate_nodal_officer",
   "lab_nodal",
   "assoc_lab_nodal",
+  "it_head",
   "it_officer",
   "hrms_officer",
   "section_head",
@@ -60,6 +68,17 @@ export function registerProfileRoutes(app: Express) {
     "/api/profile/pincode/:pincode",
     authenticateToken,
     lookupProfilePincode,
+  );
+
+  /* ==========================================================
+     PERSONNEL DIRECTORY
+     ========================================================== */
+
+  app.get(
+    "/api/profile/directory",
+    authenticateToken,
+    requireRole(...PROFILE_DIRECTORY_ROLES),
+    getProfileDirectory,
   );
 
   /* ==========================================================

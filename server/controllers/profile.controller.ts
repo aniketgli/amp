@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import {
   getApplicantProfile,
   saveApplicantProfile,
+  getProfileDirectoryForActor,
+  canActorViewProfile,
 } from "../services/profile.service";
 import {
   getProfilePhoto,
@@ -65,12 +67,34 @@ export async function getMyProfilePhoto(req: Request, res: Response) {
   }
 }
 
+export async function getProfileDirectory(req: Request, res: Response) {
+  try {
+    const actorUserId = getAuthenticatedUserId(req);
+    const actorRole = String((req as any).user?.role || "").trim().toLowerCase();
+    if (!actorUserId) return res.status(401).json({ success: false, message: "Authenticated user not found." });
+    const data = await getProfileDirectoryForActor(actorUserId, actorRole);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("GET /api/profile/directory ERROR:", error);
+    return res.status(500).json({ success: false, message: "Unable to fetch personnel directory." });
+  }
+}
+
 export async function getUserProfile(req: Request, res: Response) {
   try {
     const numericUserId = Number(req.params.userId);
     if (!Number.isSafeInteger(numericUserId) || numericUserId <= 0) {
       return res.status(400).json({ success: false, message: "Invalid User ID." });
     }
+
+    const actorUserId = getAuthenticatedUserId(req);
+    const actorRole = String((req as any).user?.role || "").trim().toLowerCase();
+    if (!actorUserId) return res.status(401).json({ success: false, message: "Authenticated user not found." });
+
+    if (!(await canActorViewProfile(actorUserId, actorRole, numericUserId))) {
+      return res.status(403).json({ success: false, message: "You are not authorized to view this employee profile." });
+    }
+
     return res.json({ success: true, profile: await getApplicantProfile(numericUserId) });
   } catch (error) {
     console.error("GET /api/profile/:userId ERROR:", error);

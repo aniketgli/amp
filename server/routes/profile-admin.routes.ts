@@ -29,7 +29,7 @@ export function registerProfileAdminRoutes(
   app.put(
     "/api/admin/profile/:userId",
     authenticateToken,
-    requireRole("administrator"),
+    requireRole("admin", "administrator", "super_admin", "system_administrator"),
     updateUserProfileAsAdminController,
   );
 }
