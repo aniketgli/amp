@@ -23,30 +23,24 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("src/features/admin/pages/AdminControlPage.tsx")
           text = path.read_text(encoding="utf-8")
 
-          start_marker = "        {/* QUICK STATISTICS */}"
-          end_marker = "        </div>\n      </div>"
-
-          start = text.find(start_marker)
-          if start == -1:
-              raise SystemExit("QUICK STATISTICS panel not found")
-
-          end = text.find(end_marker, start)
-          if end == -1:
-              raise SystemExit("QUICK STATISTICS panel end not found")
-
-          end += len("        </div>")
-          updated = text[:start] + text[end:]
+          pattern = r'\n[ \t]*\{\/\* QUICK STATISTICS \*\/\}.*?\n[ \t]*</div>\n[ \t]*</div>'
+          updated, count = re.subn(pattern, "\n      </div>", text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f"Expected one QUICK STATISTICS panel, found {count}")
           path.write_text(updated, encoding="utf-8")
           PY
 
-      - name: Commit and push
+      - name: Commit and push final cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/features/admin/pages/AdminControlPage.tsx
+          git checkout 26936caf89234b5f3d6de72959e30558c9ea7e4f -- .github/workflows/ci.yml
+          git rm -f .github/workflows/remove-admin-quick-statistics.yml scripts/.remove-quick-statistics-trigger
+          git add src/features/admin/pages/AdminControlPage.tsx .github/workflows/ci.yml
           git commit -m "chore: remove admin quick statistics panel"
           git push origin production-readiness-cleanup
