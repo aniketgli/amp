@@ -1,0 +1,129 @@
+name: Apply Profile Masters Fix
+on:
+  push:
+    branches: [production-readiness-cleanup]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Patch files
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('server/repositories/profile-master-admin.repository.ts')
+          s=p.read_text()
+          if 'export interface CreateEmploymentTypeInput' not in s:
+              s=s.replace('export interface CreateOrgUnitInput', 'export interface CreateEmploymentTypeInput { code: string; displayName: string; }\nexport interface CreateOrgUnitInput', 1)
+          if 'export async function createEmploymentType' not in s:
+              anchor='export async function listAllOrgUnits() {'
+              funcs='''export async function createEmploymentType(input: CreateEmploymentTypeInput) { const [r]: any = await db.query(`INSERT INTO profile_employment_types (code, display_name, status) VALUES (?, ?, 'active')`, [input.code, input.displayName]); const [rows]: any = await db.query(`SELECT id, code, display_name, status FROM profile_employment_types WHERE id = ?`, [r.insertId]); return rows?.[0] ?? null; }\nexport async function updateEmploymentType(id: number, input: CreateEmploymentTypeInput) { await db.query(`UPDATE profile_employment_types SET code=?, display_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [input.code, input.displayName, id]); const [rows]: any = await db.query(`SELECT id, code, display_name, status FROM profile_employment_types WHERE id=?`, [id]); return rows?.[0] ?? null; }\nexport async function setEmploymentTypeStatus(id:number,status:MasterStatus){await db.query(`UPDATE profile_employment_types SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,[status,id]);}\n\n'''
+              s=s.replace(anchor, funcs+anchor, 1)
+          p.write_text(s)
+
+          p=Path('server/services/profile-master-admin.service.ts')
+          s=p.read_text()
+          s=s.replace('createOrgUnit, updateOrgUnit, setOrgUnitStatus,', 'createEmploymentType, updateEmploymentType, setEmploymentTypeStatus, createOrgUnit, updateOrgUnit, setOrgUnitStatus,', 1)
+          if 'export async function addEmploymentType' not in s:
+              anchor='export async function addOrgUnit(input:any)'
+              funcs='''export async function addEmploymentType(input:any){const code=required(input?.code,"Employment Type Code",50).toUpperCase().replace(/\\s+/g,"_");const displayName=required(input?.displayName,"Employment Type",100);if(await exists("profile_employment_types","code",code))throw new Error("An employment type with the same code already exists.");if(await exists("profile_employment_types","display_name",displayName))throw new Error("An employment type with the same name already exists.");return createEmploymentType({code,displayName});}\nexport async function editEmploymentType(value:unknown,input:any){const recordId=id(value,"Employment Type ID");const code=required(input?.code,"Employment Type Code",50).toUpperCase().replace(/\\s+/g,"_");const displayName=required(input?.displayName,"Employment Type",100);if(await exists("profile_employment_types","code",code,recordId))throw new Error("An employment type with the same code already exists.");if(await exists("profile_employment_types","display_name",displayName,recordId))throw new Error("An employment type with the same name already exists.");const updated=await updateEmploymentType(recordId,{code,displayName});if(!updated)throw new Error("Employment type not found.");return updated;}\nexport async function changeEmploymentTypeStatus(value:unknown,valueStatus:unknown){const recordId=id(value,"Employment Type ID");const next=status(valueStatus);await setEmploymentTypeStatus(recordId,next);return{id:recordId,status:next};}\n\n'''
+              s=s.replace(anchor, funcs+anchor, 1)
+          p.write_text(s)
+
+          p=Path('server/controllers/profile-master-admin.controller.ts')
+          s=p.read_text()
+          if 'export async function createEmploymentType' not in s:
+              anchor='export async function createOrgUnit'
+              funcs='''export async function createEmploymentType(req:Request,res:Response){try{return ok(res,await service.addEmploymentType(req.body),"Employment type created successfully.",201);}catch(e){return fail(res,e,"Unable to create employment type.");}}\nexport async function updateEmploymentType(req:Request,res:Response){try{return ok(res,await service.editEmploymentType(id(req),req.body),"Employment type updated successfully.");}catch(e){return fail(res,e,"Unable to update employment type.");}}\nexport async function updateEmploymentTypeStatus(req:Request,res:Response){try{return ok(res,await service.changeEmploymentTypeStatus(id(req),req.body?.status),"Employment type status updated successfully.");}catch(e){return fail(res,e,"Unable to update employment type status.");}}\n'''
+              s=s.replace(anchor, funcs+anchor, 1)
+          p.write_text(s)
+
+          p=Path('server/routes/profile-master-admin.routes.ts')
+          s=p.read_text()
+          old='  app.get("/api/admin/profile-masters/employment-types", authenticateToken, administrator, controller.getAdminEmploymentTypes);'
+          new=old+'\n  app.post("/api/admin/profile-masters/employment-types", authenticateToken, administrator, controller.createEmploymentType);\n  app.put("/api/admin/profile-masters/employment-types/:id", authenticateToken, administrator, controller.updateEmploymentType);\n  app.patch("/api/admin/profile-masters/employment-types/:id/status", authenticateToken, administrator, controller.updateEmploymentTypeStatus);'
+          if 'controller.createEmploymentType' not in s: s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('src/api/profile.api.ts')
+          s=p.read_text()
+          if 'ProfileEmploymentTypeAdminPayload' not in s:
+              s=s.replace('export interface ProfileOrgUnitAdminPayload', 'export interface ProfileEmploymentTypeAdminPayload { code:string; displayName:string; }\nexport interface ProfileOrgUnitAdminPayload', 1)
+          if 'createProfileEmploymentType' not in s:
+              anchor='export const getAdminProfileOrgUnits'
+              funcs='''export const createProfileEmploymentType=(p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>("/api/admin/profile-masters/employment-types","POST",p);\nexport const updateProfileEmploymentType=(id:number,p:ProfileEmploymentTypeAdminPayload)=>adminRequest<ProfileEmploymentTypeMaster>(`/api/admin/profile-masters/employment-types/${id}`,"PUT",p);\nexport const updateProfileEmploymentTypeStatus=(id:number,status:MasterStatus)=>adminRequest<{id:number;status:MasterStatus}>(`/api/admin/profile-masters/employment-types/${id}/status`,"PATCH",{status});\n'''
+              s=s.replace(anchor, funcs+anchor, 1)
+          p.write_text(s)
+
+          p=Path('src/features/admin/pages/AdminControlPage.tsx')
+          s=p.read_text()
+          s=s.replace('  getAdminProfileEmploymentTypes,\n', '  getAdminProfileEmploymentTypes,\n  createProfileEmploymentType,\n  updateProfileEmploymentType,\n  updateProfileEmploymentTypeStatus,\n', 1)
+          old='if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><td className="p-3 text-right text-[10px] font-bold text-slate-400">System Defined</td></>} />;'
+          new='if (tab === "employment") return <ManagementTable headers={["Employment Type", "Code", "Status", "Actions"]} rows={employmentTypes} render={(item) => <><td className="p-3 font-semibold">{item.displayName}</td><td className="p-3 font-mono text-slate-600">{item.code}</td><td className="p-3"><MasterStatusBadge status={item.status} /></td><ActionCell item={item} onEdit={() => openEdit("employment", item)} onToggle={() => void toggle("employment", item)} /></>} />;'
+          if old not in s: raise SystemExit('employment render anchor not found')
+          s=s.replace(old,new,1)
+          s=s.replace('{tab !== "employment" && <button type="button" onClick={() => openCreate(tab)}', '{<button type="button" onClick={() => openCreate(tab)}', 1)
+          s=s.replace('{tab === "employment" ? "System-defined employment types; values cannot be added or deleted." : "Manage active and inactive master records from the database."}', 'Manage active and inactive master records from the database.', 1)
+          s=s.replace('{modal && modal !== "employment" && (', '{modal && (', 1)
+          s=s.replace('{modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}', '{modal === "employment" && <>{input("displayName", "Employment Type")} {input("code", "Employment Type Code")}</>}\n              {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}',1)
+          s=s.replace('const modalTitle = tab === "banks" ?', 'const modalTitle = tab === "employment" ? "Employment Type" : tab === "banks" ?',1)
+          marker='      if (modal === "banks") {'
+          block='''      if (modal === "employment") {\n        const p = { code: values.code?.trim() || "", displayName: values.displayName?.trim() || "" };\n        if (!p.code || !p.displayName) throw new Error("Employment Type and Employment Type Code are required.");\n        form.mode === "edit" ? await updateProfileEmploymentType(id, p) : await createProfileEmploymentType(p);\n      } else if (modal === "banks") {'''
+          if marker not in s: raise SystemExit('save marker not found')
+          s=s.replace(marker,block,1)
+          marker='    const base: Record<string, string> = {};'
+          s=s.replace(marker, marker+'\n    if (target === "employment") { base.code = ""; base.displayName = ""; }',1)
+          marker='    const v: Record<string, string> = {};'
+          s=s.replace(marker, marker+'\n    if (target === "employment") { v.code = item.code; v.displayName = item.displayName; }',1)
+          s=s.replace('    if (target === "employment") return;\n', '',1)
+          s=s.replace('      if (target === "banks") await updateProfileBankStatus(item.id, next);', '      if (target === "employment") await updateProfileEmploymentTypeStatus(item.id, next);\n      else if (target === "banks") await updateProfileBankStatus(item.id, next);',1)
+          p.write_text(s)
+          PY
+          cat > database/migrations/008_profile_master_compatibility.sql <<'SQL'
+          -- Compatibility repair for installations where migration 007 was applied
+          -- before batch_number was introduced. Safe for fresh installations too.
+          SET @has_msc_batch_number := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'profile_msc_batches' AND COLUMN_NAME = 'batch_number');
+          SET @sql := IF(@has_msc_batch_number = 0, 'ALTER TABLE profile_msc_batches ADD COLUMN batch_number INT UNSIGNED NULL AFTER stream_id', 'SELECT 1');
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @has_trainee_batch_number := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'profile_trainee_batches' AND COLUMN_NAME = 'batch_number');
+          SET @sql := IF(@has_trainee_batch_number = 0, 'ALTER TABLE profile_trainee_batches ADD COLUMN batch_number INT UNSIGNED NULL AFTER course_id', 'SELECT 1');
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @sql := 'UPDATE profile_msc_batches b JOIN (SELECT id, ROW_NUMBER() OVER (PARTITION BY stream_id ORDER BY validity_start_year, id) AS rn FROM profile_msc_batches) x ON x.id=b.id SET b.batch_number=x.rn WHERE b.batch_number IS NULL';
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @sql := 'UPDATE profile_trainee_batches b JOIN (SELECT id, ROW_NUMBER() OVER (PARTITION BY course_id ORDER BY validity_start_year, id) AS rn FROM profile_trainee_batches) x ON x.id=b.id SET b.batch_number=x.rn WHERE b.batch_number IS NULL';
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @sql := 'ALTER TABLE profile_msc_batches MODIFY COLUMN batch_number INT UNSIGNED NOT NULL';
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @sql := 'ALTER TABLE profile_trainee_batches MODIFY COLUMN batch_number INT UNSIGNED NOT NULL';
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @has_msc_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='profile_msc_batches' AND INDEX_NAME='uq_profile_msc_batch_stream_number');
+          SET @sql := IF(@has_msc_idx=0, 'ALTER TABLE profile_msc_batches ADD UNIQUE KEY uq_profile_msc_batch_stream_number (stream_id, batch_number)', 'SELECT 1');
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SET @has_trainee_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='profile_trainee_batches' AND INDEX_NAME='uq_profile_trainee_batch_course_number');
+          SET @sql := IF(@has_trainee_idx=0, 'ALTER TABLE profile_trainee_batches ADD UNIQUE KEY uq_profile_trainee_batch_course_number (course_id, batch_number)', 'SELECT 1');
+          PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+          SQL
+      - name: Validate
+        run: |
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server src database/migrations/008_profile_master_compatibility.sql
+          git diff --cached --quiet && exit 0
+          git commit -m "fix profile master compatibility and employment CRUD"
+          git push origin production-readiness-cleanup
