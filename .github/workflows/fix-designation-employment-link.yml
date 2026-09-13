@@ -28,8 +28,6 @@ jobs:
           text = path.read_text(encoding='utf-8')
 
           if 'value={values.employmentTypeId' not in text:
-              # Find the Designation Name input regardless of whether the existing
-              # code uses ||, ??, or another fallback expression.
               candidates = list(re.finditer(r'value=\{values\.designationName[^}]*\}', text))
               if not candidates:
                   candidates = list(re.finditer(r'values\.designationName', text))
@@ -37,7 +35,6 @@ jobs:
                   Path('debug_designation_ui.txt').write_text(text, encoding='utf-8')
                   raise SystemExit('Could not find designationName in ProfileMastersSection.tsx')
 
-              # Prefer the occurrence nearest an input-like element.
               m = candidates[0]
               for candidate in candidates:
                   window = text[max(0, candidate.start()-500):candidate.end()+500]
@@ -71,7 +68,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/features/admin/components/ProfileMastersSection.tsx debug_designation_ui.txt
+          git add src/features/admin/components/ProfileMastersSection.tsx
+          if [ -f debug_designation_ui.txt ]; then git add debug_designation_ui.txt; fi
           if git diff --cached --quiet; then
             echo "No changes required"
             exit 0
