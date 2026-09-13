@@ -23,16 +23,24 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path("src/features/admin/pages/AdminControlPage.tsx")
-          text = path.read_text(encoding="utf-8")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
 
-          pattern = r'\n[ \t]*\{\/\* QUICK STATISTICS \*\/\}.*?\n[ \t]*</div>\n[ \t]*</div>'
-          updated, count = re.subn(pattern, "\n      </div>", text, count=1, flags=re.S)
-          if count != 1:
-              raise SystemExit(f"Expected one QUICK STATISTICS panel, found {count}")
-          path.write_text(updated, encoding="utf-8")
+          label_index = next((i for i, line in enumerate(lines) if "Total System Users" in line), None)
+          if label_index is None:
+              raise SystemExit("Total System Users marker not found")
+
+          start = label_index - 3
+          if start < 0 or "QUICK STATISTICS" not in lines[start]:
+              raise SystemExit("Quick statistics card start not found")
+
+          end = next((i for i in range(label_index, len(lines)) if lines[i].strip() == "</div>" and lines[i].startswith("        ")), None)
+          if end is None:
+              raise SystemExit("Quick statistics card end not found")
+
+          del lines[start:end + 1]
+          path.write_text("".join(lines), encoding="utf-8")
           PY
 
       - name: Commit and push final cleanup
