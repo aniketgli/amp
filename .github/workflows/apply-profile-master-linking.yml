@@ -1,0 +1,60 @@
+name: Apply profile master linking fix
+
+on:
+  push:
+    branches: [production-readiness-cleanup]
+    paths:
+      - '.github/workflows/apply-profile-master-linking.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: production-readiness-cleanup
+          fetch-depth: 1
+
+      - name: Link dependent profile master dropdowns
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/features/admin/components/ProfileMastersSection.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          marker = '  const [values, setValues] = useState<Record<string, string>>({});\n'
+          additions = '''\n  // Only active parent masters are available when creating/editing dependent masters.\n  const activeEmploymentTypes = employmentTypes.filter((item) => String(item.status).toLowerCase() === "active");\n  const activeStreams = streams.filter((item) => String(item.status).toLowerCase() === "active");\n  const activeCourses = courses.filter((item) => String(item.status).toLowerCase() === "active");\n'''
+          if 'const activeEmploymentTypes = employmentTypes.filter' not in text:
+              if marker not in text:
+                  raise SystemExit('state marker not found')
+              text = text.replace(marker, marker + additions, 1)
+
+          replacements = {
+              'employmentTypes[0]': 'activeEmploymentTypes[0]',
+              'streams[0]': 'activeStreams[0]',
+              'courses[0]': 'activeCourses[0]',
+              'employmentTypes.map(': 'activeEmploymentTypes.map(',
+              'streams.map(': 'activeStreams.map(',
+              'courses.map(': 'activeCourses.map(',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+
+          path.write_text(text, encoding='utf-8')
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git add src/features/admin/components/ProfileMastersSection.tsx
+          git commit -m "fix: link dependent profile master dropdowns [skip ci]"
+          git push origin production-readiness-cleanup
