@@ -343,7 +343,7 @@ export function ProfileMastersPanel() {
               {modal === "employment" && <>{input("displayName", "Employment Type")} {input("code", "Employment Type Code")}</>}
               {modal === "banks" && <>{input("bankName", "Bank Name")} {input("bankCode", "Bank Code")}</>}
               {modal === "organizations" && <>{select("unitType", "Type", ORG_UNIT_TYPE_OPTIONS, "id", "name")} {input("unitName", "Organization Name")} {input("unitCode", "Organization Code")} {input("description", "Description", false)}</>}
-              {modal === "designations" && <>{select("employmentTypeId", "Type", employmentTypes.filter((x) => x.status === "active"), "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}
+              {modal === "designations" && <>{select("employmentTypeId", "Employment Type", activeEmploymentTypes, "id", "displayName")} {input("designationName", "Designation Name")} {input("designationCode", "Designation Code")}</>}
               {modal === "streams" && <>{input("streamName", "Stream Name")} {input("streamCode", "Stream Code")}</>}
               {modal === "courses" && <>{input("courseName", "Course Name")} {input("courseCode", "Course Code")}</>}
               {modal === "msc_batches" && <>{select("streamId", "Stream", streams.filter((x) => x.status === "active"), "id", "streamName")} {input("batchNumber", "Batch Number", true, "number")} {input("batchName", "Batch Name")} {input("batchCode", "Batch Code")} <div className="grid grid-cols-2 gap-3">{input("validityStartYear", "Validity From", true, "number")}{input("validityEndYear", "Validity To", true, "number")}</div></>}
