@@ -13,7 +13,7 @@ on:
       - production-readiness-cleanup
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -22,37 +22,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Remove temporary admin quick statistics panel
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("src/features/admin/pages/AdminControlPage.tsx")
-          text = path.read_text(encoding="utf-8")
-
-          start_marker = "        {/* QUICK STATISTICS */}"
-          end_marker = "        </div>\n      </div>"
-
-          start = text.find(start_marker)
-          if start == -1:
-              raise SystemExit("QUICK STATISTICS panel not found")
-
-          end = text.find(end_marker, start)
-          if end == -1:
-              raise SystemExit("QUICK STATISTICS panel end not found")
-
-          end += len("        </div>")
-          path.write_text(text[:start] + text[end:], encoding="utf-8")
-          PY
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f .github/workflows/remove-admin-quick-statistics.yml scripts/.remove-quick-statistics-trigger
-          git add src/features/admin/pages/AdminControlPage.tsx
-          git commit -m "chore: remove admin quick statistics panel"
-          git push origin HEAD:${GITHUB_REF_NAME}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
