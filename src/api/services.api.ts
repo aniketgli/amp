@@ -1,4 +1,5 @@
 import { apiRequest } from "./apiClient";
+import type { AccessFormConfig } from "./serviceFormConfig.types";
 
 export interface ServiceApiRecord {
   id: string;
@@ -7,6 +8,7 @@ export interface ServiceApiRecord {
   quota?: string;
   status?: string;
   workflowStages?: unknown[] | null;
+  formConfig?: AccessFormConfig | null;
   createdAt?: string;
   updatedAt?: string;
 }
