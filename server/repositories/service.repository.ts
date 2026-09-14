@@ -5,9 +5,6 @@ import { db } from "../db/connection";
  *
  * Only database-related operations for service_masters
  * should live here.
- *
- * Route-level validation, authentication, authorization,
- * response formatting, and fallback handling remain in routes.
  */
 
 export interface CreateServiceInput {
@@ -17,6 +14,7 @@ export interface CreateServiceInput {
   quota?: string | null;
   status: string;
   workflowStages?: unknown[] | null;
+  formConfig?: Record<string, unknown> | null;
 }
 
 export interface UpdateServiceInput {
@@ -26,15 +24,9 @@ export interface UpdateServiceInput {
   quota?: string | null;
   status?: string;
   workflowStages?: unknown[] | null;
+  formConfig?: Record<string, unknown> | null;
 }
 
-/**
- * Get all services.
- *
- * Primary query includes workflow_stages.
- * Fallback query supports older databases where
- * workflow_stages may not exist yet.
- */
 export async function getAllServices(): Promise<any[]> {
   try {
     const [rows]: any = await db.query(`
@@ -45,6 +37,7 @@ export async function getAllServices(): Promise<any[]> {
         quota_access_specs,
         status,
         workflow_stages,
+        form_config,
         created_at,
         updated_at
       FROM service_masters
@@ -70,12 +63,6 @@ export async function getAllServices(): Promise<any[]> {
   }
 }
 
-/**
- * Generate the next SRV-XX identifier.
- *
- * This preserves the existing identifier-generation logic
- * currently used by the Services route.
- */
 export async function getNextServiceId(): Promise<string> {
   const [existing]: any = await db.query(`
     SELECT id
@@ -102,16 +89,12 @@ export async function getNextServiceId(): Promise<string> {
   return `SRV-${String(nextNumber).padStart(2, "0")}`;
 }
 
-/**
- * Create a service.
- *
- * First attempts to write workflow_stages.
- * Falls back to the older schema if that column
- * is not available.
- */
 export async function createService(input: CreateServiceInput): Promise<void> {
   const stagesJson = input.workflowStages
     ? JSON.stringify(input.workflowStages)
+    : null;
+  const formConfigJson = input.formConfig
+    ? JSON.stringify(input.formConfig)
     : null;
 
   try {
@@ -124,9 +107,10 @@ export async function createService(input: CreateServiceInput): Promise<void> {
           manager_name,
           quota_access_specs,
           status,
-          workflow_stages
+          workflow_stages,
+          form_config
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [
         input.id,
@@ -135,35 +119,51 @@ export async function createService(input: CreateServiceInput): Promise<void> {
         input.quota || null,
         input.status,
         stagesJson,
+        formConfigJson,
       ],
     );
   } catch (_) {
-    await db.query(
-      `
-        INSERT INTO service_masters
-        (
-          id,
-          service_name,
-          manager_name,
-          quota_access_specs,
-          status
-        )
-        VALUES (?, ?, ?, ?, ?)
-      `,
-      [input.id, input.name, input.manager, input.quota || null, input.status],
-    );
+    try {
+      await db.query(
+        `
+          INSERT INTO service_masters
+          (
+            id,
+            service_name,
+            manager_name,
+            quota_access_specs,
+            status,
+            form_config
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [input.id, input.name, input.manager, input.quota || null, input.status, formConfigJson],
+      );
+    } catch (_) {
+      await db.query(
+        `
+          INSERT INTO service_masters
+          (
+            id,
+            service_name,
+            manager_name,
+            quota_access_specs,
+            status
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        [input.id, input.name, input.manager, input.quota || null, input.status],
+      );
+    }
   }
 }
 
-/**
- * Update a service.
- *
- * First attempts to update workflow_stages.
- * Falls back to the older schema if necessary.
- */
 export async function updateService(input: UpdateServiceInput): Promise<any> {
   const stagesJson = input.workflowStages
     ? JSON.stringify(input.workflowStages)
+    : null;
+  const formConfigJson = input.formConfig
+    ? JSON.stringify(input.formConfig)
     : null;
 
   try {
@@ -175,7 +175,8 @@ export async function updateService(input: UpdateServiceInput): Promise<any> {
           manager_name = ?,
           quota_access_specs = ?,
           status = ?,
-          workflow_stages = ?
+          workflow_stages = ?,
+          form_config = ?
         WHERE id = ?
       `,
       [
@@ -184,38 +185,59 @@ export async function updateService(input: UpdateServiceInput): Promise<any> {
         input.quota || null,
         input.status || "active",
         stagesJson,
+        formConfigJson,
         input.id,
       ],
     );
 
     return result;
   } catch (_) {
-    const [result]: any = await db.query(
-      `
-        UPDATE service_masters
-        SET
-          service_name = ?,
-          manager_name = ?,
-          quota_access_specs = ?,
-          status = ?
-        WHERE id = ?
-      `,
-      [
-        input.name,
-        input.manager,
-        input.quota || null,
-        input.status || "active",
-        input.id,
-      ],
-    );
-
-    return result;
+    try {
+      const [result]: any = await db.query(
+        `
+          UPDATE service_masters
+          SET
+            service_name = ?,
+            manager_name = ?,
+            quota_access_specs = ?,
+            status = ?,
+            form_config = ?
+          WHERE id = ?
+        `,
+        [
+          input.name,
+          input.manager,
+          input.quota || null,
+          input.status || "active",
+          formConfigJson,
+          input.id,
+        ],
+      );
+      return result;
+    } catch (_) {
+      const [result]: any = await db.query(
+        `
+          UPDATE service_masters
+          SET
+            service_name = ?,
+            manager_name = ?,
+            quota_access_specs = ?,
+            status = ?
+          WHERE id = ?
+        `,
+        [
+          input.name,
+          input.manager,
+          input.quota || null,
+          input.status || "active",
+          input.id,
+        ],
+      );
+      return result;
+    }
   }
 }
 
-/**
- * Delete a service.
- */
 export async function deleteService(id: string): Promise<any> {
   const [result]: any = await db.query(
     `
