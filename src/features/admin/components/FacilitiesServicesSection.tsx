@@ -49,14 +49,31 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
     }),
   );
 
+  const accessItemWorkflows = Object.fromEntries(
+    STATIC_ACCESS_ITEMS.map((item) => {
+      const record = findStaticRecord(item, servicesList, facilitiesList);
+      if (!record) return [item.key, []];
+      if (record.workflowStages?.length) return [item.key, record.workflowStages];
+      return [
+        item.key,
+        item.kind === "facility"
+          ? getDefaultFacilityWorkflow(record.supervisor, record.assocNodal, record.nodal)
+          : getDefaultServiceWorkflow(record.manager),
+      ];
+    }),
+  );
+
   const handleAccessCatalogToggle = (item: StaticAccessItem) => {
     const record = findStaticRecord(item, servicesList, facilitiesList);
     if (!record) return;
-    if (item.kind === "facility") {
-      handleToggleFacilityStatus(record);
-    } else {
-      handleToggleServiceStatus(record);
-    }
+    if (item.kind === "facility") handleToggleFacilityStatus(record);
+    else handleToggleServiceStatus(record);
+  };
+
+  const handleAccessWorkflowConfigure = (item: StaticAccessItem) => {
+    const record = findStaticRecord(item, servicesList, facilitiesList);
+    if (!record) return;
+    handleOpenWorkflowModal(item.kind, record);
   };
 
   return (
@@ -83,8 +100,8 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       </section>
 
       <section className="border-t border-slate-200 pt-6 mt-2">
-        <div className="mb-4"><h3 className="font-bold text-slate-800">Access Tab Preview</h3><p className="text-xs text-slate-500 mt-1">Static catalogue used by the applicant Access tab. Popup forms remain static. Use the Active / Inactive toggle on each card to control whether that item appears in the applicant Access tab.</p></div>
-        <StaticAccessCatalog itemStates={accessItemStates} onApply={() => undefined} onToggle={handleAccessCatalogToggle} />
+        <div className="mb-4"><h3 className="font-bold text-slate-800">Access Tab Preview</h3><p className="text-xs text-slate-500 mt-1">Static catalogue used by the applicant Access tab. Popup forms remain static. Use the status switch and Approval Flow Master on each card to control the applicant Access tab.</p></div>
+        <StaticAccessCatalog itemStates={accessItemStates} itemWorkflows={accessItemWorkflows} onApply={() => undefined} onToggle={handleAccessCatalogToggle} onConfigureWorkflow={handleAccessWorkflowConfigure} />
       </section>
     </div>
   );
