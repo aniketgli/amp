@@ -27,7 +27,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       </div>
 
       <section>
-        <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Wrench className="w-4 h-4 text-emerald-600" />Services Master Directory <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">{servicesList.length} Total</span></h3><button onClick={fetchServices} className="text-xs text-emerald-700 font-bold hover:underline">Refresh</button></div>
+        <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Wrench className="w-4 h-4 text-emerald-600" />Services Master Directory <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">{servicesList.length} Total</span></h3></div>
         {servicesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading services...</div>}
         {servicesError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">{servicesError}</div>}
         {!servicesLoading && !servicesError && servicesList.length === 0 && <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">No services found in database.</div>}
@@ -35,7 +35,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       </section>
 
       <section className="border-t border-slate-200 pt-6">
-        <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" />Facilities Master Register <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-[10px]">{facilitiesList.length} Total</span></h3><button onClick={fetchFacilities} className="text-xs text-purple-700 font-bold hover:underline">Refresh</button></div>
+        <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" />Facilities Master Register <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-[10px]">{facilitiesList.length} Total</span></h3></div>
         {facilitiesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading facilities...</div>}
         {facilitiesError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">{facilitiesError}</div>}
         {!facilitiesLoading && !facilitiesError && facilitiesList.length === 0 && <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">No facilities found in database.</div>}
