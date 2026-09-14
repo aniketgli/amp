@@ -267,7 +267,7 @@ export function FacilitiesServicesSection({
 
           {/* =================================================
               SERVICES
-          ================================================= */}
+          ================================================= */
 
           <section className="border-t border-slate-200 pt-6">
             <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4">
@@ -348,7 +348,7 @@ export function FacilitiesServicesSection({
                         </div>
 
                         <div>
-                          <b>Quota / Access:</b> {service.quota || "—"}
+                          <b>Access Tab – Second Line:</b> {service.quota || "—"}
                         </div>
                       </div>
 
