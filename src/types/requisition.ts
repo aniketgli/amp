@@ -131,13 +131,12 @@ export interface ITHrmsDetails {
   renewalReason?: string;
   requestEmail?: boolean;
   requestedEmailGroups?: string[];
+  requestedEmailPrefix?: string;
   requestInternet?: boolean;
   deviceType?: string;
   macAddress?: string;
   requestHrmsPms?: boolean;
   requestBiometric?: boolean;
-  
-  // Provisioned technical data
   assignedWiiEmail?: string;
   assignedEmailGroups?: string[];
   assignedEmailPassword?: string;
@@ -208,18 +207,17 @@ export interface WorkflowAction {
 }
 
 export interface RequisitionRecord {
-  id: string; // e.g. WII/2026/0101
-  selectedServiceKey?: string; // e.g. 'email', 'internet', 'hrms', 'biometric', 'lab-...'
-  selectedRefId?: string; // e.g. 'WII/2026/0101-EML'
-  selectedServiceLabel?: string; // e.g. 'Official WII Email ID'
-  serviceName?: string; // Optional specific service title
+  id: string;
+  selectedServiceKey?: string;
+  selectedRefId?: string;
+  selectedServiceLabel?: string;
+  serviceName?: string;
+  formData?: Record<string, unknown>;
   type: RequisitionType;
   status: RequisitionStatus;
   applicant: ApplicantProfile;
   itHrmsDetails?: ITHrmsDetails;
   labAccessDetails?: LabFacilitySelection[];
-  
-  // Approvals breakdown
   piApproval?: {
     status: 'pending' | 'approved' | 'rejected';
     officerName: string;
@@ -227,80 +225,24 @@ export interface RequisitionRecord {
     timestamp?: string;
     signature?: string;
   };
-
   itCellVerification?: {
-    emailNetOfficer?: {
-      officerName: string; // Dinesh Singh Pundir
-      status: 'pending' | 'verified' | 'rejected';
-      comments?: string;
-      timestamp?: string;
-    };
-    hrmsOfficer?: {
-      officerName: string; // Harendra Kumar
-      status: 'pending' | 'verified' | 'rejected';
-      comments?: string;
-      timestamp?: string;
-    };
-    biometricOfficer?: {
-      officerName: string; // Aniket Gupta
-      status: 'pending' | 'verified' | 'rejected';
-      comments?: string;
-      timestamp?: string;
-    };
+    emailNetOfficer?: { officerName: string; status: 'pending' | 'verified' | 'rejected'; comments?: string; timestamp?: string };
+    hrmsOfficer?: { officerName: string; status: 'pending' | 'verified' | 'rejected'; comments?: string; timestamp?: string };
+    biometricOfficer?: { officerName: string; status: 'pending' | 'verified' | 'rejected'; comments?: string; timestamp?: string };
   };
-
   sectionHeadApproval?: {
     status: 'pending' | 'approved' | 'rejected';
-    officerName: string; // Dr. Panna Lal
+    officerName: string;
     comments?: string;
     timestamp?: string;
     signature?: string;
   };
-
   history: WorkflowAction[];
   createdAt: string;
   updatedAt: string;
-}
-
-export type SecurityAuditActionType =
-  | 'PROFILE_UPDATE'
-  | 'OFFICE_ORDER_UPLOAD'
-  | 'REQUISITION_SUBMIT'
-  | 'PI_APPROVAL'
-  | 'PI_REJECTION'
-  | 'IT_EMAIL_PROVISION'
-  | 'IT_WIFI_BINDING'
-  | 'HRMS_PORTAL_GRANT'
-  | 'BIOMETRIC_ENROLL'
-  | 'LAB_SLOT_APPROVAL'
-  | 'SECTION_HEAD_AUTHORIZATION'
-  | 'ROLE_CHANGE'
-  | 'USER_STATUS_TOGGLE'
-  | 'USER_CREATE'
-  | 'FACILITY_MASTER_EDIT'
-  | 'SERVICE_MASTER_EDIT'
-  | 'SYSTEM_CONFIG_CHANGE'
-  | 'LOGIN_SUCCESS'
-  | 'PASSWORD_RESET';
-
-export interface SecurityAuditLogEntry {
-  id: string;
-  timestamp: string;
-  actorName: string;
-  actorEmail: string;
-  actorRole: UserRole;
-  actorRoleLabel?: string;
-  actionType: SecurityAuditActionType;
-  module: string; // Kaha (Module/Entity)
-  summary: string; // Kya (Summary of Action)
-  details?: {
-    previousValue?: string;
-    newValue?: string;
-    targetEntity?: string;
-    ipAddress?: string;
-    digitalSignature?: string;
-    comments?: string;
-  };
-  ipAddress: string;
-  status: 'SUCCESS' | 'WARNING' | 'FAILED';
+  applicant_id?: string;
+  requisition_type?: RequisitionType;
+  requisition_mode?: 'new' | 'renewal';
+  renewal_reason?: string;
+  remarks?: string;
 }
