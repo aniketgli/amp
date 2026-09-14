@@ -1,5 +1,5 @@
-import React from "react";
-import { Building2, Edit3, GitMerge, Trash2, Wrench } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Building2, Edit3, GitMerge, Trash2, Wrench, X } from "lucide-react";
 
 const getDefaultFacilityWorkflow = (supervisor: string, assocNodal: string, nodal: string): any[] => [
   { stageNumber: 1, stageName: "Supervising Officer / PI Endorsement", dealingOfficerName: "Applicant's Supervising Officer (PI)" },
@@ -19,7 +19,73 @@ interface FacilitiesServicesSectionProps {
   servicesList: any[]; servicesLoading: boolean; servicesError: string | null; fetchServices: () => void; setIsAddServiceModalOpen: (open: boolean) => void; handleToggleServiceStatus: (service: any) => void; setEditingService: (service: any) => void; handleDeleteService: (id: any) => void;
 }
 
-export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, facilitiesError, fetchFacilities, setIsAddFacilityModalOpen, handleToggleFacilityStatus, handleOpenWorkflowModal, setEditingFacility, handleDeleteFacility, servicesList, servicesLoading, servicesError, fetchServices, setIsAddServiceModalOpen, handleToggleServiceStatus, setEditingService, handleDeleteService }: FacilitiesServicesSectionProps) {
+interface ManagerOption { id: string | number; name: string; roles?: { code?: string }[]; }
+
+export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, facilitiesError, fetchFacilities, setIsAddFacilityModalOpen, handleToggleFacilityStatus, handleOpenWorkflowModal, setEditingFacility, handleDeleteFacility, servicesList, servicesLoading, servicesError, fetchServices, setIsAddServiceModalOpen, handleToggleServiceStatus, handleDeleteService }: FacilitiesServicesSectionProps) {
+  const [editingServiceLocal, setEditingServiceLocal] = useState<any | null>(null);
+  const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const [savingService, setSavingService] = useState(false);
+  const [serviceSaveError, setServiceSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadManagers = async () => {
+      try {
+        const response = await fetch("/api/users", { headers: { Accept: "application/json" } });
+        const data = await response.json();
+        if (!response.ok || !data.success || !Array.isArray(data.users)) return;
+        const managers = data.users
+          .filter((user: any) => Array.isArray(user.roles) && user.roles.some((role: any) => ["manager", "it_head", "administrator"].includes(String(role?.code || ""))))
+          .map((user: any) => ({ id: user.id, name: String(user.fullName || user.name || "").trim(), roles: user.roles }))
+          .filter((user: ManagerOption) => user.name);
+        if (!cancelled) setManagerOptions(managers);
+      } catch {
+        // The existing manager value remains usable even if the option list cannot be loaded.
+      }
+    };
+    loadManagers();
+    return () => { cancelled = true; };
+  }, []);
+
+  const showQuotaAccess = (service: any) => /email|internet/.test(String(`${service?.id} ${service?.name}`).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim());
+
+  const openServiceEditor = (service: any) => {
+    setServiceSaveError(null);
+    setEditingServiceLocal({ ...service });
+  };
+
+  const saveService = async () => {
+    if (!editingServiceLocal) return;
+    if (!String(editingServiceLocal.manager || "").trim()) {
+      setServiceSaveError("Manager is required.");
+      return;
+    }
+    setSavingService(true);
+    setServiceSaveError(null);
+    try {
+      const payload = {
+        name: String(editingServiceLocal.name || "").trim(),
+        manager: String(editingServiceLocal.manager || "").trim(),
+        quota: showQuotaAccess(editingServiceLocal) ? String(editingServiceLocal.quota || "").trim() : "",
+        status: editingServiceLocal.status === "inactive" ? "inactive" : "active",
+        ...(Array.isArray(editingServiceLocal.workflowStages) ? { workflowStages: editingServiceLocal.workflowStages } : {}),
+      };
+      const response = await fetch(`/api/services/${encodeURIComponent(String(editingServiceLocal.id))}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to update service.");
+      await fetchServices();
+      setEditingServiceLocal(null);
+    } catch (error: any) {
+      setServiceSaveError(error?.message || "Unable to update service.");
+    } finally {
+      setSavingService(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-8">
       <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4">
@@ -39,8 +105,10 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
         {servicesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading services...</div>}
         {servicesError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">{servicesError}</div>}
         {!servicesLoading && !servicesError && servicesList.length === 0 && <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">No services found in database.</div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{servicesList.map((service) => { const stages = service.workflowStages?.length ? service.workflowStages : getDefaultServiceWorkflow(service.manager); const showQuotaAccess = /email|internet/.test(String(`${service?.id} ${service?.name}`).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()); const isActive = String(service.status || "active").toLowerCase() === "active"; return <div key={service.id} className={`p-4 border rounded-xl transition-all flex flex-col justify-between ${isActive ? "border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-300" : "border-slate-300 bg-slate-100 opacity-65"}`}><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{service.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{service.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{isActive ? "ACTIVE" : "INACTIVE"}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Manager:</b> {service.manager || "—"}</div>{showQuotaAccess && <div><b>Quota / Access:</b> {service.quota || "—"}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-emerald-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleServiceStatus(service)} className={`px-2.5 py-1 rounded text-[11px] font-semibold ${isActive ? "bg-slate-200 hover:bg-slate-300" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}`}>{isActive ? "Set Inactive" : "Set Active"}</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("service", service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => setEditingService(service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Edit Service"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteService(service.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Service"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{servicesList.map((service) => { const stages = service.workflowStages?.length ? service.workflowStages : getDefaultServiceWorkflow(service.manager); const hasQuota = showQuotaAccess(service); const isActive = String(service.status || "active").toLowerCase() === "active"; return <div key={service.id} className={`p-4 border rounded-xl transition-all flex flex-col justify-between ${isActive ? "border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-300" : "border-slate-300 bg-slate-100 opacity-65"}`}><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{service.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{service.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{isActive ? "ACTIVE" : "INACTIVE"}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Manager:</b> {service.manager || "—"}</div>{hasQuota && <div><b>Quota / Access:</b> {service.quota || "—"}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-emerald-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleServiceStatus(service)} className={`px-2.5 py-1 rounded text-[11px] font-semibold ${isActive ? "bg-slate-200 hover:bg-slate-300" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}`}>{isActive ? "Set Inactive" : "Set Active"}</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("service", service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => openServiceEditor(service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Edit Service"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteService(service.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Service"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
       </section>
+
+      {editingServiceLocal && <div className="fixed inset-0 bg-slate-900/60 z-[160] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"><div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4"><div><h3 className="font-extrabold text-slate-900">{editingServiceLocal.name}</h3><p className="text-[11px] text-slate-500 mt-1">Edit service master details</p></div><button type="button" onClick={() => setEditingServiceLocal(null)} className="p-1.5 rounded-lg hover:bg-slate-100" aria-label="Close"><X className="w-5 h-5" /></button></div><div className="space-y-3"><div><label className="block text-[11px] font-bold text-slate-600 mb-1">Manager</label><select required value={editingServiceLocal.manager || ""} onChange={(e) => setEditingServiceLocal({ ...editingServiceLocal, manager: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-sm"><option value="">Select Manager</option>{managerOptions.map((manager) => <option key={manager.id} value={manager.name}>{manager.name}</option>)}{editingServiceLocal.manager && !managerOptions.some((manager) => manager.name === editingServiceLocal.manager) && <option value={editingServiceLocal.manager}>{editingServiceLocal.manager}</option>}</select></div>{showQuotaAccess(editingServiceLocal) && <div><label className="block text-[11px] font-bold text-slate-600 mb-1">Quota / Access</label><input value={editingServiceLocal.quota || ""} onChange={(e) => setEditingServiceLocal({ ...editingServiceLocal, quota: e.target.value })} placeholder="Enter quota / access details" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm" /></div>}<div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-2"><div><div className="text-[11px] font-bold text-slate-700">Status</div><div className={`text-[10px] font-semibold mt-0.5 ${editingServiceLocal.status === "inactive" ? "text-slate-500" : "text-emerald-700"}`}>{editingServiceLocal.status === "inactive" ? "Inactive" : "Active"}</div></div><button type="button" role="switch" aria-checked={editingServiceLocal.status !== "inactive"} onClick={() => setEditingServiceLocal({ ...editingServiceLocal, status: editingServiceLocal.status === "inactive" ? "active" : "inactive" })} className={`relative w-12 h-6 rounded-full transition-colors ${editingServiceLocal.status === "inactive" ? "bg-slate-300" : "bg-emerald-600"}`}><span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${editingServiceLocal.status === "inactive" ? "left-1" : "left-7"}`} /></button></div>{serviceSaveError && <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">{serviceSaveError}</div>}</div><div className="flex justify-end gap-2 border-t border-slate-200 pt-3 mt-4"><button type="button" onClick={() => setEditingServiceLocal(null)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="button" disabled={savingService} onClick={saveService} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white rounded-lg text-xs font-bold">{savingService ? "Saving..." : "Save Changes"}</button></div></div></div>}
     </div>
   );
 }
