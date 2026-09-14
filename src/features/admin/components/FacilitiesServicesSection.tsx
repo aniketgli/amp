@@ -1,6 +1,5 @@
 import React from "react";
 import { Building2, Edit3, GitMerge, PlusCircle, Trash2, Wrench } from "lucide-react";
-import { StaticAccessCatalog, STATIC_ACCESS_ITEMS, type StaticAccessItem } from "@/features/access/components/StaticAccessCatalog";
 
 const getDefaultFacilityWorkflow = (supervisor: string, assocNodal: string, nodal: string): any[] => [
   { stageNumber: 1, stageName: "Supervising Officer / PI Endorsement", dealingOfficerName: "Applicant's Supervising Officer (PI)" },
@@ -21,65 +20,13 @@ interface FacilitiesServicesSectionProps {
 }
 
 const normalize = (value: unknown) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-
-function findStaticRecord(item: StaticAccessItem, servicesList: any[], facilitiesList: any[]) {
-  if (item.kind === "facility") {
-    return facilitiesList.find((facility) => /lab|laboratory|research facility/.test(normalize(`${facility.id} ${facility.name}`)));
-  }
-  return servicesList.find((service) => {
-    const value = normalize(`${service.id} ${service.name}`);
-    if (item.key === "official-wii-email") return /email|webmail|mail/.test(value);
-    if (item.key === "campus-internet-mac") return /wifi|wi fi|internet|mac|network/.test(value);
-    if (item.key === "hrms-biometric") return /hrms|pms|biometric|attendance/.test(value);
-    if (item.key === "smart-id-card") return /smart.*identity|smart.*id|rfid|identity card/.test(value);
-    return false;
-  });
-}
-
-const serviceSupportsQuotaAccess = (service: any) => {
-  const value = normalize(`${service?.id} ${service?.name}`);
-  return /email|webmail|mail/.test(value) || /wifi|wi fi|internet|mac|network/.test(value);
-};
+const serviceSupportsQuotaAccess = (service: any) => /email|webmail|mail|wifi|wi fi|internet|mac|network/.test(normalize(`${service?.id} ${service?.name}`));
 
 export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, facilitiesError, fetchFacilities, setIsAddFacilityModalOpen, handleToggleFacilityStatus, handleOpenWorkflowModal, setEditingFacility, handleDeleteFacility, servicesList, servicesLoading, servicesError, fetchServices, setIsAddServiceModalOpen, handleToggleServiceStatus, setEditingService, handleDeleteService }: FacilitiesServicesSectionProps) {
-  const accessItemStates = Object.fromEntries(
-    STATIC_ACCESS_ITEMS.map((item) => {
-      const record = findStaticRecord(item, servicesList, facilitiesList);
-      return [item.key, Boolean(record && String(record.status || "active").toLowerCase() === "active")];
-    }),
-  );
-
-  const accessItemWorkflows = Object.fromEntries(
-    STATIC_ACCESS_ITEMS.map((item) => {
-      const record = findStaticRecord(item, servicesList, facilitiesList);
-      if (!record) return [item.key, []];
-      if (record.workflowStages?.length) return [item.key, record.workflowStages];
-      return [
-        item.key,
-        item.kind === "facility"
-          ? getDefaultFacilityWorkflow(record.supervisor, record.assocNodal, record.nodal)
-          : getDefaultServiceWorkflow(record.manager),
-      ];
-    }),
-  );
-
-  const handleAccessCatalogToggle = (item: StaticAccessItem) => {
-    const record = findStaticRecord(item, servicesList, facilitiesList);
-    if (!record) return;
-    if (item.kind === "facility") handleToggleFacilityStatus(record);
-    else handleToggleServiceStatus(record);
-  };
-
-  const handleAccessWorkflowConfigure = (item: StaticAccessItem) => {
-    const record = findStaticRecord(item, servicesList, facilitiesList);
-    if (!record) return;
-    handleOpenWorkflowModal(item.kind, record);
-  };
-
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-8">
       <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4">
-        <div><h2 className="font-extrabold text-slate-900 flex items-center gap-2"><Building2 className="w-5 h-5 text-purple-600" />Facilities & Services Master Directory</h2><p className="text-xs text-slate-500 mt-1">All records below are loaded directly from MySQL database.</p></div>
+        <div><h2 className="font-extrabold text-slate-900 flex items-center gap-2"><Building2 className="w-5 h-5 text-purple-600" />Facilities & Services Master Directory</h2><p className="text-xs text-slate-500 mt-1">Active records are published directly to the applicant Access tab. Inactive records are hidden there.</p></div>
         <div className="flex gap-2"><button onClick={() => setIsAddFacilityModalOpen(true)} className="flex items-center gap-2 px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"><PlusCircle className="w-4 h-4" />Add Facility</button><button onClick={() => setIsAddServiceModalOpen(true)} className="flex items-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"><PlusCircle className="w-4 h-4" />Add Service</button></div>
       </div>
 
@@ -88,7 +35,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
         {facilitiesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading facilities...</div>}
         {facilitiesError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">{facilitiesError}</div>}
         {!facilitiesLoading && !facilitiesError && facilitiesList.length === 0 && <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">No facilities found in database.</div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{facilitiesList.map((facility) => { const stages = facility.workflowStages?.length ? facility.workflowStages : getDefaultFacilityWorkflow(facility.supervisor, facility.assocNodal, facility.nodal); return <div key={facility.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-purple-300 transition-all flex flex-col justify-between"><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{facility.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{facility.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${facility.status === "active" ? "bg-emerald-100 text-emerald-800" : facility.status === "maintenance" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{facility.status}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Nodal Officer:</b> {facility.nodal || "—"}</div><div><b>Associate Nodal:</b> {facility.assocNodal || "—"}</div><div><b>Supervisor:</b> {facility.supervisor || "—"}</div>{facility.desc && <div className="pt-1 text-slate-500">{facility.desc}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-purple-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleFacilityStatus(facility)} className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold">Toggle Status</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("facility", facility)} className="p-1.5 text-purple-700 hover:bg-purple-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => setEditingFacility(facility)} className="p-1.5 text-purple-700 hover:bg-purple-50 rounded" title="Edit Facility"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteFacility(facility.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Facility"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{facilitiesList.map((facility) => { const stages = facility.workflowStages?.length ? facility.workflowStages : getDefaultFacilityWorkflow(facility.supervisor, facility.assocNodal, facility.nodal); const isActive = String(facility.status || "active").toLowerCase() === "active"; return <div key={facility.id} className={`p-4 border rounded-xl transition-all flex flex-col justify-between ${isActive ? "border-slate-200 bg-slate-50 hover:bg-white hover:border-purple-300" : "border-slate-300 bg-slate-100 opacity-65"}`}><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{facility.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{facility.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{isActive ? "ACTIVE" : "INACTIVE"}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Nodal Officer:</b> {facility.nodal || "—"}</div><div><b>Associate Nodal:</b> {facility.assocNodal || "—"}</div><div><b>Supervisor:</b> {facility.supervisor || "—"}</div>{facility.desc && <div className="pt-1 text-slate-500">{facility.desc}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-purple-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleFacilityStatus(facility)} className={`px-2.5 py-1 rounded text-[11px] font-semibold ${isActive ? "bg-slate-200 hover:bg-slate-300" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}`}>{isActive ? "Set Inactive" : "Set Active"}</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("facility", facility)} className="p-1.5 text-purple-700 hover:bg-purple-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => setEditingFacility(facility)} className="p-1.5 text-purple-700 hover:bg-purple-50 rounded" title="Edit Facility"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteFacility(facility.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Facility"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
       </section>
 
       <section className="border-t border-slate-200 pt-6">
@@ -96,12 +43,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
         {servicesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading services...</div>}
         {servicesError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs mb-4">{servicesError}</div>}
         {!servicesLoading && !servicesError && servicesList.length === 0 && <div className="py-10 text-center border border-dashed border-slate-300 rounded-xl text-sm text-slate-500">No services found in database.</div>}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{servicesList.map((service) => { const stages = service.workflowStages?.length ? service.workflowStages : getDefaultServiceWorkflow(service.manager); const showQuotaAccess = serviceSupportsQuotaAccess(service); return <div key={service.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all flex flex-col justify-between"><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{service.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{service.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${service.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>{service.status}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Manager:</b> {service.manager || "—"}</div>{showQuotaAccess && <div><b>Quota / Access:</b> {service.quota || "—"}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-emerald-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleServiceStatus(service)} className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold">Toggle Status</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("service", service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => setEditingService(service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Edit Service"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteService(service.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Service"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
-      </section>
-
-      <section className="border-t border-slate-200 pt-6 mt-2">
-        <div className="mb-4"><h3 className="font-bold text-slate-800">Access Tab Preview</h3><p className="text-xs text-slate-500 mt-1">Static catalogue used by the applicant Access tab. Popup forms remain static. Use the status switch and Approval Flow Master on each card to control the applicant Access tab.</p></div>
-        <StaticAccessCatalog itemStates={accessItemStates} itemWorkflows={accessItemWorkflows} onApply={() => undefined} onToggle={handleAccessCatalogToggle} onConfigureWorkflow={handleAccessWorkflowConfigure} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{servicesList.map((service) => { const stages = service.workflowStages?.length ? service.workflowStages : getDefaultServiceWorkflow(service.manager); const showQuotaAccess = serviceSupportsQuotaAccess(service); const isActive = String(service.status || "active").toLowerCase() === "active"; return <div key={service.id} className={`p-4 border rounded-xl transition-all flex flex-col justify-between ${isActive ? "border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-300" : "border-slate-300 bg-slate-100 opacity-65"}`}><div><div className="flex justify-between gap-2"><div><span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{service.id}</span><h3 className="font-bold text-slate-900 text-sm mt-2">{service.name}</h3></div><span className={`h-fit px-2 py-1 rounded text-[10px] font-bold uppercase ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{isActive ? "ACTIVE" : "INACTIVE"}</span></div><div className="mt-3 text-xs text-slate-600 space-y-1.5"><div><b>Manager:</b> {service.manager || "—"}</div>{showQuotaAccess && <div><b>Quota / Access:</b> {service.quota || "—"}</div>}</div><div className="mt-3 pt-3 border-t border-slate-200"><span className="text-[11px] font-bold text-slate-700 flex items-center gap-1"><GitMerge className="w-3.5 h-3.5 text-emerald-600" />Approval Flow ({stages.length} Stages)</span><div className="flex flex-wrap items-center gap-1 text-[10px] mt-1.5">{stages.map((stg: any, idx: number) => <React.Fragment key={stg.stageNumber || idx}><span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium" title={`Stage ${idx + 1}: ${stg.dealingOfficerName}`}>{idx + 1}. {String(stg.stageName || "").split(" ")[0]}</span>{idx < stages.length - 1 && <span className="text-slate-400 font-bold">➔</span>}</React.Fragment>)}</div></div></div><div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200"><button onClick={() => handleToggleServiceStatus(service)} className={`px-2.5 py-1 rounded text-[11px] font-semibold ${isActive ? "bg-slate-200 hover:bg-slate-300" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}`}>{isActive ? "Set Inactive" : "Set Active"}</button><div className="flex gap-1"><button onClick={() => handleOpenWorkflowModal("service", service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Configure Workflow Flow/Stages"><GitMerge className="w-4 h-4" /></button><button onClick={() => setEditingService(service)} className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded" title="Edit Service"><Edit3 className="w-4 h-4" /></button><button onClick={() => handleDeleteService(service.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete Service"><Trash2 className="w-4 h-4" /></button></div></div></div>; })}</div>
       </section>
     </div>
   );
