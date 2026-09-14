@@ -31,6 +31,15 @@ interface OfficerOption { id: string | number; name: string; }
 interface FacilitiesServicesSectionProps {
   facilitiesList: any[]; facilitiesLoading: boolean; facilitiesError: string | null; fetchFacilities: () => void;
   servicesList: any[]; servicesLoading: boolean; servicesError: string | null; fetchServices: () => void;
+  setIsAddFacilityModalOpen?: (open: boolean) => void;
+  handleToggleFacilityStatus?: (facility: any) => void;
+  handleOpenWorkflowModal?: (type: "facility" | "service", item: any) => void;
+  setEditingFacility?: (facility: any) => void;
+  handleDeleteFacility?: (id: any) => void;
+  setIsAddServiceModalOpen?: (open: boolean) => void;
+  handleToggleServiceStatus?: (service: any) => void;
+  setEditingService?: (service: any) => void;
+  handleDeleteService?: (id: any) => void;
 }
 
 function readLabRows(facility: any): LabFacilityRow[] {
@@ -162,10 +171,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
     <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-8">
       <section>
         <div className="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2 mb-4">
-          <div>
-            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" />Labs & Facility Master <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-[10px]">{facility ? labRows.length : 0} Total</span></h3>
-            <p className="text-xs text-slate-500 mt-1">Each lab/facility has its own NO, ANO and Supervisor. All rows follow the same common approval workflow.</p>
-          </div>
+          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" />Labs & Facility Master <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-[10px]">{facility ? labRows.length : 0} Total</span></h3><p className="text-xs text-slate-500 mt-1">Each lab/facility has its own NO, ANO and Supervisor. All rows follow the same common approval workflow.</p></div>
           <button disabled={!facility} onClick={openAddRow} className="px-3 py-1.5 text-white bg-purple-700 hover:bg-purple-800 disabled:opacity-50 rounded-lg text-xs font-bold flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" />Add Lab / Facility</button>
         </div>
         {facilitiesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading Labs & Facility...</div>}
