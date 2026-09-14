@@ -31,7 +31,6 @@ import {
   updateProfileCourseStatus,
   createProfileTraineeBatch,
   updateProfileTraineeBatch,
-  updateProfileTraineeBatchStatus,
 } from "@/api/profile.api";
 import { RequisitionRecord, UserRole } from "@/types";
 import { recordSecurityAuditLog } from "@/services/auditLogger";
@@ -336,10 +335,6 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
   requisitions,
   onUpdateRequisition,
 }) => {
-  /* =======================================================
-     ACTIVE ADMIN TAB
-  ======================================================= */
-
   const [activeSubTab, setActiveSubTab] = useState<
     | "users"
     | "profile_masters"
@@ -350,36 +345,17 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     | "logo_branding"
   >("users");
 
-  /* =======================================================
-     USERS
-     -------------------------------------------------------
-     Users are ALWAYS loaded from DB.
-  ======================================================= */
-
   const [managedUsers, setManagedUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
-
   const [userSearch, setUserSearch] = useState("");
-
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
-  /* =======================================================
-     FACILITIES
-  ======================================================= */
-
   const [facilitiesList, setFacilitiesList] = useState<FacilityRecord[]>([]);
-
   const [facilitiesLoading, setFacilitiesLoading] = useState(false);
-
   const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
-
-  const [editingFacility, setEditingFacility] = useState<FacilityRecord | null>(
-    null,
-  );
-
+  const [editingFacility, setEditingFacility] = useState<FacilityRecord | null>(null);
   const [isAddFacilityModalOpen, setIsAddFacilityModalOpen] = useState(false);
-
   const [newFacility, setNewFacility] = useState({
     name: "",
     nodal: "",
@@ -388,118 +364,52 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     desc: "",
   });
 
-  /* =======================================================
-     SERVICES
-  ======================================================= */
-
   const [servicesList, setServicesList] = useState<ServiceRecord[]>([]);
-
   const [servicesLoading, setServicesLoading] = useState(false);
-
   const [servicesError, setServicesError] = useState<string | null>(null);
-
-  const [editingService, setEditingService] = useState<ServiceRecord | null>(
-    null,
-  );
-
+  const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
   const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
-
   const [newService, setNewService] = useState({
     name: "",
     manager: "",
     quota: "",
   });
 
-  /* =======================================================
-     PROFILE MASTERS
-  ======================================================= */
-
-  const [profileOrgUnits, setProfileOrgUnits] = useState<
-    ProfileMasterOrgUnit[]
-  >([]);
+  const [profileOrgUnits, setProfileOrgUnits] = useState<ProfileMasterOrgUnit[]>([]);
   const [profileBanks, setProfileBanks] = useState<ProfileMasterBank[]>([]);
-  const [profileBatchSeries, setProfileBatchSeries] = useState<
-    ProfileMasterBatchSeries[]
-  >([]);
-  const [profileBatches, setProfileBatches] = useState<ProfileMasterBatch[]>(
-    [],
-  );
-  const [profileOfficers, setProfileOfficers] = useState<
-    ProfileMasterOfficer[]
-  >([]);
-  const [profileEmploymentTypes, setProfileEmploymentTypes] = useState<
-    ProfileMasterEmploymentType[]
-  >([]);
+  const [profileBatchSeries, setProfileBatchSeries] = useState<ProfileMasterBatchSeries[]>([]);
+  const [profileBatches, setProfileBatches] = useState<ProfileMasterBatch[]>([]);
+  const [profileOfficers, setProfileOfficers] = useState<ProfileMasterOfficer[]>([]);
+  const [profileEmploymentTypes, setProfileEmploymentTypes] = useState<ProfileMasterEmploymentType[]>([]);
   const [profileMastersLoading, setProfileMastersLoading] = useState(false);
-  const [profileMastersError, setProfileMastersError] = useState<string | null>(
-    null,
-  );
-  const [profileMasterSection, setProfileMasterSection] =
-    useState<ProfileMasterSection>("org_units");
+  const [profileMastersError, setProfileMastersError] = useState<string | null>(null);
+  const [profileMasterSection, setProfileMasterSection] = useState<ProfileMasterSection>("org_units");
+  const [profileMasterModal, setProfileMasterModal] = useState<ProfileMasterSection | null>(null);
+  const [editingProfileOrgUnit, setEditingProfileOrgUnit] = useState<ProfileMasterOrgUnit | null>(null);
+  const [editingProfileBank, setEditingProfileBank] = useState<ProfileMasterBank | null>(null);
+  const [editingProfileBatch, setEditingProfileBatch] = useState<ProfileMasterBatch | null>(null);
+  const [profileOrgUnitForm, setProfileOrgUnitForm] = useState({ unitType: "department", unitName: "", description: "" });
+  const [profileBankForm, setProfileBankForm] = useState({ bankName: "", bankCode: "" });
+  const [profileBatchForm, setProfileBatchForm] = useState({ seriesId: "", batchNumber: "", batchLabel: "", startYear: "", endYear: "" });
 
-  const [profileMasterModal, setProfileMasterModal] =
-    useState<ProfileMasterSection | null>(null);
-  const [editingProfileOrgUnit, setEditingProfileOrgUnit] =
-    useState<ProfileMasterOrgUnit | null>(null);
-  const [editingProfileBank, setEditingProfileBank] =
-    useState<ProfileMasterBank | null>(null);
-  const [editingProfileBatch, setEditingProfileBatch] =
-    useState<ProfileMasterBatch | null>(null);
-
-  const [profileOrgUnitForm, setProfileOrgUnitForm] = useState({
-    unitType: "department",
-    unitName: "",
-    description: "",
-  });
-  const [profileBankForm, setProfileBankForm] = useState({
-    bankName: "",
-    bankCode: "",
-  });
-  const [profileBatchForm, setProfileBatchForm] = useState({
-    seriesId: "",
-    batchNumber: "",
-    batchLabel: "",
-    startYear: "",
-    endYear: "",
-  });
-
-  /* =======================================================
-     WORKFLOW & STAGE EDITING
-  ======================================================= */
   const [editingWorkflow, setEditingWorkflow] = useState<{
     type: "facility" | "service";
     item: FacilityRecord | ServiceRecord;
     stages: WorkflowStage[];
   } | null>(null);
 
-  const handleOpenWorkflowModal = (
-    type: "facility" | "service",
-    item: FacilityRecord | ServiceRecord,
-  ) => {
+  const handleOpenWorkflowModal = (type: "facility" | "service", item: FacilityRecord | ServiceRecord) => {
     let stages: WorkflowStage[] = [];
-    if (
-      item.workflowStages &&
-      Array.isArray(item.workflowStages) &&
-      item.workflowStages.length > 0
-    ) {
+    if (item.workflowStages && Array.isArray(item.workflowStages) && item.workflowStages.length > 0) {
       stages = item.workflowStages;
     } else if (type === "facility") {
       const fac = item as FacilityRecord;
-      stages = getDefaultFacilityWorkflow(
-        fac.supervisor,
-        fac.assocNodal,
-        fac.nodal,
-      );
+      stages = getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal);
     } else {
       const srv = item as ServiceRecord;
       stages = getDefaultServiceWorkflow(srv.manager);
     }
-
-    setEditingWorkflow({
-      type,
-      item,
-      stages: JSON.parse(JSON.stringify(stages)),
-    });
+    setEditingWorkflow({ type, item, stages: JSON.parse(JSON.stringify(stages)) });
   };
 
   const handleAddStage = () => {
@@ -514,23 +424,14 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
       actionType: "verification",
       isMandatory: true,
     };
-    setEditingWorkflow({
-      ...editingWorkflow,
-      stages: [...currentStages, newStage],
-    });
+    setEditingWorkflow({ ...editingWorkflow, stages: [...currentStages, newStage] });
   };
 
   const handleRemoveStage = (index: number) => {
     if (!editingWorkflow) return;
     const currentStages = editingWorkflow.stages.filter((_, i) => i !== index);
-    const renumbered = currentStages.map((stg, i) => ({
-      ...stg,
-      stageNumber: i + 1,
-    }));
-    setEditingWorkflow({
-      ...editingWorkflow,
-      stages: renumbered,
-    });
+    const renumbered = currentStages.map((stg, i) => ({ ...stg, stageNumber: i + 1 }));
+    setEditingWorkflow({ ...editingWorkflow, stages: renumbered });
   };
 
   const handleMoveStage = (index: number, direction: "up" | "down") => {
@@ -538,95 +439,64 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     const stages = [...editingWorkflow.stages];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= stages.length) return;
-
     const temp = stages[index];
     stages[index] = stages[targetIndex];
     stages[targetIndex] = temp;
-
-    const renumbered = stages.map((stg, i) => ({
-      ...stg,
-      stageNumber: i + 1,
-    }));
-
-    setEditingWorkflow({
-      ...editingWorkflow,
-      stages: renumbered,
-    });
+    const renumbered = stages.map((stg, i) => ({ ...stg, stageNumber: i + 1 }));
+    setEditingWorkflow({ ...editingWorkflow, stages: renumbered });
   };
 
   const handleResetWorkflowToDefault = () => {
     if (!editingWorkflow) return;
     if (editingWorkflow.type === "facility") {
       const fac = editingWorkflow.item as FacilityRecord;
-      setEditingWorkflow({
-        ...editingWorkflow,
-        stages: getDefaultFacilityWorkflow(
-          fac.supervisor,
-          fac.assocNodal,
-          fac.nodal,
-        ),
-      });
+      setEditingWorkflow({ ...editingWorkflow, stages: getDefaultFacilityWorkflow(fac.supervisor, fac.assocNodal, fac.nodal) });
     } else {
       const srv = editingWorkflow.item as ServiceRecord;
-      setEditingWorkflow({
-        ...editingWorkflow,
-        stages: getDefaultServiceWorkflow(srv.manager),
-      });
+      setEditingWorkflow({ ...editingWorkflow, stages: getDefaultServiceWorkflow(srv.manager) });
     }
   };
 
   const handleSaveWorkflow = async () => {
     if (!editingWorkflow) return;
     const { type, item, stages } = editingWorkflow;
-
     try {
       if (type === "facility") {
         const fac = item as FacilityRecord;
-        const response = await fetch(
-          `/api/facilities/${encodeURIComponent(fac.id)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: fac.name,
-              dept: fac.dept || "Research Laboratories Division",
-              nodal: fac.nodal,
-              assocNodal: fac.assocNodal,
-              supervisor: fac.supervisor,
-              desc: fac.desc,
-              status: fac.status,
-              workflowStages: stages,
-            }),
-          },
-        );
+        const response = await fetch(`/api/facilities/${encodeURIComponent(fac.id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: fac.name,
+            dept: fac.dept || "Research Laboratories Division",
+            nodal: fac.nodal,
+            assocNodal: fac.assocNodal,
+            supervisor: fac.supervisor,
+            desc: fac.desc,
+            status: fac.status,
+            workflowStages: stages,
+          }),
+        });
         const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || "Failed to update workflow.");
-        }
+        if (!response.ok || !data.success) throw new Error(data.message || "Failed to update workflow.");
         await fetchFacilities();
       } else {
         const srv = item as ServiceRecord;
-        const response = await fetch(
-          `/api/services/${encodeURIComponent(srv.id)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: srv.name,
-              manager: srv.manager,
-              quota: srv.quota,
-              status: srv.status,
-              workflowStages: stages,
-            }),
-          },
-        );
+        const response = await fetch(`/api/services/${encodeURIComponent(srv.id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: srv.name,
+            manager: srv.manager,
+            quota: srv.quota,
+            status: srv.status,
+            workflowStages: stages,
+          }),
+        });
         const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || "Failed to update workflow.");
-        }
+        if (!response.ok || !data.success) throw new Error(data.message || "Failed to update workflow.");
         await fetchServices();
       }
-
       setEditingWorkflow(null);
       showToast(`Workflow stages updated for ${item.name}.`);
     } catch (err: any) {
@@ -634,352 +504,129 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     }
   };
 
-  /* =======================================================
-     SYSTEM CONFIG
-  ======================================================= */
-
-  const [systemConfig, setSystemConfig] = useState({
-    maintenanceMode: false,
-    emergencyApprovalBypass: false,
-  });
-
-  /* =======================================================
-     TOAST
-  ======================================================= */
-
+  const [systemConfig, setSystemConfig] = useState({ maintenanceMode: false, emergencyApprovalBypass: false });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const showToast = (message: string) => {
     setToastMessage(message);
-
-    window.setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
+    window.setTimeout(() => setToastMessage(null), 3500);
   };
 
-  /* =======================================================
-     HELPER: GET USER NAME
-  ======================================================= */
+  const getDisplayName = (user: AdminUser) => String(user.fullName || user.name || "").trim() || "—";
+  const getUserRoleCodes = (user: AdminUser): string[] => !Array.isArray(user.roles) ? [] : user.roles.map((role) => String(role?.code || "").trim()).filter(Boolean);
+  const getUserRoleNames = (user: AdminUser): string[] => !Array.isArray(user.roles) ? [] : user.roles.map((role) => String(role?.name || "").trim()).filter(Boolean);
+  const hasDbRole = (user: AdminUser, ...roleCodes: string[]) => roleCodes.some((code) => getUserRoleCodes(user).includes(code));
 
-  const getDisplayName = (user: AdminUser) => {
-    return String(user.fullName || user.name || "").trim() || "—";
-  };
+  const normalizeFacility = (item: any): FacilityRecord => ({
+    id: String(item?.id ?? ""),
+    name: String(item?.name ?? item?.facility_name ?? ""),
+    dept: String(item?.dept ?? item?.department ?? "Research Laboratories Division"),
+    nodal: String(item?.nodal ?? item?.nodal_officer_name ?? ""),
+    assocNodal: String(item?.assocNodal ?? item?.assoc_nodal_officer_name ?? ""),
+    supervisor: String(item?.supervisor ?? item?.supervisor_name ?? ""),
+    desc: String(item?.desc ?? item?.description ?? ""),
+    status: item?.status === "maintenance" ? "maintenance" : item?.status === "inactive" ? "inactive" : "active",
+  });
 
-  /* =======================================================
-     HELPER: GET USER ROLES
-  ======================================================= */
-
-  const getUserRoleCodes = (user: AdminUser): string[] => {
-    if (!Array.isArray(user.roles)) {
-      return [];
-    }
-
-    return user.roles
-      .map((role) => String(role?.code || "").trim())
-      .filter(Boolean);
-  };
-
-  const getUserRoleNames = (user: AdminUser): string[] => {
-    if (!Array.isArray(user.roles)) {
-      return [];
-    }
-
-    return user.roles
-      .map((role) => String(role?.name || "").trim())
-      .filter(Boolean);
-  };
-
-  /* =======================================================
-     HELPER: CHECK DB ROLE
-  ======================================================= */
-
-  const hasDbRole = (user: AdminUser, ...roleCodes: string[]) => {
-    const assignedRoles = getUserRoleCodes(user);
-
-    return roleCodes.some((code) => assignedRoles.includes(code));
-  };
-
-  /* =======================================================
-     HELPER: NORMALIZE FACILITY API RESPONSE
-
-     Backend may return either:
-
-     facility_name
-     nodal_officer_name
-
-     OR:
-
-     name
-     nodal
-
-     This function supports both.
-  ======================================================= */
-
-  const normalizeFacility = (item: any): FacilityRecord => {
-    return {
-      id: String(item?.id ?? ""),
-
-      name: String(item?.name ?? item?.facility_name ?? ""),
-
-      dept: String(
-        item?.dept ?? item?.department ?? "Research Laboratories Division",
-      ),
-
-      nodal: String(item?.nodal ?? item?.nodal_officer_name ?? ""),
-
-      assocNodal: String(
-        item?.assocNodal ?? item?.assoc_nodal_officer_name ?? "",
-      ),
-
-      supervisor: String(item?.supervisor ?? item?.supervisor_name ?? ""),
-
-      desc: String(item?.desc ?? item?.description ?? ""),
-
-      status:
-        item?.status === "maintenance"
-          ? "maintenance"
-          : item?.status === "inactive"
-            ? "inactive"
-            : "active",
-    };
-  };
-
-  /* =======================================================
-     HELPER: NORMALIZE SERVICE API RESPONSE
-  ======================================================= */
-
-  const normalizeService = (item: any): ServiceRecord => {
-    return {
-      id: String(item?.id ?? ""),
-
-      name: String(item?.name ?? item?.service_name ?? ""),
-
-      manager: String(item?.manager ?? item?.manager_name ?? ""),
-
-      quota: String(item?.quota ?? item?.quota_access_specs ?? ""),
-
-      status: item?.status === "inactive" ? "inactive" : "active",
-    };
-  };
-
-  /* =======================================================
-     FETCH USERS
-  ======================================================= */
+  const normalizeService = (item: any): ServiceRecord => ({
+    id: String(item?.id ?? ""),
+    name: String(item?.name ?? item?.service_name ?? ""),
+    manager: String(item?.manager ?? item?.manager_name ?? ""),
+    quota: String(item?.quota ?? item?.quota_access_specs ?? ""),
+    status: item?.status === "inactive" ? "inactive" : "active",
+  });
 
   const fetchUsers = async () => {
     setUsersLoading(true);
     setUsersError(null);
-
     try {
-      const response = await fetch("/api/users", {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
+      const response = await fetch("/api/users", { method: "GET", headers: { Accept: "application/json" } });
       const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(
-          `Server returned non-JSON response (${response.status} ${response.statusText}). Database may be starting up.`,
-        );
-      }
-
+      if (!contentType.includes("application/json")) throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}). Database may be starting up.`);
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to load users from database.");
-      }
-
-      if (!Array.isArray(data.users)) {
-        throw new Error("Invalid users response received.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to load users from database.");
+      if (!Array.isArray(data.users)) throw new Error("Invalid users response received.");
       setManagedUsers(data.users);
     } catch (error: any) {
       console.error("ADMIN USERS LOAD ERROR:", error);
       setUsersError(error?.message || "Unable to load users.");
-    } finally {
-      setUsersLoading(false);
-    }
+    } finally { setUsersLoading(false); }
   };
-
-  /* =======================================================
-     FETCH FACILITIES
-  ======================================================= */
 
   const fetchFacilities = async () => {
     setFacilitiesLoading(true);
     setFacilitiesError(null);
-
     try {
       const response = await fetch("/api/facilities");
-
       const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(
-          `Server returned non-JSON response (${response.status} ${response.statusText}).`,
-        );
-      }
-
+      if (!contentType.includes("application/json")) throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to load facilities.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to load facilities.");
       const rows = Array.isArray(data.facilities) ? data.facilities : [];
-
       setFacilitiesList(rows.map(normalizeFacility));
     } catch (error: any) {
       console.error("FACILITIES LOAD ERROR:", error);
       setFacilitiesError(error?.message || "Unable to load facilities.");
-    } finally {
-      setFacilitiesLoading(false);
-    }
+    } finally { setFacilitiesLoading(false); }
   };
-
-  /* =======================================================
-     FETCH SERVICES
-  ======================================================= */
 
   const fetchServices = async () => {
     setServicesLoading(true);
     setServicesError(null);
-
     try {
       const response = await fetch("/api/services");
-
       const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(
-          `Server returned non-JSON response (${response.status} ${response.statusText}).`,
-        );
-      }
-
+      if (!contentType.includes("application/json")) throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText}).`);
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to load services.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to load services.");
       const rows = Array.isArray(data.services) ? data.services : [];
-
       setServicesList(rows.map(normalizeService));
     } catch (error: any) {
       console.error("SERVICES LOAD ERROR:", error);
       setServicesError(error?.message || "Unable to load services.");
-    } finally {
-      setServicesLoading(false);
-    }
+    } finally { setServicesLoading(false); }
   };
-
-  /* =======================================================
-     PROFILE MASTER DATA
-  ======================================================= */
 
   const fetchProfileMasters = async () => {
     setProfileMastersLoading(true);
     setProfileMastersError(null);
-
     try {
       const responses = await Promise.all([
-        fetch("/api/admin/profile-masters/org-units", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/admin/profile-masters/banks", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/admin/profile-masters/batches", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/profile/masters/batch-series", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/profile/masters/officers", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/profile/masters/employment-types", {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
+        fetch("/api/admin/profile-masters/org-units", { method: "GET", headers: { Accept: "application/json" } }),
+        fetch("/api/admin/profile-masters/banks", { method: "GET", headers: { Accept: "application/json" } }),
+        fetch("/api/admin/profile-masters/batches", { method: "GET", headers: { Accept: "application/json" } }),
+        fetch("/api/profile/masters/batch-series", { method: "GET", headers: { Accept: "application/json" } }),
+        fetch("/api/profile/masters/officers", { method: "GET", headers: { Accept: "application/json" } }),
+        fetch("/api/profile/masters/employment-types", { method: "GET", headers: { Accept: "application/json" } }),
       ]);
-
-      const payloads = await Promise.all(
-        responses.map(async (response) => {
-          const contentType = response.headers.get("content-type") || "";
-          if (!contentType.includes("application/json")) {
-            throw new Error(
-              `Profile master API returned non-JSON response (${response.status} ${response.statusText}).`,
-            );
-          }
-
-          const data = await response.json();
-          if (!response.ok || !data.success) {
-            throw new Error(data.message || "Unable to load profile masters.");
-          }
-
-          return data;
-        }),
-      );
-
-      setProfileOrgUnits(
-        Array.isArray(payloads[0].data) ? payloads[0].data : [],
-      );
+      const payloads = await Promise.all(responses.map(async (response) => {
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) throw new Error(`Profile master API returned non-JSON response (${response.status} ${response.statusText}).`);
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || "Unable to load profile masters.");
+        return data;
+      }));
+      setProfileOrgUnits(Array.isArray(payloads[0].data) ? payloads[0].data : []);
       setProfileBanks(Array.isArray(payloads[1].data) ? payloads[1].data : []);
-      setProfileBatches(
-        Array.isArray(payloads[2].data) ? payloads[2].data : [],
-      );
-      setProfileBatchSeries(
-        Array.isArray(payloads[3].data) ? payloads[3].data : [],
-      );
-      setProfileOfficers(
-        Array.isArray(payloads[4].data) ? payloads[4].data : [],
-      );
-      setProfileEmploymentTypes(
-        Array.isArray(payloads[5].data) ? payloads[5].data : [],
-      );
+      setProfileBatches(Array.isArray(payloads[2].data) ? payloads[2].data : []);
+      setProfileBatchSeries(Array.isArray(payloads[3].data) ? payloads[3].data : []);
+      setProfileOfficers(Array.isArray(payloads[4].data) ? payloads[4].data : []);
+      setProfileEmploymentTypes(Array.isArray(payloads[5].data) ? payloads[5].data : []);
     } catch (error: any) {
       console.error("PROFILE MASTERS LOAD ERROR:", error);
-      setProfileMastersError(
-        error?.message || "Unable to load profile masters.",
-      );
-    } finally {
-      setProfileMastersLoading(false);
-    }
+      setProfileMastersError(error?.message || "Unable to load profile masters.");
+    } finally { setProfileMastersLoading(false); }
   };
 
-  const profileMasterRequest = async (
-    endpoint: string,
-    method: "POST" | "PUT" | "PATCH",
-    body?: Record<string, unknown>,
-  ) => {
+  const profileMasterRequest = async (endpoint: string, method: "POST" | "PUT" | "PATCH", body?: Record<string, unknown>) => {
     const response = await fetch(endpoint, {
       method,
-      headers: {
-        Accept: "application/json",
-        ...(body ? { "Content-Type": "application/json" } : {}),
-      },
+      headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-
     const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      throw new Error(
-        `Profile master API returned non-JSON response (${response.status} ${response.statusText}).`,
-      );
-    }
-
+    if (!contentType.includes("application/json")) throw new Error(`Profile master API returned non-JSON response (${response.status} ${response.statusText}).`);
     const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || "Profile master operation failed.");
-    }
-
+    if (!response.ok || !data.success) throw new Error(data.message || "Profile master operation failed.");
     return data;
   };
 
@@ -987,28 +634,13 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     setEditingProfileOrgUnit(null);
     setEditingProfileBank(null);
     setEditingProfileBatch(null);
-
     if (section === "org_units") {
-      setProfileOrgUnitForm({
-        unitType: "department",
-        unitName: "",
-        description: "",
-      });
+      setProfileOrgUnitForm({ unitType: "department", unitName: "", description: "" });
     } else if (section === "banks") {
-      setProfileBankForm({
-        bankName: "",
-        bankCode: "",
-      });
+      setProfileBankForm({ bankName: "", bankCode: "" });
     } else {
-      setProfileBatchForm({
-        seriesId: profileBatchSeries[0] ? String(profileBatchSeries[0].id) : "",
-        batchNumber: "",
-        batchLabel: "",
-        startYear: "",
-        endYear: "",
-      });
+      setProfileBatchForm({ seriesId: profileBatchSeries[0] ? String(profileBatchSeries[0].id) : "", batchNumber: "", batchLabel: "", startYear: "", endYear: "" });
     }
-
     setProfileMasterModal(section);
   };
 
@@ -1016,11 +648,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     setEditingProfileOrgUnit(item);
     setEditingProfileBank(null);
     setEditingProfileBatch(null);
-    setProfileOrgUnitForm({
-      unitType: item.unitType || "department",
-      unitName: item.unitName || "",
-      description: item.description || "",
-    });
+    setProfileOrgUnitForm({ unitType: item.unitType || "department", unitName: item.unitName || "", description: item.description || "" });
     setProfileMasterModal("org_units");
   };
 
@@ -1028,10 +656,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     setEditingProfileOrgUnit(null);
     setEditingProfileBank(item);
     setEditingProfileBatch(null);
-    setProfileBankForm({
-      bankName: item.bankName || "",
-      bankCode: item.bankCode || "",
-    });
+    setProfileBankForm({ bankName: item.bankName || "", bankCode: item.bankCode || "" });
     setProfileMasterModal("banks");
   };
 
@@ -1039,48 +664,24 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     setEditingProfileOrgUnit(null);
     setEditingProfileBank(null);
     setEditingProfileBatch(item);
-    setProfileBatchForm({
-      seriesId: String(item.seriesId),
-      batchNumber: String(item.batchNumber ?? ""),
-      batchLabel: item.batchLabel || "",
-      startYear: item.startYear == null ? "" : String(item.startYear),
-      endYear: item.endYear == null ? "" : String(item.endYear),
-    });
+    setProfileBatchForm({ seriesId: String(item.seriesId), batchNumber: String(item.batchNumber ?? ""), batchLabel: item.batchLabel || "", startYear: item.startYear == null ? "" : String(item.startYear), endYear: item.endYear == null ? "" : String(item.endYear) });
     setProfileMasterModal("batches");
   };
 
   const handleSaveProfileOrgUnit = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!profileOrgUnitForm.unitName.trim()) {
-      showToast("Organization unit name is required.");
-      return;
-    }
-
+    if (!profileOrgUnitForm.unitName.trim()) { showToast("Organization unit name is required."); return; }
     try {
-      await profileMasterRequest(
-        editingProfileOrgUnit
-          ? `/api/admin/profile-masters/org-units/${encodeURIComponent(String(editingProfileOrgUnit.id))}`
-          : "/api/admin/profile-masters/org-units",
-        editingProfileOrgUnit ? "PUT" : "POST",
-        {
-          unitType: profileOrgUnitForm.unitType,
-          unitName: profileOrgUnitForm.unitName.trim(),
-          description: profileOrgUnitForm.description.trim() || null,
-          ...(editingProfileOrgUnit
-            ? { status: editingProfileOrgUnit.status }
-            : {}),
-        },
-      );
-
+      await profileMasterRequest(editingProfileOrgUnit ? `/api/admin/profile-masters/org-units/${encodeURIComponent(String(editingProfileOrgUnit.id))}` : "/api/admin/profile-masters/org-units", editingProfileOrgUnit ? "PUT" : "POST", {
+        unitType: profileOrgUnitForm.unitType,
+        unitName: profileOrgUnitForm.unitName.trim(),
+        description: profileOrgUnitForm.description.trim() || null,
+        ...(editingProfileOrgUnit ? { status: editingProfileOrgUnit.status } : {}),
+      });
       await fetchProfileMasters();
       setProfileMasterModal(null);
       setEditingProfileOrgUnit(null);
-      showToast(
-        editingProfileOrgUnit
-          ? "Organization unit updated successfully."
-          : "Organization unit added successfully.",
-      );
+      showToast(editingProfileOrgUnit ? "Organization unit updated successfully." : "Organization unit added successfully.");
     } catch (error: any) {
       console.error("PROFILE ORG UNIT SAVE ERROR:", error);
       showToast(error?.message || "Unable to save organization unit.");
@@ -1089,33 +690,17 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
   const handleSaveProfileBank = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!profileBankForm.bankName.trim()) {
-      showToast("Bank name is required.");
-      return;
-    }
-
+    if (!profileBankForm.bankName.trim()) { showToast("Bank name is required."); return; }
     try {
-      await profileMasterRequest(
-        editingProfileBank
-          ? `/api/admin/profile-masters/banks/${encodeURIComponent(String(editingProfileBank.id))}`
-          : "/api/admin/profile-masters/banks",
-        editingProfileBank ? "PUT" : "POST",
-        {
-          bankName: profileBankForm.bankName.trim(),
-          bankCode: profileBankForm.bankCode.trim() || null,
-          ...(editingProfileBank ? { status: editingProfileBank.status } : {}),
-        },
-      );
-
+      await profileMasterRequest(editingProfileBank ? `/api/admin/profile-masters/banks/${encodeURIComponent(String(editingProfileBank.id))}` : "/api/admin/profile-masters/banks", editingProfileBank ? "PUT" : "POST", {
+        bankName: profileBankForm.bankName.trim(),
+        bankCode: profileBankForm.bankCode.trim() || null,
+        ...(editingProfileBank ? { status: editingProfileBank.status } : {}),
+      });
       await fetchProfileMasters();
       setProfileMasterModal(null);
       setEditingProfileBank(null);
-      showToast(
-        editingProfileBank
-          ? "Bank updated successfully."
-          : "Bank added successfully.",
-      );
+      showToast(editingProfileBank ? "Bank updated successfully." : "Bank added successfully.");
     } catch (error: any) {
       console.error("PROFILE BANK SAVE ERROR:", error);
       showToast(error?.message || "Unable to save bank.");
@@ -1124,67 +709,31 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
 
   const handleSaveProfileBatch = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!profileBatchForm.seriesId || !profileBatchForm.batchNumber.trim()) {
-      showToast("Batch series and batch number are required.");
-      return;
-    }
-
+    if (!profileBatchForm.seriesId || !profileBatchForm.batchNumber.trim()) { showToast("Batch series and batch number are required."); return; }
     try {
-      await profileMasterRequest(
-        editingProfileBatch
-          ? `/api/admin/profile-masters/batches/${encodeURIComponent(String(editingProfileBatch.id))}`
-          : "/api/admin/profile-masters/batches",
-        editingProfileBatch ? "PUT" : "POST",
-        {
-          seriesId: Number(profileBatchForm.seriesId),
-          batchNumber: profileBatchForm.batchNumber.trim(),
-          batchLabel: profileBatchForm.batchLabel.trim() || null,
-          startYear: profileBatchForm.startYear
-            ? Number(profileBatchForm.startYear)
-            : null,
-          endYear: profileBatchForm.endYear
-            ? Number(profileBatchForm.endYear)
-            : null,
-          ...(editingProfileBatch
-            ? { status: editingProfileBatch.status }
-            : {}),
-        },
-      );
-
+      await profileMasterRequest(editingProfileBatch ? `/api/admin/profile-masters/batches/${encodeURIComponent(String(editingProfileBatch.id))}` : "/api/admin/profile-masters/batches", editingProfileBatch ? "PUT" : "POST", {
+        seriesId: Number(profileBatchForm.seriesId),
+        batchNumber: profileBatchForm.batchNumber.trim(),
+        batchLabel: profileBatchForm.batchLabel.trim() || null,
+        startYear: profileBatchForm.startYear ? Number(profileBatchForm.startYear) : null,
+        endYear: profileBatchForm.endYear ? Number(profileBatchForm.endYear) : null,
+        ...(editingProfileBatch ? { status: editingProfileBatch.status } : {}),
+      });
       await fetchProfileMasters();
       setProfileMasterModal(null);
       setEditingProfileBatch(null);
-      showToast(
-        editingProfileBatch
-          ? "Batch updated successfully."
-          : "Batch added successfully.",
-      );
+      showToast(editingProfileBatch ? "Batch updated successfully." : "Batch added successfully.");
     } catch (error: any) {
       console.error("PROFILE BATCH SAVE ERROR:", error);
       showToast(error?.message || "Unable to save batch.");
     }
   };
 
-  const handleToggleProfileMasterStatus = async (
-    section: ProfileMasterSection,
-    item: ProfileMasterOrgUnit | ProfileMasterBank | ProfileMasterBatch,
-  ) => {
-    const resource =
-      section === "org_units"
-        ? "org-units"
-        : section === "banks"
-          ? "banks"
-          : "batches";
+  const handleToggleProfileMasterStatus = async (section: ProfileMasterSection, item: ProfileMasterOrgUnit | ProfileMasterBank | ProfileMasterBatch) => {
+    const resource = section === "org_units" ? "org-units" : section === "banks" ? "banks" : "batches";
     const nextStatus = item.status === "active" ? "inactive" : "active";
-
     try {
-      await profileMasterRequest(
-        `/api/admin/profile-masters/${resource}/${encodeURIComponent(String(item.id))}/status`,
-        "PATCH",
-        { status: nextStatus },
-      );
-
+      await profileMasterRequest(`/api/admin/profile-masters/${resource}/${encodeURIComponent(String(item.id))}/status`, "PATCH", { status: nextStatus });
       await fetchProfileMasters();
       showToast(`Status changed to ${nextStatus.toUpperCase()}.`);
     } catch (error: any) {
@@ -1193,10 +742,6 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     }
   };
 
-  /* =======================================================
-     INITIAL DATABASE LOAD
-  ======================================================= */
-
   useEffect(() => {
     fetchUsers();
     fetchFacilities();
@@ -1204,2126 +749,310 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
     fetchProfileMasters();
   }, []);
 
-  /* =======================================================
-     ROLE-BASED DROPDOWN OPTIONS
-
-     IMPORTANT:
-     There is NO fallback to all users.
-
-     If database has no user with that role,
-     dropdown will show "No matching users".
-  ======================================================= */
-
-  const nodalOptions = useMemo(() => {
-    return managedUsers.filter((user) => hasDbRole(user, "nodal_officer"));
-  }, [managedUsers]);
-
-  const assocNodalOptions = useMemo(() => {
-    return managedUsers.filter((user) =>
-      hasDbRole(user, "associate_nodal_officer"),
-    );
-  }, [managedUsers]);
-
-  const supervisorOptions = useMemo(() => {
-    return managedUsers.filter((user) =>
-      hasDbRole(user, "reporting_manager", "supervisor"),
-    );
-  }, [managedUsers]);
-
-  const managerOptions = useMemo(() => {
-    return managedUsers.filter((user) =>
-      hasDbRole(user, "manager", "it_head", "administrator"),
-    );
-  }, [managedUsers]);
-
-  /* =======================================================
-     FILTER USERS
-  ======================================================= */
+  const nodalOptions = useMemo(() => managedUsers.filter((user) => hasDbRole(user, "nodal_officer")), [managedUsers]);
+  const assocNodalOptions = useMemo(() => managedUsers.filter((user) => hasDbRole(user, "associate_nodal_officer")), [managedUsers]);
+  const supervisorOptions = useMemo(() => managedUsers.filter((user) => hasDbRole(user, "reporting_manager", "supervisor")), [managedUsers]);
+  const managerOptions = useMemo(() => managedUsers.filter((user) => hasDbRole(user, "manager", "it_head", "administrator")), [managedUsers]);
 
   const filteredUsers = useMemo(() => {
     const search = userSearch.trim().toLowerCase();
-
-    if (!search) {
-      return managedUsers;
-    }
-
+    if (!search) return managedUsers;
     return managedUsers.filter((user) => {
       const roleText = getUserRoleNames(user).join(" ").toLowerCase();
-
-      return (
-        getDisplayName(user).toLowerCase().includes(search) ||
-        String(user.email || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(user.designation || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(user.department || "")
-          .toLowerCase()
-          .includes(search) ||
-        roleText.includes(search)
-      );
+      return getDisplayName(user).toLowerCase().includes(search) || String(user.email || "").toLowerCase().includes(search) || String(user.designation || "").toLowerCase().includes(search) || String(user.department || "").toLowerCase().includes(search) || roleText.includes(search);
     });
   }, [managedUsers, userSearch]);
 
-  /* =======================================================
-     SAVE USER ROLES
-  ======================================================= */
-
   const handleSaveEditUser = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!editingUser) {
-      return;
-    }
-
+    if (!editingUser) return;
     try {
-      const selectedRoleIds = Array.isArray(editingUser.roles)
-        ? editingUser.roles.map((role) => Number(role.id))
-        : [];
-
-      /*
-        Every account must retain User role.
-      */
-
+      const selectedRoleIds = Array.isArray(editingUser.roles) ? editingUser.roles.map((role) => Number(role.id)) : [];
       const roleIds = Array.from(new Set([1, ...selectedRoleIds]));
-
-      const response = await fetch(`/api/users/${editingUser.id}/roles`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roleIds,
-        }),
-      });
-
+      const response = await fetch(`/api/users/${editingUser.id}/roles`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roleIds }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to update roles.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to update roles.");
       await fetchUsers();
-
       setEditingUser(null);
-
       showToast(`Roles updated for ${getDisplayName(editingUser)}.`);
     } catch (error: any) {
       console.error("SAVE USER ERROR:", error);
-
       showToast(error?.message || "Unable to update user.");
     }
   };
 
-  /* =======================================================
-     DELETE USER
-  ======================================================= */
-
   const handleDeleteUser = async (userId: string | number) => {
-    const user = managedUsers.find(
-      (item) => String(item.id) === String(userId),
-    );
-
-    if (!user) {
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${getDisplayName(user)}"?`,
-      )
-    ) {
-      return;
-    }
-
+    const user = managedUsers.find((item) => String(item.id) === String(userId));
+    if (!user) return;
+    if (!window.confirm(`Are you sure you want to delete "${getDisplayName(user)}"?`)) return;
     try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(String(userId))}`,
-        {
-          method: "DELETE",
-        },
-      );
-
+      const response = await fetch(`/api/users/${encodeURIComponent(String(userId))}`, { method: "DELETE" });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to delete user.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to delete user.");
       await fetchUsers();
-
       showToast("User deleted successfully.");
     } catch (error: any) {
       console.error("DELETE USER ERROR:", error);
-
       showToast(error?.message || "Unable to delete user.");
     }
   };
 
-  /* =======================================================
-     ADD FACILITY
-     -------------------------------------------------------
-     Department is deliberately NOT part of the UI.
-
-     Backend compatibility:
-     `dept` is sent with the existing/default value.
-  ======================================================= */
-
   const handleAddFacility = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (
-      !newFacility.name.trim() ||
-      !newFacility.nodal.trim() ||
-      !newFacility.assocNodal.trim() ||
-      !newFacility.supervisor.trim()
-    ) {
+    if (!newFacility.name.trim() || !newFacility.nodal.trim() || !newFacility.assocNodal.trim() || !newFacility.supervisor.trim()) {
       showToast("Please fill all required facility fields.");
-
       return;
     }
-
     try {
-      const response = await fetch("/api/facilities", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: newFacility.name.trim(),
-
-          /*
-                Department hidden from UI.
-                Keep backend compatible.
-              */
-          dept: "Research Laboratories Division",
-
-          nodal: newFacility.nodal.trim(),
-
-          assocNodal: newFacility.assocNodal.trim(),
-
-          supervisor: newFacility.supervisor.trim(),
-
-          desc: newFacility.desc.trim(),
-
-          status: "active",
-        }),
-      });
-
+      const response = await fetch("/api/facilities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newFacility.name.trim(), dept: "Research Laboratories Division", nodal: newFacility.nodal.trim(), assocNodal: newFacility.assocNodal.trim(), supervisor: newFacility.supervisor.trim(), desc: newFacility.desc.trim(), status: "active" }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to create facility.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to create facility.");
       await fetchFacilities();
-
-      setNewFacility({
-        name: "",
-        nodal: "",
-        assocNodal: "",
-        supervisor: "",
-        desc: "",
-      });
-
+      setNewFacility({ name: "", nodal: "", assocNodal: "", supervisor: "", desc: "" });
       setIsAddFacilityModalOpen(false);
-
       showToast("Facility added successfully.");
     } catch (error: any) {
       console.error("ADD FACILITY ERROR:", error);
-
       showToast(error?.message || "Unable to add facility.");
     }
   };
 
-  /* =======================================================
-     UPDATE FACILITY
-  ======================================================= */
-
   const handleSaveEditFacility = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!editingFacility) {
-      return;
-    }
-
+    if (!editingFacility) return;
     try {
-      const response = await fetch(
-        `/api/facilities/${encodeURIComponent(editingFacility.id)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: editingFacility.name.trim(),
-
-            /*
-                Keep existing DB department value.
-                User cannot edit it from UI.
-              */
-            dept: editingFacility.dept || "Research Laboratories Division",
-
-            nodal: editingFacility.nodal.trim(),
-
-            assocNodal: editingFacility.assocNodal.trim(),
-
-            supervisor: editingFacility.supervisor.trim(),
-
-            desc: editingFacility.desc.trim(),
-
-            status: editingFacility.status,
-          }),
-        },
-      );
-
+      const response = await fetch(`/api/facilities/${encodeURIComponent(editingFacility.id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingFacility.name.trim(), dept: editingFacility.dept || "Research Laboratories Division", nodal: editingFacility.nodal.trim(), assocNodal: editingFacility.assocNodal.trim(), supervisor: editingFacility.supervisor.trim(), desc: editingFacility.desc.trim(), status: editingFacility.status }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to update facility.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to update facility.");
       await fetchFacilities();
-
       setEditingFacility(null);
-
       showToast("Facility updated successfully.");
     } catch (error: any) {
       console.error("UPDATE FACILITY ERROR:", error);
-
       showToast(error?.message || "Unable to update facility.");
     }
   };
 
-  /* =======================================================
-     DELETE FACILITY
-  ======================================================= */
-
   const handleDeleteFacility = async (id: string) => {
     const facility = facilitiesList.find((item) => item.id === id);
-
-    if (!facility) {
-      return;
-    }
-
-    if (
-      !window.confirm(`Are you sure you want to delete "${facility.name}"?`)
-    ) {
-      return;
-    }
-
+    if (!facility) return;
+    if (!window.confirm(`Are you sure you want to delete "${facility.name}"?`)) return;
     try {
-      const response = await fetch(
-        `/api/facilities/${encodeURIComponent(id)}`,
-        {
-          method: "DELETE",
-        },
-      );
-
+      const response = await fetch(`/api/facilities/${encodeURIComponent(id)}`, { method: "DELETE" });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to delete facility.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to delete facility.");
       await fetchFacilities();
-
       showToast("Facility deleted successfully.");
     } catch (error: any) {
       console.error("DELETE FACILITY ERROR:", error);
-
       showToast(error?.message || "Unable to delete facility.");
     }
   };
 
-  /* =======================================================
-     TOGGLE FACILITY STATUS
-  ======================================================= */
-
   const handleToggleFacilityStatus = async (facility: FacilityRecord) => {
     const nextStatus = facility.status === "active" ? "inactive" : "active";
-
     try {
-      const response = await fetch(
-        `/api/facilities/${encodeURIComponent(facility.id)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: facility.name,
-
-            dept: facility.dept || "Research Laboratories Division",
-
-            nodal: facility.nodal,
-
-            assocNodal: facility.assocNodal,
-
-            supervisor: facility.supervisor,
-
-            desc: facility.desc,
-
-            status: nextStatus,
-          }),
-        },
-      );
-
+      const response = await fetch(`/api/facilities/${encodeURIComponent(facility.id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: facility.name, dept: facility.dept || "Research Laboratories Division", nodal: facility.nodal, assocNodal: facility.assocNodal, supervisor: facility.supervisor, desc: facility.desc, status: nextStatus }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to change facility status.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to change facility status.");
       await fetchFacilities();
-
       showToast(`Facility status changed to ${nextStatus.toUpperCase()}.`);
     } catch (error: any) {
       console.error("FACILITY STATUS ERROR:", error);
-
       showToast(error?.message || "Unable to change status.");
     }
   };
 
-  /* =======================================================
-     ADD SERVICE
-  ======================================================= */
-
   const handleAddService = async (event: React.FormEvent) => {
     event.preventDefault();
-
     if (!newService.name.trim() || !newService.manager.trim()) {
       showToast("Please fill all required service fields.");
-
       return;
     }
-
     try {
-      const response = await fetch("/api/services", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: newService.name.trim(),
-
-          manager: newService.manager.trim(),
-
-          quota: newService.quota.trim(),
-
-          status: "active",
-        }),
-      });
-
+      const response = await fetch("/api/services", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newService.name.trim(), manager: newService.manager.trim(), quota: newService.quota.trim(), status: "active" }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to create service.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to create service.");
       await fetchServices();
-
-      setNewService({
-        name: "",
-        manager: "",
-        quota: "",
-      });
-
+      setNewService({ name: "", manager: "", quota: "" });
       setIsAddServiceModalOpen(false);
-
       showToast("Service added successfully.");
     } catch (error: any) {
       console.error("ADD SERVICE ERROR:", error);
-
       showToast(error?.message || "Unable to add service.");
     }
   };
 
-  /* =======================================================
-     UPDATE SERVICE
-  ======================================================= */
-
   const handleSaveEditService = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (!editingService) {
-      return;
-    }
-
+    if (!editingService) return;
     try {
-      const response = await fetch(
-        `/api/services/${encodeURIComponent(editingService.id)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: editingService.name.trim(),
-
-            manager: editingService.manager.trim(),
-
-            quota: editingService.quota.trim(),
-
-            status: editingService.status,
-          }),
-        },
-      );
-
+      const response = await fetch(`/api/services/${encodeURIComponent(editingService.id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingService.name.trim(), manager: editingService.manager.trim(), quota: editingService.quota.trim(), status: editingService.status }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to update service.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to update service.");
       await fetchServices();
-
       setEditingService(null);
-
       showToast("Service updated successfully.");
     } catch (error: any) {
       console.error("UPDATE SERVICE ERROR:", error);
-
       showToast(error?.message || "Unable to update service.");
     }
   };
 
-  /* =======================================================
-     DELETE SERVICE
-  ======================================================= */
-
   const handleDeleteService = async (id: string) => {
     const service = servicesList.find((item) => item.id === id);
-
-    if (!service) {
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to delete "${service.name}"?`)) {
-      return;
-    }
-
+    if (!service) return;
+    if (!window.confirm(`Are you sure you want to delete "${service.name}"?`)) return;
     try {
-      const response = await fetch(`/api/services/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-
+      const response = await fetch(`/api/services/${encodeURIComponent(id)}`, { method: "DELETE" });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to delete service.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to delete service.");
       await fetchServices();
-
       showToast("Service deleted successfully.");
     } catch (error: any) {
       console.error("DELETE SERVICE ERROR:", error);
-
       showToast(error?.message || "Unable to delete service.");
     }
   };
 
-  /* =======================================================
-     TOGGLE SERVICE STATUS
-  ======================================================= */
-
   const handleToggleServiceStatus = async (service: ServiceRecord) => {
     const nextStatus = service.status === "active" ? "inactive" : "active";
-
     try {
-      const response = await fetch(
-        `/api/services/${encodeURIComponent(service.id)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: service.name,
-
-            manager: service.manager,
-
-            quota: service.quota,
-
-            status: nextStatus,
-          }),
-        },
-      );
-
+      const response = await fetch(`/api/services/${encodeURIComponent(service.id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: service.name, manager: service.manager, quota: service.quota, status: nextStatus }) });
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Unable to change service status.");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.message || "Unable to change service status.");
       await fetchServices();
-
       showToast(`Service status changed to ${nextStatus.toUpperCase()}.`);
     } catch (error: any) {
       console.error("SERVICE STATUS ERROR:", error);
-
       showToast(error?.message || "Unable to change status.");
     }
   };
 
-  /* =======================================================
-     FORCE APPROVE REQUISITION
-  ======================================================= */
-
   const handleForceApprove = (req: RequisitionRecord) => {
     const updated: RequisitionRecord = {
       ...req,
-
       status: "approved_provisioned",
-
-      history: [
-        ...(req.history || []),
-        {
-          id: `act-${Date.now()}`,
-          actorRole: "admin",
-          actorName: "System Administrator",
-          actionType: "tech_provision",
-          comments: "FORCE APPROVED by System Admin Override.",
-          timestamp: new Date().toISOString(),
-          digitalSignature: "ADMIN_MASTER_BYPASS_SIG",
-        },
-      ],
+      history: [...(req.history || []), { id: `act-${Date.now()}`, actorRole: "admin", actorName: "System Administrator", actionType: "tech_provision", comments: "FORCE APPROVED by System Admin Override.", timestamp: new Date().toISOString(), digitalSignature: "ADMIN_MASTER_BYPASS_SIG" }],
     };
-
     onUpdateRequisition(updated);
-
-    recordSecurityAuditLog({
-      actorName: "System Administrator",
-
-      actorEmail: "system@wii.gov.in",
-
-      actorRole: "admin",
-
-      actionType: "SECTION_HEAD_AUTHORIZATION",
-
-      module: `Requisitions Override (${req.id})`,
-
-      summary: `Administrative Override: Force Approved Requisition #${req.id}.`,
-    });
-
+    recordSecurityAuditLog({ actorName: "System Administrator", actorEmail: "system@wii.gov.in", actorRole: "admin", actionType: "SECTION_HEAD_AUTHORIZATION", module: `Requisitions Override (${req.id})`, summary: `Administrative Override: Force Approved Requisition #${req.id}.` });
     showToast(`Requisition #${req.id} approved.`);
   };
 
-  /* =======================================================
-     FORCE REJECT REQUISITION
-  ======================================================= */
-
   const handleForceReject = (req: RequisitionRecord) => {
-    const reason = window.prompt(
-      "Enter Admin Rejection Reason:",
-      "Administrative Override.",
-    );
-
-    if (!reason) {
-      return;
-    }
-
+    const reason = window.prompt("Enter Admin Rejection Reason:", "Administrative Override.");
+    if (!reason) return;
     const updated: RequisitionRecord = {
       ...req,
-
       status: "rejected",
-
-      history: [
-        ...(req.history || []),
-        {
-          id: `act-${Date.now()}`,
-          actorRole: "admin",
-          actorName: "System Administrator",
-          actionType: "reject",
-          comments: reason,
-          timestamp: new Date().toISOString(),
-          digitalSignature: "ADMIN_OVERRIDE_REJECT",
-        },
-      ],
+      history: [...(req.history || []), { id: `act-${Date.now()}`, actorRole: "admin", actorName: "System Administrator", actionType: "reject", comments: reason, timestamp: new Date().toISOString(), digitalSignature: "ADMIN_OVERRIDE_REJECT" }],
     };
-
     onUpdateRequisition(updated);
-
     showToast(`Requisition #${req.id} rejected.`);
   };
 
-  /* =======================================================
-     SMALL REUSABLE DROPDOWN
-
-     If there is no user with required DB role,
-     dropdown stays empty.
-  ======================================================= */
-
   const renderUserOptions = (users: AdminUser[], emptyText: string) => {
-    if (users.length === 0) {
-      return <option value="">{emptyText}</option>;
-    }
-
-    return users.map((user) => (
-      <option key={user.id} value={getDisplayName(user)}>
-        {getDisplayName(user)}
-      </option>
-    ));
+    if (users.length === 0) return <option value="">{emptyText}</option>;
+    return users.map((user) => <option key={user.id} value={getDisplayName(user)}>{getDisplayName(user)}</option>);
   };
-
-  /* =======================================================
-     RENDER
-  ======================================================= */
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      {/* =====================================================
-          TOAST
-      ===================================================== */}
-
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-[200] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-emerald-500/50 flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-emerald-400" />
-
-          <span className="text-xs font-bold">{toastMessage}</span>
-        </div>
-      )}
-
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+      {toastMessage && <div className="fixed top-5 right-5 z-[200] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-emerald-500/50 flex items-center gap-3"><ShieldCheck className="w-5 h-5 text-emerald-400" /><span className="text-xs font-bold">{toastMessage}</span></div>}
 
       <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md flex flex-col sm:flex-row justify-between gap-5">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-              <BadgeCheck className="w-3.5 h-3.5" />
-              Access Management Portal
-            </span>
-
-            <span className="text-xs text-slate-400">
-              • Wildlife Institute of India
-            </span>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5" />Access Management Portal</span>
+            <span className="text-xs text-slate-400">• Wildlife Institute of India</span>
           </div>
-
-          <h1 className="text-2xl font-extrabold">
-            Central Governance & Master Data Control
-          </h1>
-
-          <p className="text-xs text-slate-300 mt-2">
-            Complete administrative control over Users, Facilities, Services and
-            system parameters.
-          </p>
+          <h1 className="text-2xl font-extrabold">Central Governance & Master Data Control</h1>
+          <p className="text-xs text-slate-300 mt-2">Complete administrative control over Users, Facilities, Services and system parameters.</p>
         </div>
-
-
       </div>
-
-      {/* =====================================================
-          ADMIN SUB NAVIGATION
-      ===================================================== */}
 
       <div className="bg-white rounded-xl border border-slate-200 p-1.5 shadow-sm overflow-x-auto">
         <div className="flex gap-1 min-w-max">
-          <button
-            onClick={() => setActiveSubTab("users")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "users"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            User Roles & Accounts
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("profile_masters")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "profile_masters"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            Profile Masters
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("masters")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "masters"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            Facilities & Services
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("requisitions_override")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "requisitions_override"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Zap className="w-4 h-4" />
-            Access Override
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("system_config")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "system_config"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Sliders className="w-4 h-4" />
-            System Maintenance
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("audit_logs")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "audit_logs"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <Activity className="w-4 h-4" />
-            Security Audit
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab("logo_branding")}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
-              activeSubTab === "logo_branding"
-                ? "bg-purple-700 text-white"
-                : "text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <ImageIcon className="w-4 h-4" />
-            Company Logo Master
-          </button>
+          <button onClick={() => setActiveSubTab("users")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "users" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Users className="w-4 h-4" />User Roles & Accounts</button>
+          <button onClick={() => setActiveSubTab("profile_masters")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "profile_masters" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Database className="w-4 h-4" />Profile Masters</button>
+          <button onClick={() => setActiveSubTab("masters")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "masters" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Building2 className="w-4 h-4" />Facilities & Services</button>
+          <button onClick={() => setActiveSubTab("requisitions_override")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "requisitions_override" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Zap className="w-4 h-4" />Access Override</button>
+          <button onClick={() => setActiveSubTab("system_config")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "system_config" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Sliders className="w-4 h-4" />System Maintenance</button>
+          <button onClick={() => setActiveSubTab("audit_logs")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "audit_logs" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><Activity className="w-4 h-4" />Security Audit</button>
+          <button onClick={() => setActiveSubTab("logo_branding")} className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${activeSubTab === "logo_branding" ? "bg-purple-700 text-white" : "text-slate-700 hover:bg-slate-100"}`}><ImageIcon className="w-4 h-4" />Company Logo Master</button>
         </div>
       </div>
 
-      {/* =====================================================
-          USERS TAB
-      ===================================================== */}
-
-      {activeSubTab === "users" && <UserRoleAccountsSection
-        userSearch={userSearch}
-        setUserSearch={setUserSearch}
-        usersLoading={usersLoading}
-        usersError={usersError}
-        filteredUsers={filteredUsers}
-        getDisplayName={getDisplayName}
-        setEditingUser={setEditingUser}
-        handleDeleteUser={handleDeleteUser}
-      />}
-
-      {/* =====================================================
-          PROFILE MASTERS
-      ===================================================== */}
-
+      {activeSubTab === "users" && <UserRoleAccountsSection userSearch={userSearch} setUserSearch={setUserSearch} usersLoading={usersLoading} usersError={usersError} filteredUsers={filteredUsers} getDisplayName={getDisplayName} setEditingUser={setEditingUser} handleDeleteUser={handleDeleteUser} />}
       {activeSubTab === "profile_masters" && <ProfileMastersPanel />}
-
-      {/* =====================================================
-          FACILITIES + SERVICES MASTER
-      ===================================================== */}
-
-      {activeSubTab === "masters" && <FacilitiesServicesSection
-        facilitiesList={facilitiesList}
-        facilitiesLoading={facilitiesLoading}
-        facilitiesError={facilitiesError}
-        fetchFacilities={fetchFacilities}
-        setIsAddFacilityModalOpen={setIsAddFacilityModalOpen}
-        handleToggleFacilityStatus={handleToggleFacilityStatus}
-        handleOpenWorkflowModal={handleOpenWorkflowModal}
-        setEditingFacility={setEditingFacility}
-        handleDeleteFacility={handleDeleteFacility}
-        servicesList={servicesList}
-        servicesLoading={servicesLoading}
-        servicesError={servicesError}
-        fetchServices={fetchServices}
-        setIsAddServiceModalOpen={setIsAddServiceModalOpen}
-        handleToggleServiceStatus={handleToggleServiceStatus}
-        setEditingService={setEditingService}
-        handleDeleteService={handleDeleteService}
-      />}
-
-      {/* =====================================================
-          ACCESS OVERRIDE
-      ===================================================== */}
-
-      {activeSubTab === "requisitions_override" && <AccessOverrideSection
-        requisitions={requisitions}
-        handleForceApprove={handleForceApprove}
-        handleForceReject={handleForceReject}
-      />}
-
-      {/* =====================================================
-          SYSTEM CONFIG
-      ===================================================== */}
-
-      {activeSubTab === "system_config" && <SystemMaintenanceSection
-        systemConfig={systemConfig}
-        setSystemConfig={setSystemConfig}
-      />}
-
-      {/* =====================================================
-          SECURITY AUDIT
-      ===================================================== */}
-
-      {activeSubTab === "audit_logs" && (
-        <SecurityAuditTrailSection managedUsers={managedUsers} />
-      )}
-
-      {/* =====================================================
-          COMPANY LOGO MASTER
-      ===================================================== */}
-
+      {activeSubTab === "masters" && <FacilitiesServicesSection facilitiesList={facilitiesList} facilitiesLoading={facilitiesLoading} facilitiesError={facilitiesError} fetchFacilities={fetchFacilities} setIsAddFacilityModalOpen={setIsAddFacilityModalOpen} handleToggleFacilityStatus={handleToggleFacilityStatus} handleOpenWorkflowModal={handleOpenWorkflowModal} setEditingFacility={setEditingFacility} handleDeleteFacility={handleDeleteFacility} servicesList={servicesList} servicesLoading={servicesLoading} servicesError={servicesError} fetchServices={fetchServices} setIsAddServiceModalOpen={setIsAddServiceModalOpen} handleToggleServiceStatus={handleToggleServiceStatus} setEditingService={setEditingService} handleDeleteService={handleDeleteService} />}
+      {activeSubTab === "requisitions_override" && <AccessOverrideSection requisitions={requisitions} handleForceApprove={handleForceApprove} handleForceReject={handleForceReject} />}
+      {activeSubTab === "system_config" && <SystemMaintenanceSection systemConfig={systemConfig} setSystemConfig={setSystemConfig} />}
+      {activeSubTab === "audit_logs" && <SecurityAuditTrailSection managedUsers={managedUsers} />}
       {activeSubTab === "logo_branding" && <LogoBrandingMasterSection />}
-
-      {/* =====================================================
-          PROFILE MASTER MODALS
-      ===================================================== */}
-
-      {profileMasterModal === "org_units" && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSaveProfileOrgUnit}
-            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
-          >
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
-              <div>
-                <h3 className="font-extrabold text-slate-900">
-                  {editingProfileOrgUnit
-                    ? "Edit Organization Unit"
-                    : "Add Organization Unit"}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Department, cell or project master record.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Unit Type
-                </label>
-                <select
-                  value={profileOrgUnitForm.unitType}
-                  onChange={(e) =>
-                    setProfileOrgUnitForm((current) => ({
-                      ...current,
-                      unitType: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white"
-                >
-                  <option value="department">Department</option>
-                  <option value="cell">Cell</option>
-                  <option value="project">Project</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Unit Name *
-                </label>
-                <input
-                  required
-                  value={profileOrgUnitForm.unitName}
-                  onChange={(e) =>
-                    setProfileOrgUnitForm((current) => ({
-                      ...current,
-                      unitName: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                  placeholder="Enter department / cell / project name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={profileOrgUnitForm.description}
-                  onChange={(e) =>
-                    setProfileOrgUnitForm((current) => ({
-                      ...current,
-                      description: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg min-h-20"
-                  placeholder="Optional description"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-              >
-                {editingProfileOrgUnit ? "Save Changes" : "Add Unit"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {profileMasterModal === "banks" && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSaveProfileBank}
-            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
-          >
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
-              <div>
-                <h3 className="font-extrabold text-slate-900">
-                  {editingProfileBank ? "Edit Bank" : "Add Bank"}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Bank master used in profile bank details.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Bank Name *
-                </label>
-                <input
-                  required
-                  value={profileBankForm.bankName}
-                  onChange={(e) =>
-                    setProfileBankForm((current) => ({
-                      ...current,
-                      bankName: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                  placeholder="Enter bank name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Bank Code
-                </label>
-                <input
-                  value={profileBankForm.bankCode}
-                  onChange={(e) =>
-                    setProfileBankForm((current) => ({
-                      ...current,
-                      bankCode: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                  placeholder="Optional bank code"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-              >
-                {editingProfileBank ? "Save Changes" : "Add Bank"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {profileMasterModal === "batches" && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSaveProfileBatch}
-            className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"
-          >
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
-              <div>
-                <h3 className="font-extrabold text-slate-900">
-                  {editingProfileBatch ? "Edit Batch" : "Add Batch"}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Batch belongs to an existing batch series.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Batch Series *
-                </label>
-                <select
-                  required
-                  value={profileBatchForm.seriesId}
-                  onChange={(e) =>
-                    setProfileBatchForm((current) => ({
-                      ...current,
-                      seriesId: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white"
-                >
-                  <option value="">Select batch series</option>
-                  {profileBatchSeries.map((series) => (
-                    <option key={series.id} value={series.id}>
-                      {series.seriesName} ({series.seriesType})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Batch Number *
-                </label>
-                <input
-                  required
-                  value={profileBatchForm.batchNumber}
-                  onChange={(e) =>
-                    setProfileBatchForm((current) => ({
-                      ...current,
-                      batchNumber: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                  placeholder="e.g. 2026-27"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Batch Label
-                </label>
-                <input
-                  value={profileBatchForm.batchLabel}
-                  onChange={(e) =>
-                    setProfileBatchForm((current) => ({
-                      ...current,
-                      batchLabel: e.target.value,
-                    }))
-                  }
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                  placeholder="Optional display label"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Start Year
-                  </label>
-                  <input
-                    type="number"
-                    value={profileBatchForm.startYear}
-                    onChange={(e) =>
-                      setProfileBatchForm((current) => ({
-                        ...current,
-                        startYear: e.target.value,
-                      }))
-                    }
-                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                    placeholder="2026"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    End Year
-                  </label>
-                  <input
-                    type="number"
-                    value={profileBatchForm.endYear}
-                    onChange={(e) =>
-                      setProfileBatchForm((current) => ({
-                        ...current,
-                        endYear: e.target.value,
-                      }))
-                    }
-                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg"
-                    placeholder="2027"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 mt-5">
-              <button
-                type="button"
-                onClick={() => setProfileMasterModal(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-              >
-                {editingProfileBatch ? "Save Changes" : "Add Batch"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* =====================================================
-          EDIT USER ROLE MODAL
-      ===================================================== */}
 
       {editingUser && (
         <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold">Edit User Roles</h3>
-
-              <button
-                onClick={() => setEditingUser(null)}
-                className="p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3"><h3 className="font-extrabold">Edit User Roles</h3><button onClick={() => setEditingUser(null)} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleSaveEditUser} className="space-y-4 mt-4">
-              <div className="p-3 bg-slate-50 rounded-xl">
-                <b>{getDisplayName(editingUser)}</b>
-
-                <div className="text-xs text-slate-500">
-                  {editingUser.email || "—"}
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs">
-                  Assigned System Roles
-                </label>
-
-                <div className="border border-slate-200 rounded-xl mt-2 p-3 space-y-1">
-                  {SYSTEM_ROLES.map((role) => {
-                    const assigned =
-                      Array.isArray(editingUser.roles) &&
-                      editingUser.roles.some((r) => Number(r.id) === role.id);
-
-                    return (
-                      <label
-                        key={role.id}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={assigned}
-                          disabled={role.id === 1}
-                          onChange={(event) => {
-                            const currentRoles = Array.isArray(
-                              editingUser.roles,
-                            )
-                              ? editingUser.roles
-                              : [];
-
-                            if (event.target.checked) {
-                              if (
-                                currentRoles.some(
-                                  (r) => Number(r.id) === role.id,
-                                )
-                              ) {
-                                return;
-                              }
-
-                              setEditingUser({
-                                ...editingUser,
-
-                                roles: [...currentRoles, role],
-                              });
-                            } else {
-                              setEditingUser({
-                                ...editingUser,
-
-                                roles: currentRoles.filter(
-                                  (r) => Number(r.id) !== role.id,
-                                ),
-                              });
-                            }
-                          }}
-                          className="w-4 h-4 accent-purple-700"
-                        />
-
-                        <span className="text-xs font-semibold">
-                          {role.name}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-                >
-                  Save Roles
-                </button>
-              </div>
+              <div className="p-3 bg-slate-50 rounded-xl"><b>{getDisplayName(editingUser)}</b><div className="text-xs text-slate-500">{editingUser.email || "—"}</div></div>
+              <div><label className="font-bold text-xs">Assigned System Roles</label><div className="border border-slate-200 rounded-xl mt-2 p-3 space-y-1">{SYSTEM_ROLES.map((role) => { const assigned = Array.isArray(editingUser.roles) && editingUser.roles.some((r) => Number(r.id) === role.id); return <label key={role.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"><input type="checkbox" checked={assigned} disabled={role.id === 1} onChange={(event) => { const currentRoles = Array.isArray(editingUser.roles) ? editingUser.roles : []; if (event.target.checked) { if (currentRoles.some((r) => Number(r.id) === role.id)) return; setEditingUser({ ...editingUser, roles: [...currentRoles, role] }); } else { setEditingUser({ ...editingUser, roles: currentRoles.filter((r) => Number(r.id) !== role.id) }); } }} className="w-4 h-4 accent-purple-700" /><span className="text-xs font-semibold">{role.name}</span></label>; })}</div></div>
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold">Save Roles</button></div>
             </form>
           </div>
         </div>
       )}
-
-      {/* =====================================================
-          ADD FACILITY MODAL
-          -----------------------------------------------------
-          DEPARTMENT REMOVED
-      ===================================================== */}
 
       {isAddFacilityModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-600" />
-                Add New Facility
-              </h3>
-
-              <button
-                onClick={() => setIsAddFacilityModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddFacility} className="space-y-3 mt-4">
-              {/* Facility Name */}
-
-              <input
-                required
-                placeholder="Facility Name"
-                value={newFacility.name}
-                onChange={(e) =>
-                  setNewFacility({
-                    ...newFacility,
-                    name: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-              />
-
-              {/* Nodal Officer */}
-
-              <select
-                required
-                value={newFacility.nodal}
-                onChange={(e) =>
-                  setNewFacility({
-                    ...newFacility,
-                    nodal: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-              >
-                <option value="">Select Nodal Officer</option>
-
-                {renderUserOptions(nodalOptions, "No Nodal Officer available")}
-              </select>
-
-              {/* Associate Nodal Officer */}
-
-              <select
-                required
-                value={newFacility.assocNodal}
-                onChange={(e) =>
-                  setNewFacility({
-                    ...newFacility,
-                    assocNodal: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-              >
-                <option value="">Select Associate Nodal Officer</option>
-
-                {renderUserOptions(
-                  assocNodalOptions,
-                  "No Associate Nodal Officer available",
-                )}
-              </select>
-
-              {/* Supervisor */}
-
-              <select
-                required
-                value={newFacility.supervisor}
-                onChange={(e) =>
-                  setNewFacility({
-                    ...newFacility,
-                    supervisor: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-              >
-                <option value="">Select Supervisor</option>
-
-                {renderUserOptions(
-                  supervisorOptions,
-                  "No Supervisor available",
-                )}
-              </select>
-
-              {/* Description */}
-
-              <textarea
-                placeholder="Description"
-                value={newFacility.desc}
-                onChange={(e) =>
-                  setNewFacility({
-                    ...newFacility,
-                    desc: e.target.value,
-                  })
-                }
-                rows={3}
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-              />
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddFacilityModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-                >
-                  Create Facility
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><h3 className="font-extrabold flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" />Add New Facility</h3><button onClick={() => setIsAddFacilityModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button></div><form onSubmit={handleAddFacility} className="space-y-3 mt-4">
+          <input required placeholder="Facility Name" value={newFacility.name} onChange={(e) => setNewFacility({ ...newFacility, name: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm" />
+          <select required value={newFacility.nodal} onChange={(e) => setNewFacility({ ...newFacility, nodal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white"><option value="">Select Nodal Officer</option>{renderUserOptions(nodalOptions, "No Nodal Officer available")}</select>
+          <select required value={newFacility.assocNodal} onChange={(e) => setNewFacility({ ...newFacility, assocNodal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white"><option value="">Select Associate Nodal Officer</option>{renderUserOptions(assocNodalOptions, "No Associate Nodal Officer available")}</select>
+          <select required value={newFacility.supervisor} onChange={(e) => setNewFacility({ ...newFacility, supervisor: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white"><option value="">Select Supervisor</option>{renderUserOptions(supervisorOptions, "No Supervisor available")}</select>
+          <textarea placeholder="Description" value={newFacility.desc} onChange={(e) => setNewFacility({ ...newFacility, desc: e.target.value })} rows={3} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm resize-none" />
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200"><button type="button" onClick={() => setIsAddFacilityModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold">Create Facility</button></div>
+        </form></div></div>
       )}
-
-      {/* =====================================================
-          ADD SERVICE MODAL
-      ===================================================== */}
 
       {isAddServiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-emerald-600" />
-                Add New Service
-              </h3>
-
-              <button
-                onClick={() => setIsAddServiceModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddService} className="space-y-3 mt-4">
-              {/* Service Name */}
-
-              <input
-                required
-                placeholder="Service Name"
-                value={newService.name}
-                onChange={(e) =>
-                  setNewService({
-                    ...newService,
-                    name: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              />
-
-              {/* Manager */}
-
-              <select
-                required
-                value={newService.manager}
-                onChange={(e) =>
-                  setNewService({
-                    ...newService,
-                    manager: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              >
-                <option value="">Select Manager</option>
-
-                {renderUserOptions(managerOptions, "No Manager available")}
-              </select>
-
-              {/* Quota / Access */}
-
-              <input
-                placeholder="Quota / Access Specifications"
-                value={newService.quota}
-                onChange={(e) =>
-                  setNewService({
-                    ...newService,
-                    quota: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              />
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddServiceModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"
-                >
-                  Create Service
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><h3 className="font-extrabold flex items-center gap-2"><Wrench className="w-4 h-4 text-emerald-600" />Add New Service</h3><button onClick={() => setIsAddServiceModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button></div><form onSubmit={handleAddService} className="space-y-3 mt-4">
+          <input required placeholder="Service Name" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm" />
+          <select required value={newService.manager} onChange={(e) => setNewService({ ...newService, manager: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white"><option value="">Select Manager</option>{renderUserOptions(managerOptions, "No Manager available")}</select>
+          <div><label className="block text-xs font-bold text-slate-700 mb-1">Access Tab – Second Line</label><input placeholder="Enter text shown on Access tab second line" value={newService.quota} onChange={(e) => setNewService({ ...newService, quota: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm" /></div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200"><button type="button" onClick={() => setIsAddServiceModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold">Create Service</button></div>
+        </form></div></div>
       )}
-
-      {/* =====================================================
-          EDIT FACILITY MODAL
-      ===================================================== */}
 
       {editingFacility && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold">Edit Facility</h3>
-
-              <button
-                onClick={() => setEditingFacility(null)}
-                className="p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditFacility} className="space-y-3 mt-4">
-              <input
-                required
-                value={editingFacility.name}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    name: e.target.value,
-                  })
-                }
-                placeholder="Facility Name"
-                className="w-full p-2.5 border border-slate-300 rounded-xl"
-              />
-
-              <select
-                required
-                value={editingFacility.nodal}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    nodal: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="">Select Nodal Officer</option>
-
-                {renderUserOptions(nodalOptions, "No Nodal Officer available")}
-              </select>
-
-              <select
-                required
-                value={editingFacility.assocNodal}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    assocNodal: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="">Select Associate Nodal Officer</option>
-
-                {renderUserOptions(
-                  assocNodalOptions,
-                  "No Associate Nodal Officer available",
-                )}
-              </select>
-
-              <select
-                required
-                value={editingFacility.supervisor}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    supervisor: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="">Select Supervisor</option>
-
-                {renderUserOptions(
-                  supervisorOptions,
-                  "No Supervisor available",
-                )}
-              </select>
-
-              <textarea
-                value={editingFacility.desc}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    desc: e.target.value,
-                  })
-                }
-                placeholder="Description"
-                rows={3}
-                className="w-full p-2.5 border border-slate-300 rounded-xl resize-none"
-              />
-
-              <select
-                value={editingFacility.status}
-                onChange={(e) =>
-                  setEditingFacility({
-                    ...editingFacility,
-                    status: e.target.value as FacilityStatus,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="active">Active</option>
-
-                <option value="inactive">Inactive</option>
-
-                <option value="maintenance">Maintenance</option>
-              </select>
-
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingFacility(null)}
-                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><h3 className="font-extrabold">Edit Facility</h3><button onClick={() => setEditingFacility(null)} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button></div><form onSubmit={handleSaveEditFacility} className="space-y-3 mt-4">
+          <input required value={editingFacility.name} onChange={(e) => setEditingFacility({ ...editingFacility, name: e.target.value })} placeholder="Facility Name" className="w-full p-2.5 border border-slate-300 rounded-xl" />
+          <select required value={editingFacility.nodal} onChange={(e) => setEditingFacility({ ...editingFacility, nodal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="">Select Nodal Officer</option>{renderUserOptions(nodalOptions, "No Nodal Officer available")}</select>
+          <select required value={editingFacility.assocNodal} onChange={(e) => setEditingFacility({ ...editingFacility, assocNodal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="">Select Associate Nodal Officer</option>{renderUserOptions(assocNodalOptions, "No Associate Nodal Officer available")}</select>
+          <select required value={editingFacility.supervisor} onChange={(e) => setEditingFacility({ ...editingFacility, supervisor: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="">Select Supervisor</option>{renderUserOptions(supervisorOptions, "No Supervisor available")}</select>
+          <textarea value={editingFacility.desc} onChange={(e) => setEditingFacility({ ...editingFacility, desc: e.target.value })} placeholder="Description" rows={3} className="w-full p-2.5 border border-slate-300 rounded-xl resize-none" />
+          <select value={editingFacility.status} onChange={(e) => setEditingFacility({ ...editingFacility, status: e.target.value as FacilityStatus })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="active">Active</option><option value="inactive">Inactive</option><option value="maintenance">Maintenance</option></select>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><button type="button" onClick={() => setEditingFacility(null)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold">Save Changes</button></div>
+        </form></div></div>
       )}
-
-      {/* =====================================================
-          EDIT SERVICE MODAL
-      ===================================================== */}
 
       {editingService && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold">Edit Service</h3>
-
-              <button
-                onClick={() => setEditingService(null)}
-                className="p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditService} className="space-y-3 mt-4">
-              <input
-                required
-                value={editingService.name}
-                onChange={(e) =>
-                  setEditingService({
-                    ...editingService,
-                    name: e.target.value,
-                  })
-                }
-                placeholder="Service Name"
-                className="w-full p-2.5 border border-slate-300 rounded-xl"
-              />
-
-              <select
-                required
-                value={editingService.manager}
-                onChange={(e) =>
-                  setEditingService({
-                    ...editingService,
-                    manager: e.target.value,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="">Select Manager</option>
-
-                {renderUserOptions(managerOptions, "No Manager available")}
-              </select>
-
-              <input
-                value={editingService.quota}
-                onChange={(e) =>
-                  setEditingService({
-                    ...editingService,
-                    quota: e.target.value,
-                  })
-                }
-                placeholder="Quota / Access Specifications"
-                className="w-full p-2.5 border border-slate-300 rounded-xl"
-              />
-
-              <select
-                value={editingService.status}
-                onChange={(e) =>
-                  setEditingService({
-                    ...editingService,
-                    status: e.target.value as ServiceStatus,
-                  })
-                }
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
-              >
-                <option value="active">Active</option>
-
-                <option value="inactive">Inactive</option>
-              </select>
-
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingService(null)}
-                  className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><h3 className="font-extrabold">Edit Service</h3><button onClick={() => setEditingService(null)} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button></div><form onSubmit={handleSaveEditService} className="space-y-3 mt-4">
+          <input required value={editingService.name} onChange={(e) => setEditingService({ ...editingService, name: e.target.value })} placeholder="Service Name" className="w-full p-2.5 border border-slate-300 rounded-xl" />
+          <select required value={editingService.manager} onChange={(e) => setEditingService({ ...editingService, manager: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="">Select Manager</option>{renderUserOptions(managerOptions, "No Manager available")}</select>
+          <div><label className="block text-xs font-bold text-slate-700 mb-1">Access Tab – Second Line</label><input value={editingService.quota} onChange={(e) => setEditingService({ ...editingService, quota: e.target.value })} placeholder="Enter text shown on Access tab second line" className="w-full p-2.5 border border-slate-300 rounded-xl" /></div>
+          <select value={editingService.status} onChange={(e) => setEditingService({ ...editingService, status: e.target.value as ServiceStatus })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><button type="button" onClick={() => setEditingService(null)} className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold">Save Changes</button></div>
+        </form></div></div>
       )}
 
-      {/* =====================================================
-          CONFIGURE WORKFLOW STAGES & DEALING PERSONS MODAL
-      ===================================================== */}
-
       {editingWorkflow && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl my-8 max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`p-2 rounded-lg ${editingWorkflow.type === "facility" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}
-                >
-                  <GitMerge className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">
-                    Configure Approval Workflow Stages
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Set sequence of dealing persons & officers for{" "}
-                    <span className="font-bold text-slate-800">
-                      {editingWorkflow.item.name}
-                    </span>{" "}
-                    ({editingWorkflow.item.id})
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setEditingWorkflow(null)}
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* STAGES LIST */}
-            <div className="overflow-y-auto py-4 space-y-4 flex-grow pr-1">
-              {editingWorkflow.stages.length === 0 ? (
-                <div className="py-8 text-center border border-dashed border-slate-300 rounded-xl text-slate-500 text-xs">
-                  No workflow stages defined. Click &quot;Add Stage&quot; below
-                  to add one.
-                </div>
-              ) : (
-                editingWorkflow.stages.map((stg, index) => (
-                  <div
-                    key={index}
-                    className="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3 relative hover:border-slate-300 transition-all"
-                  >
-                    <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-purple-700 text-white font-bold text-xs flex items-center justify-center">
-                          {index + 1}
-                        </span>
-                        <span className="font-bold text-xs text-slate-800">
-                          Stage {index + 1}: {stg.stageName || "Unnamed Stage"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveStage(index, "up")}
-                          disabled={index === 0}
-                          className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600"
-                          title="Move Stage Up"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleMoveStage(index, "down")}
-                          disabled={index === editingWorkflow.stages.length - 1}
-                          className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600"
-                          title="Move Stage Down"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStage(index)}
-                          className="p-1 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded ml-2"
-                          title="Delete Stage"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          Stage Name / Title
-                        </label>
-                        <input
-                          type="text"
-                          value={stg.stageName}
-                          onChange={(e) => {
-                            const newStages = [...editingWorkflow.stages];
-                            newStages[index].stageName = e.target.value;
-                            setEditingWorkflow({
-                              ...editingWorkflow,
-                              stages: newStages,
-                            });
-                          }}
-                          placeholder="e.g. Technical Verification"
-                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          Dealing Person Role / Type
-                        </label>
-                        <select
-                          value={stg.dealingRole}
-                          onChange={(e) => {
-                            const newStages = [...editingWorkflow.stages];
-                            const role = e.target.value;
-                            newStages[index].dealingRole = role;
-
-                            // Auto populate officer name based on item if applicable
-                            if (role === "reporting_manager") {
-                              newStages[index].dealingOfficerName =
-                                "Applicant's Supervising Officer (PI)";
-                            } else if (
-                              role === "supervisor" &&
-                              editingWorkflow.type === "facility"
-                            ) {
-                              const fac =
-                                editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName =
-                                fac.supervisor || "Lab Technical Supervisor";
-                            } else if (
-                              role === "assoc_nodal" &&
-                              editingWorkflow.type === "facility"
-                            ) {
-                              const fac =
-                                editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName =
-                                fac.assocNodal || "Associate Nodal Officer";
-                            } else if (
-                              role === "nodal" &&
-                              editingWorkflow.type === "facility"
-                            ) {
-                              const fac =
-                                editingWorkflow.item as FacilityRecord;
-                              newStages[index].dealingOfficerName =
-                                fac.nodal || "Nodal Officer";
-                            } else if (
-                              role === "manager" &&
-                              editingWorkflow.type === "service"
-                            ) {
-                              const srv = editingWorkflow.item as ServiceRecord;
-                              newStages[index].dealingOfficerName =
-                                srv.manager || "Service Manager";
-                            } else if (role === "it_head") {
-                              newStages[index].dealingOfficerName =
-                                "IT Officer / System Admin";
-                            }
-
-                            setEditingWorkflow({
-                              ...editingWorkflow,
-                              stages: newStages,
-                            });
-                          }}
-                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
-                        >
-                          <option value="reporting_manager">
-                            Reporting Manager / PI (Applicant Supervisor)
-                          </option>
-                          <option value="supervisor">
-                            Lab Technical Supervisor
-                          </option>
-                          <option value="assoc_nodal">
-                            Associate Nodal Officer
-                          </option>
-                          <option value="nodal">Nodal Officer</option>
-                          <option value="manager">
-                            Service In-Charge Manager
-                          </option>
-                          <option value="it_head">
-                            IT Head / Admin Officer
-                          </option>
-                          <option value="section_head">
-                            Section Head / Director
-                          </option>
-                          <option value="custom">
-                            Specific Officer / User
-                          </option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          Dealing Person Name
-                        </label>
-                        {stg.dealingRole === "custom" ? (
-                          <select
-                            value={stg.dealingOfficerName}
-                            onChange={(e) => {
-                              const newStages = [...editingWorkflow.stages];
-                              newStages[index].dealingOfficerName =
-                                e.target.value;
-                              setEditingWorkflow({
-                                ...editingWorkflow,
-                                stages: newStages,
-                              });
-                            }}
-                            className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
-                          >
-                            <option value="">Select Specific Officer</option>
-                            {managedUsers.map((u) => {
-                              const name = getDisplayName(u);
-                              return (
-                                <option key={u.id} value={name}>
-                                  {name} ({u.designation || "Officer"})
-                                </option>
-                              );
-                            })}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            value={stg.dealingOfficerName}
-                            onChange={(e) => {
-                              const newStages = [...editingWorkflow.stages];
-                              newStages[index].dealingOfficerName =
-                                e.target.value;
-                              setEditingWorkflow({
-                                ...editingWorkflow,
-                                stages: newStages,
-                              });
-                            }}
-                            placeholder="Officer Name / Designation"
-                            className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
-                          />
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          Stage Action Required
-                        </label>
-                        <select
-                          value={stg.actionType}
-                          onChange={(e) => {
-                            const newStages = [...editingWorkflow.stages];
-                            newStages[index].actionType = e.target.value as any;
-                            setEditingWorkflow({
-                              ...editingWorkflow,
-                              stages: newStages,
-                            });
-                          }}
-                          className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
-                        >
-                          <option value="endorsement">
-                            Endorsement / Recommendation
-                          </option>
-                          <option value="verification">
-                            Technical Verification / Inspection
-                          </option>
-                          <option value="approval">
-                            Final Officer Approval
-                          </option>
-                          <option value="provisioning">
-                            Provisioning & Clearance
-                          </option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 mt-2">
-                      <input
-                        type="checkbox"
-                        id={`mandatory-${index}`}
-                        checked={stg.isMandatory !== false}
-                        onChange={(e) => {
-                          const newStages = [...editingWorkflow.stages];
-                          newStages[index].isMandatory = e.target.checked;
-                          setEditingWorkflow({
-                            ...editingWorkflow,
-                            stages: newStages,
-                          });
-                        }}
-                        className="rounded text-purple-600 focus:ring-purple-500"
-                      />
-                      <label
-                        htmlFor={`mandatory-${index}`}
-                        className="text-xs font-semibold text-slate-700"
-                      >
-                        Mandatory Stage (Request cannot skip this step)
-                      </label>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* MODAL FOOTER */}
-            <div className="flex flex-wrap justify-between items-center gap-2 border-t border-slate-200 pt-3 flex-shrink-0 mt-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleAddStage}
-                  className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg text-xs font-bold flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Stage
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetWorkflowToDefault}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1"
-                  title="Reset to default multi-stage flow"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Reset Default
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingWorkflow(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveWorkflow}
-                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"
-                >
-                  <Check className="w-4 h-4" /> Save Workflow Stages
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 overflow-y-auto"><div className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl my-8 max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center border-b border-slate-200 pb-3 flex-shrink-0"><div className="flex items-center gap-2"><div className={`p-2 rounded-lg ${editingWorkflow.type === "facility" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}><GitMerge className="w-5 h-5" /></div><div><h3 className="font-extrabold text-slate-900 text-base">Configure Approval Workflow Stages</h3><p className="text-xs text-slate-500">Set sequence of dealing persons & officers for <span className="font-bold text-slate-800">{editingWorkflow.item.name}</span> ({editingWorkflow.item.id})</p></div></div><button onClick={() => setEditingWorkflow(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"><X className="w-5 h-5" /></button></div>
+          <div className="overflow-y-auto py-4 space-y-4 flex-grow pr-1">{editingWorkflow.stages.length === 0 ? <div className="py-8 text-center border border-dashed border-slate-300 rounded-xl text-slate-500 text-xs">No workflow stages defined. Click &quot;Add Stage&quot; below to add one.</div> : editingWorkflow.stages.map((stg, index) => <div key={index} className="p-4 border border-slate-200 rounded-xl bg-slate-50 space-y-3 relative hover:border-slate-300 transition-all"><div className="flex justify-between items-center border-b border-slate-200 pb-2"><div className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-purple-700 text-white font-bold text-xs flex items-center justify-center">{index + 1}</span><span className="font-bold text-xs text-slate-800">Stage {index + 1}: {stg.stageName || "Unnamed Stage"}</span></div><div className="flex items-center gap-1"><button type="button" onClick={() => handleMoveStage(index, "up")} disabled={index === 0} className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600" title="Move Stage Up"><ArrowUp className="w-3.5 h-3.5" /></button><button type="button" onClick={() => handleMoveStage(index, "down")} disabled={index === editingWorkflow.stages.length - 1} className="p-1 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 rounded text-slate-600" title="Move Stage Down"><ArrowDown className="w-3.5 h-3.5" /></button><button type="button" onClick={() => handleRemoveStage(index)} className="p-1 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded ml-2" title="Delete Stage"><Trash2 className="w-3.5 h-3.5" /></button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1"><div><label className="block text-[11px] font-bold text-slate-600 mb-1">Stage Name / Title</label><input type="text" value={stg.stageName} onChange={(e) => { const newStages = [...editingWorkflow.stages]; newStages[index].stageName = e.target.value; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} placeholder="e.g. Technical Verification" className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white" /></div><div><label className="block text-[11px] font-bold text-slate-600 mb-1">Dealing Person Role / Type</label><select value={stg.dealingRole} onChange={(e) => { const newStages = [...editingWorkflow.stages]; const role = e.target.value; newStages[index].dealingRole = role; if (role === "reporting_manager") newStages[index].dealingOfficerName = "Applicant's Supervising Officer (PI)"; else if (role === "supervisor" && editingWorkflow.type === "facility") { const fac = editingWorkflow.item as FacilityRecord; newStages[index].dealingOfficerName = fac.supervisor || "Lab Technical Supervisor"; } else if (role === "assoc_nodal" && editingWorkflow.type === "facility") { const fac = editingWorkflow.item as FacilityRecord; newStages[index].dealingOfficerName = fac.assocNodal || "Associate Nodal Officer"; } else if (role === "nodal" && editingWorkflow.type === "facility") { const fac = editingWorkflow.item as FacilityRecord; newStages[index].dealingOfficerName = fac.nodal || "Nodal Officer"; } else if (role === "manager" && editingWorkflow.type === "service") { const srv = editingWorkflow.item as ServiceRecord; newStages[index].dealingOfficerName = srv.manager || "Service Manager"; } else if (role === "it_head") newStages[index].dealingOfficerName = "IT Officer / System Admin"; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"><option value="reporting_manager">Reporting Manager / PI (Applicant Supervisor)</option><option value="supervisor">Lab Technical Supervisor</option><option value="assoc_nodal">Associate Nodal Officer</option><option value="nodal">Nodal Officer</option><option value="manager">Service In-Charge Manager</option><option value="it_head">IT Head / Admin Officer</option><option value="section_head">Section Head / Director</option><option value="custom">Specific Officer / User</option></select></div><div><label className="block text-[11px] font-bold text-slate-600 mb-1">Dealing Person Name</label>{stg.dealingRole === "custom" ? <select value={stg.dealingOfficerName} onChange={(e) => { const newStages = [...editingWorkflow.stages]; newStages[index].dealingOfficerName = e.target.value; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"><option value="">Select Specific Officer</option>{managedUsers.map((u) => { const name = getDisplayName(u); return <option key={u.id} value={name}>{name} ({u.designation || "Officer"})</option>; })}</select> : <input type="text" value={stg.dealingOfficerName} onChange={(e) => { const newStages = [...editingWorkflow.stages]; newStages[index].dealingOfficerName = e.target.value; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} placeholder="Officer Name / Designation" className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white" />}</div><div><label className="block text-[11px] font-bold text-slate-600 mb-1">Stage Action Required</label><select value={stg.actionType} onChange={(e) => { const newStages = [...editingWorkflow.stages]; newStages[index].actionType = e.target.value as any; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"><option value="endorsement">Endorsement / Recommendation</option><option value="verification">Technical Verification / Inspection</option><option value="approval">Final Officer Approval</option><option value="provisioning">Provisioning & Clearance</option></select></div></div><div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 mt-2"><input type="checkbox" id={`mandatory-${index}`} checked={stg.isMandatory !== false} onChange={(e) => { const newStages = [...editingWorkflow.stages]; newStages[index].isMandatory = e.target.checked; setEditingWorkflow({ ...editingWorkflow, stages: newStages }); }} className="rounded text-purple-600 focus:ring-purple-500" /><label htmlFor={`mandatory-${index}`} className="text-xs font-semibold text-slate-700">Mandatory Stage (Request cannot skip this step)</label></div></div>)}</div>
+          <div className="flex flex-wrap justify-between items-center gap-2 border-t border-slate-200 pt-3 flex-shrink-0 mt-2"><div className="flex gap-2"><button type="button" onClick={handleAddStage} className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg text-xs font-bold flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Stage</button><button type="button" onClick={handleResetWorkflowToDefault} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1" title="Reset to default multi-stage flow"><RotateCcw className="w-3.5 h-3.5" /> Reset Default</button></div><div className="flex gap-2"><button type="button" onClick={() => setEditingWorkflow(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700">Cancel</button><button type="button" onClick={handleSaveWorkflow} className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Check className="w-4 h-4" /> Save Workflow Stages</button></div></div>
+        </div></div>
       )}
     </div>
   );
