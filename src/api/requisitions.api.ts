@@ -1,12 +1,8 @@
 import { apiRequest } from "./apiClient";
 import type { RequisitionRecord } from "@/types";
 
-function encodeRequisitionId(
-  requisitionId: string,
-): string {
-  return encodeURIComponent(
-    String(requisitionId).trim(),
-  );
+function encodeRequisitionId(requisitionId: string): string {
+  return encodeURIComponent(String(requisitionId).trim());
 }
 
 export interface RequisitionListResponse {
@@ -21,15 +17,14 @@ export interface RequisitionDetailResponse {
 }
 
 export interface CreateRequisitionApiInput {
-  requisitionType:
-    | "IT_HRMS"
-    | "LAB_FACILITY"
-    | "COMBINED";
-
+  requisitionType: "IT_HRMS" | "LAB_FACILITY" | "COMBINED";
   requisitionMode?: "new" | "renewal";
   renewalReason?: string | null;
   remarks?: string | null;
-
+  selectedServiceKey?: string | null;
+  selectedServiceLabel?: string | null;
+  serviceName?: string | null;
+  formData?: Record<string, unknown> | null;
   itHrmsDetails?: {
     requestEmail?: boolean;
     requestedEmailPrefix?: string | null;
@@ -40,7 +35,6 @@ export interface CreateRequisitionApiInput {
     requestHrmsPms?: boolean;
     requestBiometric?: boolean;
   };
-
   labFacilities?: Array<{
     facilityId: string;
     facilityName: string;
@@ -50,10 +44,7 @@ export interface CreateRequisitionApiInput {
     hasBiometricId?: boolean;
     biometricIdNumber?: string | null;
     assignedLabPassId?: string | null;
-    nodalApprovalStatus?:
-      | "pending"
-      | "approved"
-      | "rejected";
+    nodalApprovalStatus?: "pending" | "approved" | "rejected";
     remarks?: string | null;
     reviewedById?: string | null;
     reviewedBy?: string | null;
@@ -64,45 +55,23 @@ export interface CreateRequisitionApiInput {
 }
 
 export async function getRequisitions(): Promise<RequisitionListResponse> {
-  return apiRequest<RequisitionListResponse>(
-    "/api/requisitions",
-  );
+  return apiRequest<RequisitionListResponse>("/api/requisitions");
 }
 
-export async function getRequisition(
-  requisitionId: string,
-): Promise<RequisitionDetailResponse> {
-  return apiRequest<RequisitionDetailResponse>(
-    `/api/requisitions/${encodeRequisitionId(requisitionId)}`,
-  );
+export async function getRequisition(requisitionId: string): Promise<RequisitionDetailResponse> {
+  return apiRequest<RequisitionDetailResponse>(`/api/requisitions/${encodeRequisitionId(requisitionId)}`);
 }
 
-export async function createRequisition(
-  input: CreateRequisitionApiInput,
-) {
-  return apiRequest<{
-    success: boolean;
-    message: string;
-    id: string;
-  }>("/api/requisitions", {
+export async function createRequisition(input: CreateRequisitionApiInput) {
+  return apiRequest<{ success: boolean; message: string; id: string }>("/api/requisitions", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export async function updateRequisition(
-  requisitionId: string,
-  input: Record<string, unknown>,
-) {
-  return apiRequest<{
-    success: boolean;
-    message: string;
-    id: string;
-  }>(
+export async function updateRequisition(requisitionId: string, input: Record<string, unknown>) {
+  return apiRequest<{ success: boolean; message: string; id: string }>(
     `/api/requisitions/${encodeRequisitionId(requisitionId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(input),
-    },
+    { method: "PUT", body: JSON.stringify(input) },
   );
 }
