@@ -14,6 +14,11 @@ ON DUPLICATE KEY UPDATE
   quota_access_specs = VALUES(quota_access_specs),
   updated_at = CURRENT_TIMESTAMP;
 
+-- Only the four agreed services remain active in the applicant Access catalogue.
+UPDATE service_masters
+SET status = CASE WHEN id IN ('SRV-01', 'SRV-02', 'SRV-03', 'SRV-04') THEN 'active' ELSE 'inactive' END,
+    updated_at = CURRENT_TIMESTAMP;
+
 INSERT INTO facility_masters
   (id, facility_name, department, nodal_officer_name, assoc_nodal_officer_name, supervisor_name, description, status)
 VALUES
@@ -31,3 +36,8 @@ ON DUPLICATE KEY UPDATE
   facility_name = VALUES(facility_name),
   description = VALUES(description),
   updated_at = CURRENT_TIMESTAMP;
+
+-- Labs and facilities are one master category; individual names belong inside it.
+UPDATE facility_masters
+SET status = CASE WHEN id = 'FAC-01' THEN 'active' ELSE 'inactive' END,
+    updated_at = CURRENT_TIMESTAMP;
