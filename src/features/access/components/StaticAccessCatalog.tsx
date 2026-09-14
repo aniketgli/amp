@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Fingerprint, FlaskConical, Mail, PlusCircle, ShieldCheck, Wifi, XCircle } from "lucide-react";
+import { Check, Fingerprint, FlaskConical, Mail, PlusCircle, ShieldCheck, Wifi } from "lucide-react";
 
 export type StaticAccessItem = {
   key: string;
@@ -22,6 +22,30 @@ export const STATIC_ACCESS_ITEMS: StaticAccessItem[] = [
   { key: "research-laboratory", title: "WII Research Laboratory Access Facilities", subtitle: "Equipment Usage Authorization & Nodal Approvals across 9 Specialized Research Labs", emptyTitle: "No Active Research Laboratory Access", description: "Apply for equipment usage authorization across specialized WII research labs (GIS & Remote Sensing, Wildlife Forensics, Conservation Genetics, Analytical Suite, etc.).", buttonLabel: "Apply for Research Laboratory Access", scope: "lab", kind: "facility", color: "bg-teal-600", icon: FlaskConical },
 ];
 
+function StatusToggle({ isActive, onToggle }: { isActive: boolean; onToggle?: () => void }) {
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <span className={`text-[11px] font-bold ${isActive ? "text-emerald-700" : "text-slate-500"}`}>
+        {isActive ? "Active" : "Inactive"}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isActive}
+        aria-label={`${isActive ? "Deactivate" : "Activate"} ${"Access item"}`}
+        onClick={onToggle}
+        disabled={!onToggle}
+        className={`relative w-11 h-6 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-default disabled:opacity-100 ${isActive ? "bg-emerald-500 border-emerald-500" : "bg-slate-300 border-slate-300"}`}
+        title={isActive ? "Set Inactive" : "Set Active"}
+      >
+        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${isActive ? "translate-x-5" : "translate-x-0.5"}`}>
+          {isActive && <Check className="w-3 h-3 text-emerald-600 m-1" />}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export function StaticAccessCatalog({
   onApply,
   itemStates = {},
@@ -37,22 +61,13 @@ export function StaticAccessCatalog({
         const Icon = item.icon;
         const isActive = itemStates[item.key] !== false;
         return (
-          <article key={item.key} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          <article key={item.key} className={`bg-white rounded-xl border overflow-hidden shadow-sm transition-opacity ${isActive ? "border-slate-200" : "border-slate-200 opacity-65"}`}>
             <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${item.color}`}><Icon className="w-5 h-5 text-white" /></div>
-                <div className="min-w-0"><h3 className="text-sm font-extrabold text-slate-900 truncate">{item.title}</h3><p className="text-[11px] text-blue-700/80 mt-0.5 truncate">{item.subtitle}</p></div>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isActive ? item.color : "bg-slate-300"}`}><Icon className="w-5 h-5 text-white" /></div>
+                <div className="min-w-0"><h3 className={`text-sm font-extrabold truncate ${isActive ? "text-slate-900" : "text-slate-500"}`}>{item.title}</h3><p className={`text-[11px] mt-0.5 truncate ${isActive ? "text-blue-700/80" : "text-slate-400"}`}>{item.subtitle}</p></div>
               </div>
-              <button
-                type="button"
-                onClick={() => onToggle?.(item)}
-                disabled={!onToggle}
-                className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-extrabold transition-colors ${isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"} disabled:cursor-default disabled:opacity-100`}
-                title={isActive ? "Deactivate this Access item" : "Activate this Access item"}
-              >
-                {isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                {isActive ? "Active" : "Inactive"}
-              </button>
+              <StatusToggle isActive={isActive} onToggle={onToggle ? () => onToggle(item) : undefined} />
             </div>
             {isActive ? (
               <div className="p-4">
@@ -65,10 +80,10 @@ export function StaticAccessCatalog({
               </div>
             ) : (
               <div className="p-4">
-                <div className="min-h-[120px] rounded-xl border border-dashed border-red-200 bg-red-50/50 flex flex-col items-center justify-center text-center px-5 py-7">
-                  <XCircle className="w-6 h-6 text-red-500 mb-2" />
-                  <div className="text-sm font-extrabold text-red-800">Access Disabled</div>
-                  <p className="text-[11px] text-red-600 mt-1">This Access item is inactive in Master and is hidden from the applicant Access tab.</p>
+                <div className="min-h-[190px] rounded-xl border border-dashed border-slate-300 bg-slate-100 flex flex-col items-center justify-center text-center px-5 py-7 select-none">
+                  <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-3"><Icon className="w-5 h-5 text-slate-400" /></div>
+                  <div className="text-sm font-extrabold text-slate-500">Access Inactive</div>
+                  <p className="max-w-[650px] text-[11px] leading-5 text-slate-400 mt-1.5">This access form is currently inactive and will not be shown to applicants.</p>
                 </div>
               </div>
             )}
