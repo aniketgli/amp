@@ -45,7 +45,7 @@ interface FacilitiesServicesSectionProps {
 function readLabRows(facility: any): LabFacilityRow[] {
   const rows = facility?.formConfig?.labFacilityRows;
   if (Array.isArray(rows)) return rows.map((row: any, i: number) => ({
-    id: String(row?.id || `LAB-${i + 1}`), name: String(row?.name || "").trim(), nodal: String(row?.nodal || "").trim(), assocNodal: String(row?.assocNodal || "").trim(), supervisor: String(row?.supervisor || "").trim(), status: String(row?.status || "active").toLowerCase() === "inactive" ? "inactive" : "active",
+    id: String(row?.id || `LAB-${i + 1}`), name: String(row?.name || "").trim(), nodal: String(row?.nodal || "").trim(), assocNodal: String(row?.assocNodal || "").trim(), supervisor: String(row?.supervisor || "").trim(), status: String(row?.status || "active").toLowerCase() === "inactive" ? "inactive" as const : "active" as const,
   })).filter((row: LabFacilityRow) => row.name);
   return Array.isArray(facility?.formConfig?.labNames) ? facility.formConfig.labNames.map((name: unknown, i: number) => ({ id: `LAB-${i + 1}`, name: String(name), nodal: "", assocNodal: "", supervisor: "", status: "active" as const })) : [];
 }
