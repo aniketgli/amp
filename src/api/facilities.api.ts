@@ -1,4 +1,5 @@
 import { apiRequest } from "./apiClient";
+import type { AccessFormConfig } from "./serviceFormConfig.types";
 
 export interface FacilityApiRecord {
   id: string;
@@ -9,6 +10,7 @@ export interface FacilityApiRecord {
   supervisor?: string;
   description?: string;
   status?: string;
+  formConfig?: AccessFormConfig | null;
 }
 
 export interface FacilitiesResponse {
