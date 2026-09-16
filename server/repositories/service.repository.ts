@@ -34,12 +34,7 @@ export const REQUIRED_ACCESS_SERVICES = [
   { id: "SRV-04", name: "Institute Smart Identity Card & RFID Campus Pass", quota: null },
 ] as const;
 
-/**
- * The catalogue migrations are intentionally idempotent, but an already
- * deployed database may not yet have run the latest migration. Keep the
- * required four records available from the application as well, without
- * overwriting manager assignments or other administrator changes.
- */
+/** Keep the agreed four-service catalogue available on older installations. */
 export async function ensureRequiredAccessServices(): Promise<void> {
   for (const service of REQUIRED_ACCESS_SERVICES) {
     try {
@@ -56,8 +51,7 @@ export async function ensureRequiredAccessServices(): Promise<void> {
         [service.id, service.name, service.quota],
       );
     } catch (_) {
-      // Older schemas may not have updated_at. The regular migration/repository
-      // fallback paths remain responsible for those deployments.
+      // Keep GET usable on older schemas; migrations remain authoritative.
     }
   }
 }
@@ -65,36 +59,30 @@ export async function ensureRequiredAccessServices(): Promise<void> {
 export async function getAllServices(): Promise<any[]> {
   try {
     const [rows]: any = await db.query(`
-      SELECT
-        id,
-        service_name,
-        manager_name,
-        quota_access_specs,
-        status,
-        workflow_stages,
-        form_config,
-        created_at,
-        updated_at
+      SELECT id, service_name, manager_name, quota_access_specs, status,
+             workflow_stages, form_config, created_at, updated_at
       FROM service_masters
       ORDER BY id
     `);
-
     return rows;
   } catch (_) {
-    const [rows]: any = await db.query(`
-      SELECT
-        id,
-        service_name,
-        manager_name,
-        quota_access_specs,
-        status,
-        created_at,
-        updated_at
-      FROM service_masters
-      ORDER BY id
-    `);
-
-    return rows;
+    try {
+      const [rows]: any = await db.query(`
+        SELECT id, service_name, manager_name, quota_access_specs, status,
+               form_config, created_at, updated_at
+        FROM service_masters
+        ORDER BY id
+      `);
+      return rows;
+    } catch (_) {
+      const [rows]: any = await db.query(`
+        SELECT id, service_name, manager_name, quota_access_specs, status,
+               created_at, updated_at
+        FROM service_masters
+        ORDER BY id
+      `);
+      return rows;
+    }
   }
 }
 
@@ -107,7 +95,6 @@ export async function getNextServiceId(): Promise<string> {
   `);
 
   let nextNumber = 1;
-
   if (existing.length > 0) {
     const numbers = existing
       .map((row: any) => {
@@ -115,78 +102,34 @@ export async function getNextServiceId(): Promise<string> {
         return match ? Number(match[1]) : 0;
       })
       .filter((n: number) => Number.isFinite(n));
-
-    if (numbers.length > 0) {
-      nextNumber = Math.max(...numbers) + 1;
-    }
+    if (numbers.length > 0) nextNumber = Math.max(...numbers) + 1;
   }
-
   return `SRV-${String(nextNumber).padStart(2, "0")}`;
 }
 
 export async function createService(input: CreateServiceInput): Promise<void> {
-  const stagesJson = input.workflowStages
-    ? JSON.stringify(input.workflowStages)
-    : null;
-  const formConfigJson = input.formConfig
-    ? JSON.stringify(input.formConfig)
-    : null;
-
+  const stagesJson = input.workflowStages ? JSON.stringify(input.workflowStages) : null;
+  const formConfigJson = input.formConfig ? JSON.stringify(input.formConfig) : null;
   try {
     await db.query(
-      `
-        INSERT INTO service_masters
-        (
-          id,
-          service_name,
-          manager_name,
-          quota_access_specs,
-          status,
-          workflow_stages,
-          form_config
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        input.id,
-        input.name,
-        input.manager,
-        input.quota || null,
-        input.status,
-        stagesJson,
-        formConfigJson,
-      ],
+      `INSERT INTO service_masters
+       (id, service_name, manager_name, quota_access_specs, status, workflow_stages, form_config)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [input.id, input.name, input.manager, input.quota || null, input.status, stagesJson, formConfigJson],
     );
   } catch (_) {
     try {
       await db.query(
-        `
-          INSERT INTO service_masters
-          (
-            id,
-            service_name,
-            manager_name,
-            quota_access_specs,
-            status,
-            form_config
-          )
-          VALUES (?, ?, ?, ?, ?, ?)
-        `,
+        `INSERT INTO service_masters
+         (id, service_name, manager_name, quota_access_specs, status, form_config)
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [input.id, input.name, input.manager, input.quota || null, input.status, formConfigJson],
       );
     } catch (_) {
       await db.query(
-        `
-          INSERT INTO service_masters
-          (
-            id,
-            service_name,
-            manager_name,
-            quota_access_specs,
-            status
-          )
-          VALUES (?, ?, ?, ?, ?)
-        `,
+        `INSERT INTO service_masters
+         (id, service_name, manager_name, quota_access_specs, status)
+         VALUES (?, ?, ?, ?, ?)`,
         [input.id, input.name, input.manager, input.quota || null, input.status],
       );
     }
@@ -194,79 +137,32 @@ export async function createService(input: CreateServiceInput): Promise<void> {
 }
 
 export async function updateService(input: UpdateServiceInput): Promise<any> {
-  const stagesJson = input.workflowStages
-    ? JSON.stringify(input.workflowStages)
-    : null;
-  const formConfigJson = input.formConfig
-    ? JSON.stringify(input.formConfig)
-    : null;
-
+  const stagesJson = input.workflowStages ? JSON.stringify(input.workflowStages) : null;
+  const formConfigJson = input.formConfig ? JSON.stringify(input.formConfig) : null;
   try {
     const [result]: any = await db.query(
-      `
-        UPDATE service_masters
-        SET
-          service_name = ?,
-          manager_name = ?,
-          quota_access_specs = ?,
-          status = ?,
-          workflow_stages = ?,
-          form_config = ?
-        WHERE id = ?
-      `,
-      [
-        input.name,
-        input.manager,
-        input.quota || null,
-        input.status || "active",
-        stagesJson,
-        formConfigJson,
-        input.id,
-      ],
+      `UPDATE service_masters
+       SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?,
+           workflow_stages = ?, form_config = ?
+       WHERE id = ?`,
+      [input.name, input.manager, input.quota || null, input.status || "active", stagesJson, formConfigJson, input.id],
     );
-
     return result;
   } catch (_) {
     try {
       const [result]: any = await db.query(
-        `
-          UPDATE service_masters
-          SET
-            service_name = ?,
-            manager_name = ?,
-            quota_access_specs = ?,
-            status = ?,
-            form_config = ?
-          WHERE id = ?
-        `,
-        [
-          input.name,
-          input.manager,
-          input.quota || null,
-          input.status || "active",
-          formConfigJson,
-          input.id,
-        ],
+        `UPDATE service_masters
+         SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?, form_config = ?
+         WHERE id = ?`,
+        [input.name, input.manager, input.quota || null, input.status || "active", formConfigJson, input.id],
       );
       return result;
     } catch (_) {
       const [result]: any = await db.query(
-        `
-          UPDATE service_masters
-          SET
-            service_name = ?,
-            manager_name = ?,
-            quota_access_specs = ?,
-            status = ?
-          WHERE id = ?
-        `,
-        [
-          input.name,
-          input.manager,
-          input.quota || null,
-          input.status || "active",
-          input.id,
-        ],
+        `UPDATE service_masters
+         SET service_name = ?, manager_name = ?, quota_access_specs = ?, status = ?
+         WHERE id = ?`,
+        [input.name, input.manager, input.quota || null, input.status || "active", input.id],
       );
       return result;
     }
@@ -274,13 +170,6 @@ export async function updateService(input: UpdateServiceInput): Promise<any> {
 }
 
 export async function deleteService(id: string): Promise<any> {
-  const [result]: any = await db.query(
-    `
-      DELETE FROM service_masters
-      WHERE id = ?
-    `,
-    [id],
-  );
-
+  const [result]: any = await db.query(`DELETE FROM service_masters WHERE id = ?`, [id]);
   return result;
 }
