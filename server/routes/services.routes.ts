@@ -25,17 +25,20 @@ export function registerServicesRoutes(app: Express) {
       if (!isDbConnected) return res.status(503).json({ success: false, message: "Database is unavailable." });
       await ensureRequiredAccessServices();
       const rows = await getAllServices();
-      const services = rows.map((row: any) => ({
-        id: row.id,
-        name: row.service_name,
-        manager: row.manager_name || "",
-        quota: row.quota_access_specs || "",
-        status: row.status || "active",
-        workflowStages: parseJson(row.workflow_stages),
-        formConfig: parseJson(row.form_config),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      const services = rows.map((row: any) => {
+        const formConfig = parseJson(row.form_config);
+        return {
+          id: row.id,
+          name: row.service_name,
+          manager: row.manager_name || "",
+          quota: row.quota_access_specs || "",
+          status: row.status || "active",
+          workflowStages: parseJson(row.workflow_stages) || formConfig?.approvalWorkflowStages || null,
+          formConfig,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
       return res.json({ success: true, count: services.length, services });
     } catch (error) {
       console.error("GET /api/services ERROR:", error);
