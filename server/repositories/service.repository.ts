@@ -27,6 +27,41 @@ export interface UpdateServiceInput {
   formConfig?: Record<string, unknown> | null;
 }
 
+export const REQUIRED_ACCESS_SERVICES = [
+  { id: "SRV-01", name: "Official WII Email ID (@wii.gov.in)", quota: "Institute Webmail Account, Domain Access & Group Mappings" },
+  { id: "SRV-02", name: "Campus Internet & Wi-Fi MAC Address Registration", quota: "Device Hardware Address MAC Binding for High-Speed LAN & Campus Wi-Fi" },
+  { id: "SRV-03", name: "HRMS / PMS Portal & Biometric Attendance", quota: null },
+  { id: "SRV-04", name: "Institute Smart Identity Card & RFID Campus Pass", quota: null },
+] as const;
+
+/**
+ * The catalogue migrations are intentionally idempotent, but an already
+ * deployed database may not yet have run the latest migration. Keep the
+ * required four records available from the application as well, without
+ * overwriting manager assignments or other administrator changes.
+ */
+export async function ensureRequiredAccessServices(): Promise<void> {
+  for (const service of REQUIRED_ACCESS_SERVICES) {
+    try {
+      await db.query(
+        `
+          INSERT INTO service_masters
+            (id, service_name, manager_name, quota_access_specs, status)
+          VALUES (?, ?, 'Not Configured', ?, 'active')
+          ON DUPLICATE KEY UPDATE
+            service_name = VALUES(service_name),
+            status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+        `,
+        [service.id, service.name, service.quota],
+      );
+    } catch (_) {
+      // Older schemas may not have updated_at. The regular migration/repository
+      // fallback paths remain responsible for those deployments.
+    }
+  }
+}
+
 export async function getAllServices(): Promise<any[]> {
   try {
     const [rows]: any = await db.query(`
