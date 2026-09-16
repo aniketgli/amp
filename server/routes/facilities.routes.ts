@@ -23,20 +23,23 @@ export function registerFacilitiesRoutes(app: Express) {
     try {
       if (!isDbConnected) return res.status(503).json({ success: false, message: "Database is unavailable." });
       const rows = await getAllFacilities();
-      const facilities = rows.map((row: any) => ({
-        id: row.id,
-        name: row.facility_name,
-        dept: row.department || "",
-        nodal: row.nodal_officer_name || "",
-        assocNodal: row.assoc_nodal_officer_name || "",
-        supervisor: row.supervisor_name || "",
-        desc: row.description || "",
-        status: row.status || "active",
-        workflowStages: parseJson(row.workflow_stages),
-        formConfig: parseJson(row.form_config),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      const facilities = rows.map((row: any) => {
+        const formConfig = parseJson(row.form_config);
+        return {
+          id: row.id,
+          name: row.facility_name,
+          dept: row.department || "",
+          nodal: row.nodal_officer_name || "",
+          assocNodal: row.assoc_nodal_officer_name || "",
+          supervisor: row.supervisor_name || "",
+          desc: row.description || "",
+          status: row.status || "active",
+          workflowStages: parseJson(row.workflow_stages) || formConfig?.approvalWorkflowStages || null,
+          formConfig,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
       return res.json({ success: true, count: facilities.length, facilities });
     } catch (error) {
       console.error("GET /api/facilities ERROR:", error);
