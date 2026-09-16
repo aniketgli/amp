@@ -23,11 +23,7 @@ export function registerServicesRoutes(app: Express) {
   app.get("/api/services", authenticateToken, async (_req, res) => {
     try {
       if (!isDbConnected) return res.status(503).json({ success: false, message: "Database is unavailable." });
-
-      // Keep the agreed four-service catalogue available even when an existing
-      // installation has not yet executed the latest access-master migration.
       await ensureRequiredAccessServices();
-
       const rows = await getAllServices();
       const services = rows.map((row: any) => ({
         id: row.id,
@@ -83,7 +79,7 @@ export function registerServicesRoutes(app: Express) {
       return res.json({ success: true, message: "Service deleted successfully." });
     } catch (error) {
       console.error("DELETE /api/services ERROR:", error);
-      return res.status(500).json({ success: true, message: "Service not found." });
+      return res.status(500).json({ success: false, message: "Unable to delete service." });
     }
   });
 }
