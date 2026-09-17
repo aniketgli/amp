@@ -7,8 +7,8 @@ type WorkflowType = "facility" | "service";
 type WorkflowStage = { stageNumber: number; stageName: string; dealingRole: string; dealingOfficerName: string; actionType: "endorsement" | "verification" | "approval" | "provisioning"; approvalMode: ApprovalMode; isMandatory: boolean };
 type LabFacilityRow = { id: string; name: string; nodal: string; assocNodal: string; supervisor: string; status: "active" | "inactive" };
 type OfficerOption = { id: string | number; name: string };
-
 type ServiceDefinition = { id: string; name: string; quota: string };
+
 const DEFAULT_SERVICES: ServiceDefinition[] = [
   { id: "SRV-01", name: "Official WII Email ID (@wii.gov.in)", quota: "Institute Webmail Account, Domain Access & Group Mappings" },
   { id: "SRV-02", name: "Campus Internet & Wi-Fi MAC Address Registration", quota: "Device Hardware Address MAC Binding for High-Speed LAN & Campus Wi-Fi" },
@@ -55,14 +55,7 @@ function readLabRows(facility: any): LabFacilityRow[] {
     })).filter((row: LabFacilityRow) => row.name);
   }
   return Array.isArray(facility?.formConfig?.labNames)
-    ? facility.formConfig.labNames.map((name: unknown, index: number) => ({
-        id: `LAB-${index + 1}`,
-        name: String(name).trim(),
-        nodal: String(facility?.nodal || "").trim(),
-        assocNodal: String(facility?.assocNodal || "").trim(),
-        supervisor: String(facility?.supervisor || "").trim(),
-        status: "active" as const,
-      }))
+    ? facility.formConfig.labNames.map((name: unknown, index: number) => ({ id: `LAB-${index + 1}`, name: String(name).trim(), nodal: String(facility?.nodal || "").trim(), assocNodal: String(facility?.assocNodal || "").trim(), supervisor: String(facility?.supervisor || "").trim(), status: "active" as const }))
     : [];
 }
 
@@ -82,7 +75,11 @@ function serviceWithDefaults(service: any, definition: ServiceDefinition) {
 }
 
 export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, facilitiesError, servicesList, servicesLoading, servicesError, fetchServices, fetchFacilities }: any) {
-  const facility = facilitiesList?.[0];
+  const [masterFacility, setMasterFacility] = useState<any>(null);
+  const [masterServices, setMasterServices] = useState<any[]>([]);
+  const [masterLoading, setMasterLoading] = useState(false);
+  const [masterError, setMasterError] = useState<string | null>(null);
+  const facility = masterFacility || facilitiesList?.[0];
   const [labRows, setLabRows] = useState<LabFacilityRow[]>(() => readLabRows(facility));
   const [editingRow, setEditingRow] = useState<LabFacilityRow | null>(null);
   const [isAddingRow, setIsAddingRow] = useState(false);
@@ -96,32 +93,43 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
   const [workflowSaving, setWorkflowSaving] = useState(false);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
 
-  useEffect(() => { setLabRows(readLabRows(facilitiesList?.[0])); }, [facilitiesList]);
+  const refreshMasters = async () => {
+    setMasterLoading(true); setMasterError(null);
+    try {
+      const [facilityData, serviceData] = await Promise.all([
+        apiRequest<any>("/api/facilities"),
+        apiRequest<any>("/api/services"),
+      ]);
+      if (facilityData?.success && Array.isArray(facilityData.facilities)) setMasterFacility(facilityData.facilities[0] || null);
+      if (serviceData?.success && Array.isArray(serviceData.services)) setMasterServices(serviceData.services);
+    } catch (error) {
+      setMasterError(error instanceof Error ? error.message : "Unable to load master data.");
+    } finally { setMasterLoading(false); }
+  };
+
+  useEffect(() => { void refreshMasters(); }, []);
+  useEffect(() => { setLabRows(readLabRows(facility)); }, [facility]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch("/api/users", { headers: { Accept: "application/json" } });
-        const data = await response.json();
-        if (!response.ok || !data.success || !Array.isArray(data.users)) return;
-        const users = data.users
-          .map((user: any) => ({ id: user.id, name: String(user.fullName || user.name || user.displayName || "").trim() }))
-          .filter((user: OfficerOption) => user.name);
+        const data = await apiRequest<any>("/api/users");
+        if (!data?.success || !Array.isArray(data.users)) return;
+        const users = data.users.map((user: any) => ({ id: user.id, name: String(user.fullName || user.name || user.displayName || "").trim() })).filter((user: OfficerOption) => user.name);
         if (!cancelled) setOfficerOptions(users);
-      } catch {
-        // Not Configured is always available.
-      }
+      } catch { /* Not Configured remains available. */ }
     })();
     return () => { cancelled = true; };
   }, []);
 
   const displayServices = useMemo(() => {
-    const byId = new Map((servicesList || []).map((service: any) => [String(service.id), service]));
+    const source = masterServices.length ? masterServices : servicesList || [];
+    const byId = new Map(source.map((service: any) => [String(service.id), service]));
     return DEFAULT_SERVICES.map((definition) => serviceWithDefaults(byId.get(definition.id), definition));
-  }, [servicesList]);
+  }, [masterServices, servicesList]);
 
-  const facilityStages = useMemo(() => normalizeStages(facility?.workflowStages, "facility"), [facility]);
+  const facilityStages = useMemo(() => normalizeStages(facility?.workflowStages || facility?.formConfig?.approvalWorkflowStages, "facility"), [facility]);
   const showQuotaAccess = (service: any) => service?.id === "SRV-01" || service?.id === "SRV-02";
 
   const persistLabRows = async (nextRows: LabFacilityRow[]) => {
@@ -131,24 +139,14 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       const currentConfig = facility.formConfig && typeof facility.formConfig === "object" ? facility.formConfig : {};
       await apiRequest(`/api/facilities/${encodeURIComponent(String(facility.id))}`, {
         method: "PUT",
-        body: JSON.stringify({
-          name: facility.name || "Labs & Facility",
-          dept: facility.dept || null,
-          nodal: facility.nodal || "Not Configured",
-          assocNodal: facility.assocNodal || "Not Configured",
-          supervisor: facility.supervisor || "Not Configured",
-          desc: facility.desc || null,
-          status: facility.status || "active",
-          workflowStages: facility.workflowStages || facilityStages,
-          formConfig: { ...currentConfig, labFacilityRows: nextRows },
-        }),
+        body: JSON.stringify({ name: facility.name || "Labs & Facility", dept: facility.dept || null, nodal: facility.nodal || "Not Configured", assocNodal: facility.assocNodal || "Not Configured", supervisor: facility.supervisor || "Not Configured", desc: facility.desc || null, status: facility.status || "active", workflowStages: facility.workflowStages || facilityStages, formConfig: { ...currentConfig, labFacilityRows: nextRows } }),
       });
       setLabRows(nextRows);
+      await refreshMasters();
       await fetchFacilities();
       setEditingRow(null); setIsAddingRow(false);
-    } catch (error) {
-      setRowError(error instanceof Error ? error.message : "Unable to save lab/facility details.");
-    } finally { setSavingRows(false); }
+    } catch (error) { setRowError(error instanceof Error ? error.message : "Unable to save lab/facility details."); }
+    finally { setSavingRows(false); }
   };
 
   const openAddRow = () => {
@@ -232,23 +230,17 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       const stagesToSave = normalizeStages(editingWorkflow.stages, editingWorkflow.type, item?.manager || "", item?.approver || item?.formConfig?.approver || "");
       if (editingWorkflow.type === "facility") {
         const currentConfig = item?.formConfig && typeof item.formConfig === "object" ? item.formConfig : {};
-        await apiRequest(`/api/facilities/${encodeURIComponent(String(item.id))}`, {
-          method: "PUT",
-          body: JSON.stringify({ name: item.name || "Labs & Facility", dept: item.dept || null, nodal: item.nodal || "Not Configured", assocNodal: item.assocNodal || "Not Configured", supervisor: item.supervisor || "Not Configured", desc: item.desc || null, status: item.status || "active", workflowStages: stagesToSave, formConfig: { ...currentConfig, approvalWorkflowStages: stagesToSave } }),
-        });
-        await fetchFacilities();
+        await apiRequest(`/api/facilities/${encodeURIComponent(String(item.id))}`, { method: "PUT", body: JSON.stringify({ name: item.name || "Labs & Facility", dept: item.dept || null, nodal: item.nodal || "Not Configured", assocNodal: item.assocNodal || "Not Configured", supervisor: item.supervisor || "Not Configured", desc: item.desc || null, status: item.status || "active", workflowStages: stagesToSave, formConfig: { ...currentConfig, approvalWorkflowStages: stagesToSave } }) });
       } else {
         const currentConfig = item?.formConfig && typeof item.formConfig === "object" ? item.formConfig : {};
-        await apiRequest(`/api/services/${encodeURIComponent(String(item.id))}`, {
-          method: "PUT",
-          body: JSON.stringify({ name: item.name, manager: item.manager || "Not Configured", quota: showQuotaAccess(item) ? item.quota || "" : "", status: item.status === "inactive" ? "inactive" : "active", workflowStages: stagesToSave, formConfig: { ...currentConfig, approvalWorkflowStages: stagesToSave, approver: item.approver || "Not Configured" } }),
-        });
-        await fetchServices();
+        await apiRequest(`/api/services/${encodeURIComponent(String(item.id))}`, { method: "PUT", body: JSON.stringify({ name: item.name, manager: item.manager || "Not Configured", quota: showQuotaAccess(item) ? item.quota || "" : "", status: item.status === "inactive" ? "inactive" : "active", workflowStages: stagesToSave, formConfig: { ...currentConfig, approvalWorkflowStages: stagesToSave, approver: item.approver || "Not Configured" } }) });
       }
+      await refreshMasters();
+      await fetchFacilities();
+      await fetchServices();
       setEditingWorkflow(null);
-    } catch (error) {
-      setWorkflowError(error instanceof Error ? error.message : "Unable to save approval workflow.");
-    } finally { setWorkflowSaving(false); }
+    } catch (error) { setWorkflowError(error instanceof Error ? error.message : "Unable to save approval workflow."); }
+    finally { setWorkflowSaving(false); }
   };
 
   const saveService = async () => {
@@ -259,79 +251,43 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
     try {
       const currentConfig = editingService.formConfig && typeof editingService.formConfig === "object" ? editingService.formConfig : {};
       const workflowStages = Array.isArray(editingService.workflowStages) ? normalizeStages(editingService.workflowStages, "service", editingService.manager, editingService.approver) : getDefaultServiceWorkflow(editingService.manager, editingService.approver);
-      await apiRequest(`/api/services/${encodeURIComponent(String(editingService.id))}`, {
-        method: "PUT",
-        body: JSON.stringify({ name: String(editingService.name || "").trim(), manager: String(editingService.manager || "").trim(), quota: showQuotaAccess(editingService) ? String(editingService.quota || "").trim() : "", status: editingService.status === "inactive" ? "inactive" : "active", workflowStages, formConfig: { ...currentConfig, approvalWorkflowStages: workflowStages, approver: String(editingService.approver || "").trim() } }),
-      });
-      await fetchServices(); setEditingService(null);
-    } catch (error) {
-      setServiceError(error instanceof Error ? error.message : "Unable to update service.");
-    } finally { setSavingService(false); }
+      await apiRequest(`/api/services/${encodeURIComponent(String(editingService.id))}`, { method: "PUT", body: JSON.stringify({ name: String(editingService.name || "").trim(), manager: String(editingService.manager || "").trim(), quota: showQuotaAccess(editingService) ? String(editingService.quota || "").trim() : "", status: editingService.status === "inactive" ? "inactive" : "active", workflowStages, formConfig: { ...currentConfig, approvalWorkflowStages: workflowStages, approver: String(editingService.approver || "").trim() } }) });
+      await refreshMasters();
+      await fetchServices();
+      setEditingService(null);
+    } catch (error) { setServiceError(error instanceof Error ? error.message : "Unable to update service."); }
+    finally { setSavingService(false); }
   };
 
   const renderWorkflowPreview = (stages: WorkflowStage[], tone: "purple" | "emerald", type: WorkflowType, item: any) => (
     <div className="mt-3 border-t border-slate-200 pt-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 text-xs font-bold text-slate-700"><GitMerge className={`h-3.5 w-3.5 ${tone === "purple" ? "text-purple-600" : "text-emerald-600"}`} />Approval Flow ({stages.length} Stages)</div>
-        <button type="button" onClick={() => openWorkflowEditor(type, item)} className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold ${tone === "purple" ? "bg-purple-50 text-purple-700 hover:bg-purple-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`} title="Edit Approval Flow"><Pencil className="h-3 w-3" />Edit</button>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">
-        {stages.map((stage, index) => <React.Fragment key={`${stage.stageNumber}-${index}`}><span className={`rounded border px-1.5 py-0.5 font-medium ${tone === "purple" ? "border-purple-200 bg-purple-50 text-purple-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{String(stage.stageName).split(" ")[0]}</span>{index < stages.length - 1 && <span className="font-bold text-slate-400">➜</span>}</React.Fragment>)}
-      </div>
+      <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-1 text-xs font-bold text-slate-700"><GitMerge className={`h-3.5 w-3.5 ${tone === "purple" ? "text-purple-600" : "text-emerald-600"}`} />Approval Flow ({stages.length} Stages)</div><button type="button" onClick={() => openWorkflowEditor(type, item)} className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold ${tone === "purple" ? "bg-purple-50 text-purple-700 hover:bg-purple-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`} title="Edit Approval Flow"><Pencil className="h-3 w-3" />Edit</button></div>
+      <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">{stages.map((stage, index) => <React.Fragment key={`${stage.stageNumber}-${index}`}><span className={`rounded border px-1.5 py-0.5 font-medium ${tone === "purple" ? "border-purple-200 bg-purple-50 text-purple-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{String(stage.stageName).split(" ")[0]}</span>{index < stages.length - 1 && <span className="font-bold text-slate-400">➜</span>}</React.Fragment>)}</div>
     </div>
   );
 
   return <div className="space-y-8">
     <section>
-      <div className="mb-4 flex flex-wrap items-center justify-between border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2"><Wrench className="h-4 w-4 text-emerald-600" /><h3 className="font-bold text-slate-800">Services Master Directory</h3><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-800">{displayServices.length} Total</span></div>
-      </div>
-      {servicesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading Services...</div>}
-      {servicesError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{servicesError}</div>}
-      {!servicesLoading && <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        {displayServices.map((service: any) => {
-          const serviceStages = service.workflowStages?.length ? normalizeStages(service.workflowStages, "service", service.manager, service.approver) : getDefaultServiceWorkflow(service.manager, service.approver);
-          const active = service.status !== "inactive";
-          return <div key={service.id} className={`min-h-[250px] rounded-xl border bg-white p-5 shadow-sm ${active ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
-            <div className="flex items-start justify-between gap-3"><h4 className="text-base font-bold leading-snug text-slate-900">{service.name}</h4><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{active ? "Active" : "Inactive"}</span></div>
-            <div className="mt-4 space-y-2 text-sm">
-              <div><span className="font-bold text-slate-700">Manager:</span> <span className="text-slate-600">{service.manager}</span><button type="button" onClick={() => setEditingService({ ...service })} className="ml-2 inline-flex rounded p-1 text-emerald-700 hover:bg-emerald-100" title="Edit Service"><Edit3 className="h-4 w-4" /></button></div>
-              <div><span className="font-bold text-slate-700">Approver:</span> <span className="text-slate-600">{service.approver}</span></div>
-              {showQuotaAccess(service) && <div><span className="font-bold text-slate-700">Quota / Access:</span> <span className="text-slate-600">{service.quota || "Not Configured"}</span></div>}
-            </div>
-            {renderWorkflowPreview(serviceStages, "emerald", "service", service)}
-          </div>;
-        })}
-      </div>}
+      <div className="mb-4 flex flex-wrap items-center justify-between border-b border-slate-200 pb-2"><div className="flex items-center gap-2"><Wrench className="h-4 w-4 text-emerald-600" /><h3 className="font-bold text-slate-800">Services Master Directory</h3><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-800">{displayServices.length} Total</span></div></div>
+      {(servicesLoading || masterLoading) && <div className="py-8 text-center text-xs text-slate-500">Loading Services...</div>}
+      {(servicesError || masterError) && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{servicesError || masterError}</div>}
+      {!servicesLoading && !masterLoading && <div className="grid grid-cols-1 gap-5 md:grid-cols-2">{displayServices.map((service: any) => { const serviceStages = service.workflowStages?.length ? normalizeStages(service.workflowStages, "service", service.manager, service.approver) : getDefaultServiceWorkflow(service.manager, service.approver); const active = service.status !== "inactive"; return <div key={service.id} className={`min-h-[250px] rounded-xl border bg-white p-5 shadow-sm ${active ? "border-slate-200" : "border-slate-200 opacity-60"}`}><div className="flex items-start justify-between gap-3"><h4 className="text-base font-bold leading-snug text-slate-900">{service.name}</h4><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{active ? "Active" : "Inactive"}</span></div><div className="mt-4 space-y-2 text-sm"><div><span className="font-bold text-slate-700">Manager:</span> <span className="text-slate-600">{service.manager}</span><button type="button" onClick={() => setEditingService({ ...service })} className="ml-2 inline-flex rounded p-1 text-emerald-700 hover:bg-emerald-100" title="Edit Service"><Edit3 className="h-4 w-4" /></button></div><div><span className="font-bold text-slate-700">Approver:</span> <span className="text-slate-600">{service.approver}</span></div>{showQuotaAccess(service) && <div><span className="font-bold text-slate-700">Quota / Access:</span> <span className="text-slate-600">{service.quota || "Not Configured"}</span></div>}</div>{renderWorkflowPreview(serviceStages, "emerald", "service", service)}</div>; })}</div>}
     </section>
 
     <section>
-      <div className="mb-4 flex flex-wrap items-center justify-between border-b border-slate-200 pb-2">
-        <div><h3 className="flex items-center gap-2 font-bold text-slate-800"><Building2 className="h-4 w-4 text-purple-600" />Labs & Facility Master <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-800">{labRows.length} Total</span></h3><p className="mt-1 text-xs text-slate-500">Each lab/facility has its own NO, ANO and Supervisor. All rows follow the same common approval workflow.</p></div>
-        <button type="button" disabled={!facility} onClick={openAddRow} className="flex items-center gap-1.5 rounded-lg bg-purple-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="h-3.5 w-3.5" />Add Lab / Facility</button>
-      </div>
+      <div className="mb-4 flex flex-wrap items-center justify-between border-b border-slate-200 pb-2"><div><h3 className="flex items-center gap-2 font-bold text-slate-800"><Building2 className="h-4 w-4 text-purple-600" />Labs & Facility Master <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-800">{labRows.length} Total</span></h3><p className="mt-1 text-xs text-slate-500">Each lab/facility has its own NO, ANO and Supervisor. All rows follow the same common approval workflow.</p></div><button type="button" disabled={!facility || masterLoading} onClick={openAddRow} className="flex items-center gap-1.5 rounded-lg bg-purple-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="h-3.5 w-3.5" />Add Lab / Facility</button></div>
       {facilitiesLoading && <div className="py-8 text-center text-xs text-slate-500">Loading Labs & Facility...</div>}
       {facilitiesError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{facilitiesError}</div>}
       {rowError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{rowError}</div>}
-      {!facilitiesLoading && !facility && <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">Labs & Facility master record is not configured.</div>}
-      {facility && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50"><tr><th className="px-5 py-3 text-left font-bold text-slate-700">Labs & Facility</th><th className="px-5 py-3 text-left font-bold text-slate-700">NO</th><th className="px-5 py-3 text-left font-bold text-slate-700">ANO</th><th className="px-5 py-3 text-left font-bold text-slate-700">Supervisor</th><th className="px-5 py-3 text-center font-bold text-slate-700">Status</th><th className="px-5 py-3 text-right font-bold text-slate-700">Edit</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            {labRows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">No labs/facilities configured yet. Click <b>Add Lab / Facility</b> to add a row.</td></tr>}
-            {labRows.map((row) => <tr key={row.id} className={row.status === "inactive" ? "bg-slate-50 opacity-60" : "bg-white"}><td className="px-5 py-4 font-semibold text-slate-900">{row.name}</td><td className="px-5 py-4 text-slate-600">{row.nodal || "Not Configured"}</td><td className="px-5 py-4 text-slate-600">{row.assocNodal || "Not Configured"}</td><td className="px-5 py-4 text-slate-600">{row.supervisor || "Not Configured"}</td><td className="px-5 py-4 text-center"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.status === "inactive" ? "bg-slate-100 text-slate-600" : "bg-purple-100 text-purple-800"}`}>{row.status === "inactive" ? "Inactive" : "Active"}</span></td><td className="px-5 py-4 text-right"><button type="button" onClick={() => { setRowError(null); setEditingRow(row); setIsAddingRow(false); }} className="rounded p-1.5 text-purple-700 hover:bg-purple-100" title="Edit Lab / Facility"><Pencil className="h-4 w-4" /></button><button type="button" disabled={savingRows} onClick={() => void deleteLabRow(row)} className="ml-1 rounded p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-50" title="Delete Lab / Facility"><Trash2 className="h-4 w-4" /></button></td></tr>)}
-          </tbody></table></div>
-        {renderWorkflowPreview(facilityStages, "purple", "facility", facility)}
-      </div>}
+      {!facilitiesLoading && !masterLoading && !facility && <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">Labs & Facility master record is not configured.</div>}
+      {facility && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50"><tr><th className="px-5 py-3 text-left font-bold text-slate-700">Labs & Facility</th><th className="px-5 py-3 text-left font-bold text-slate-700">NO</th><th className="px-5 py-3 text-left font-bold text-slate-700">ANO</th><th className="px-5 py-3 text-left font-bold text-slate-700">Supervisor</th><th className="px-5 py-3 text-center font-bold text-slate-700">Status</th><th className="px-5 py-3 text-right font-bold text-slate-700">Edit</th></tr></thead><tbody className="divide-y divide-slate-100">{labRows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">No labs/facilities configured yet. Click <b>Add Lab / Facility</b> to add a row.</td></tr>}{labRows.map((row) => <tr key={row.id} className={row.status === "inactive" ? "bg-slate-50 opacity-60" : "bg-white"}><td className="px-5 py-4 font-semibold text-slate-900">{row.name}</td><td className="px-5 py-4 text-slate-600">{row.nodal || "Not Configured"}</td><td className="px-5 py-4 text-slate-600">{row.assocNodal || "Not Configured"}</td><td className="px-5 py-4 text-slate-600">{row.supervisor || "Not Configured"}</td><td className="px-5 py-4 text-center"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.status === "inactive" ? "bg-slate-100 text-slate-600" : "bg-purple-100 text-purple-800"}`}>{row.status === "inactive" ? "Inactive" : "Active"}</span></td><td className="px-5 py-4 text-right"><button type="button" onClick={() => { setRowError(null); setEditingRow(row); setIsAddingRow(false); }} className="rounded p-1.5 text-purple-700 hover:bg-purple-100" title="Edit Lab / Facility"><Pencil className="h-4 w-4" /></button><button type="button" disabled={savingRows} onClick={() => void deleteLabRow(row)} className="ml-1 rounded p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-50" title="Delete Lab / Facility"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div>{renderWorkflowPreview(facilityStages, "purple", "facility", facility)}</div>}
     </section>
 
     {editingRow && <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/60 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3"><div><h3 className="font-extrabold text-slate-900">{isAddingRow ? "Add Lab / Facility" : "Edit Lab / Facility"}</h3><p className="mt-1 text-xs text-slate-500">Set the lab/facility name, NO, ANO, Supervisor and status.</p></div><button type="button" onClick={() => setEditingRow(null)} className="rounded-lg p-1.5 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><form onSubmit={saveLabRow} className="space-y-3"><input required value={editingRow.name} onChange={(event) => setEditingRow({ ...editingRow, name: event.target.value })} placeholder="Lab / Facility Name" className="w-full rounded-xl border border-slate-300 p-2.5" /><select value={editingRow.nodal} onChange={(event) => setEditingRow({ ...editingRow, nodal: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white p-2.5"><option value="Not Configured">Not Configured</option>{officerOptions.map((user) => <option key={`no-${user.id}`} value={user.name}>{user.name}</option>)}</select><select value={editingRow.assocNodal} onChange={(event) => setEditingRow({ ...editingRow, assocNodal: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white p-2.5"><option value="Not Configured">Not Configured</option>{officerOptions.map((user) => <option key={`ano-${user.id}`} value={user.name}>{user.name}</option>)}</select><select value={editingRow.supervisor} onChange={(event) => setEditingRow({ ...editingRow, supervisor: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white p-2.5"><option value="Not Configured">Not Configured</option>{officerOptions.map((user) => <option key={`sup-${user.id}`} value={user.name}>{user.name}</option>)}</select><select value={editingRow.status} onChange={(event) => setEditingRow({ ...editingRow, status: event.target.value === "inactive" ? "inactive" : "active" })} className="w-full rounded-xl border border-slate-300 bg-white p-2.5"><option value="active">Active</option><option value="inactive">Inactive</option></select><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditingRow(null)} className="rounded-lg bg-slate-100 px-4 py-2 font-semibold">Cancel</button><button type="submit" disabled={savingRows} className="rounded-lg bg-purple-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{savingRows ? "Saving..." : "Save"}</button></div></form></div></div>}
 
     {editingService && <div className="fixed inset-0 z-[175] flex items-center justify-center bg-slate-900/60 p-4"><div className="w-full max-w-xl rounded-2xl bg-white p-7 shadow-2xl"><div className="mb-5 flex items-center justify-between border-b border-slate-200 pb-4"><div><h3 className="text-lg font-extrabold text-slate-900">Edit Service Master</h3><p className="mt-1 text-xs text-slate-500">{editingService.name}</p></div><button type="button" onClick={() => setEditingService(null)} className="rounded-lg p-1.5 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><div className="space-y-4"><div><label className="mb-1 block text-xs font-bold text-slate-600">Manager</label><select value={editingService.manager || ""} onChange={(event) => setEditingService({ ...editingService, manager: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white p-3"><option value="">Select Manager</option><option value="Not Configured">Not Configured</option>{officerOptions.map((user) => <option key={`manager-${user.id}`} value={user.name}>{user.name}</option>)}</select></div><div><label className="mb-1 block text-xs font-bold text-slate-600">Approver</label><select value={editingService.approver || ""} onChange={(event) => setEditingService({ ...editingService, approver: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white p-3"><option value="">Select Approver</option><option value="Not Configured">Not Configured</option>{officerOptions.map((user) => <option key={`approver-${user.id}`} value={user.name}>{user.name}</option>)}</select></div>{showQuotaAccess(editingService) && <div><label className="mb-1 block text-xs font-bold text-slate-600">Quota / Access</label><input value={editingService.quota || ""} onChange={(event) => setEditingService({ ...editingService, quota: event.target.value })} placeholder="Quota / Access" className="w-full rounded-xl border border-slate-300 p-3" /></div>}<label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 px-4 py-3"><span className="font-semibold text-slate-700">Status</span><button type="button" role="switch" aria-checked={editingService.status !== "inactive"} onClick={() => setEditingService({ ...editingService, status: editingService.status === "inactive" ? "active" : "inactive" })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${editingService.status === "inactive" ? "bg-slate-300" : "bg-emerald-600"}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${editingService.status === "inactive" ? "translate-x-1" : "translate-x-6"}`} /></button></label>{serviceError && <div className="text-xs text-red-600">{serviceError}</div>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingService(null)} className="rounded-lg bg-slate-100 px-4 py-2 font-semibold">Cancel</button><button type="button" onClick={() => void saveService()} disabled={savingService} className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{savingService ? "Saving..." : "Save Changes"}</button></div></div></div></div>}
 
-    {editingWorkflow && <div className="fixed inset-0 z-[180] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4"><div className="my-8 flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white p-6 shadow-2xl"><div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 pb-3"><div><h3 className="text-base font-extrabold text-slate-900">Configure Approval Workflow Stages</h3><p className="mt-1 text-xs text-slate-500">Edit, add, remove and reorder stages for <span className="font-bold text-slate-800">{editingWorkflow.item?.name}</span></p></div><button type="button" onClick={() => setEditingWorkflow(null)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><div className="flex-grow space-y-4 overflow-y-auto py-4 pr-1">
-      {editingWorkflow.stages.map((stage, index) => <div key={`${stage.stageNumber}-${index}`} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center justify-between border-b border-slate-200 pb-2"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">{index + 1}</span><span className="text-sm font-bold text-slate-800">Stage {index + 1}: {stage.stageName || "Unnamed Stage"}</span></div><div className="flex items-center gap-1"><button type="button" onClick={() => moveStage(index, -1)} disabled={index === 0} className="rounded border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30" title="Move Stage Up"><ArrowUp className="h-4 w-4" /></button><button type="button" onClick={() => moveStage(index, 1)} disabled={index === editingWorkflow.stages.length - 1} className="rounded border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30" title="Move Stage Down"><ArrowDown className="h-4 w-4" /></button><button type="button" onClick={() => removeStage(index)} disabled={editingWorkflow.stages.length <= 1} className="ml-2 rounded border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100 disabled:opacity-30" title="Delete Stage"><Trash2 className="h-4 w-4" /></button></div></div><div className="grid grid-cols-1 gap-3 pt-1 md:grid-cols-2"><label className="block"><span className="mb-1 block text-[11px] font-bold text-slate-600">Stage Name / Title</span><input type="text" value={stage.stageName} onChange={(event) => updateStage(index, { stageName: event.target.value })} placeholder="e.g. Supervising Officer / PI Endorsement" className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm" /></label><label className="block"><span className="mb-1 block text-[11px] font-bold text-slate-600">Dealing Person Role / Type</span><select value={stage.dealingRole} onChange={(event) => handleRoleChange(index, event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm"><option value="reporting_manager">Reporting Manager / PI (Applicant Supervisor)</option><option value="supervisor">Lab Technical Supervisor</option><option value="lab_nodal_group">Lab NO + ANO (Any One Can Approve)</option><option value="manager">Service In-Charge Manager</option><option value="approver">Service Approver</option><option value="assoc_nodal">Associate Nodal Officer</option><option value="nodal">Nodal Officer</option><option value="it_head">IT Head / Admin Officer</option><option value="section_head">Section Head / Director</option><option value="custom">Specific Officer / User</option></select></label></div><div className="mt-2 flex items-center gap-2 border-t border-slate-200/60 pt-1"><input type="checkbox" id={`mandatory-${editingWorkflow.type}-${index}`} checked={stage.isMandatory !== false} onChange={(event) => updateStage(index, { isMandatory: event.target.checked })} className="rounded text-purple-600 focus:ring-purple-500" /><label htmlFor={`mandatory-${editingWorkflow.type}-${index}`} className="text-xs font-semibold text-slate-700">Mandatory Stage (Request cannot skip this step)</label></div></div>)}
-      {workflowError && <div className="text-xs text-red-600">{workflowError}</div>}
-    </div><div className="mt-2 flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3"><button type="button" onClick={addStage} className="flex items-center gap-1 rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-200"><Plus className="h-3.5 w-3.5" />Add Stage</button><div className="flex gap-2"><button type="button" onClick={() => setEditingWorkflow(null)} className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button><button type="button" onClick={() => void saveWorkflow()} disabled={workflowSaving} className="flex items-center gap-1 rounded-lg bg-purple-700 px-4 py-2 text-xs font-bold text-white hover:bg-purple-800 disabled:opacity-50"><Check className="h-4 w-4" />{workflowSaving ? "Saving..." : "Save Workflow Stages"}</button></div></div></div></div>}
+    {editingWorkflow && <div className="fixed inset-0 z-[180] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4"><div className="my-8 flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white p-6 shadow-2xl"><div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 pb-3"><div><h3 className="text-base font-extrabold text-slate-900">Configure Approval Workflow Stages</h3><p className="mt-1 text-xs text-slate-500">Edit, add, remove and reorder stages for <span className="font-bold text-slate-800">{editingWorkflow.item?.name}</span></p></div><button type="button" onClick={() => setEditingWorkflow(null)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div><div className="flex-grow space-y-4 overflow-y-auto py-4 pr-1">{editingWorkflow.stages.map((stage, index) => <div key={`${stage.stageNumber}-${index}`} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center justify-between border-b border-slate-200 pb-2"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-700 text-xs font-bold text-white">{index + 1}</span><span className="text-sm font-bold text-slate-800">Stage {index + 1}: {stage.stageName || "Unnamed Stage"}</span></div><div className="flex items-center gap-1"><button type="button" onClick={() => moveStage(index, -1)} disabled={index === 0} className="rounded border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30" title="Move Stage Up"><ArrowUp className="h-4 w-4" /></button><button type="button" onClick={() => moveStage(index, 1)} disabled={index === editingWorkflow.stages.length - 1} className="rounded border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30" title="Move Stage Down"><ArrowDown className="h-4 w-4" /></button><button type="button" onClick={() => removeStage(index)} disabled={editingWorkflow.stages.length <= 1} className="ml-2 rounded border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100 disabled:opacity-30" title="Delete Stage"><Trash2 className="h-4 w-4" /></button></div></div><div className="grid grid-cols-1 gap-3 pt-1 md:grid-cols-2"><label className="block"><span className="mb-1 block text-[11px] font-bold text-slate-600">Stage Name / Title</span><input type="text" value={stage.stageName} onChange={(event) => updateStage(index, { stageName: event.target.value })} placeholder="e.g. Supervising Officer / PI Endorsement" className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm" /></label><label className="block"><span className="mb-1 block text-[11px] font-bold text-slate-600">Dealing Person Role / Type</span><select value={stage.dealingRole} onChange={(event) => handleRoleChange(index, event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm"><option value="reporting_manager">Reporting Manager / PI (Applicant Supervisor)</option><option value="supervisor">Lab Technical Supervisor</option><option value="lab_nodal_group">Lab NO + ANO (Any One Can Approve)</option><option value="manager">Service In-Charge Manager</option><option value="approver">Service Approver</option><option value="assoc_nodal">Associate Nodal Officer</option><option value="nodal">Nodal Officer</option><option value="it_head">IT Head / Admin Officer</option><option value="section_head">Section Head / Director</option><option value="custom">Specific Officer / User</option></select></label></div><div className="mt-2 flex items-center gap-2 border-t border-slate-200/60 pt-1"><input type="checkbox" id={`mandatory-${editingWorkflow.type}-${index}`} checked={stage.isMandatory !== false} onChange={(event) => updateStage(index, { isMandatory: event.target.checked })} className="rounded text-purple-600 focus:ring-purple-500" /><label htmlFor={`mandatory-${editingWorkflow.type}-${index}`} className="text-xs font-semibold text-slate-700">Mandatory Stage (Request cannot skip this step)</label></div></div>)}{workflowError && <div className="text-xs text-red-600">{workflowError}</div>}</div><div className="mt-2 flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3"><button type="button" onClick={addStage} className="flex items-center gap-1 rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-200"><Plus className="h-3.5 w-3.5" />Add Stage</button><div className="flex gap-2"><button type="button" onClick={() => setEditingWorkflow(null)} className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button><button type="button" onClick={() => void saveWorkflow()} disabled={workflowSaving} className="flex items-center gap-1 rounded-lg bg-purple-700 px-4 py-2 text-xs font-bold text-white hover:bg-purple-800 disabled:opacity-50"><Check className="h-4 w-4" />{workflowSaving ? "Saving..." : "Save Workflow Stages"}</button></div></div></div></div>}
   </div>;
 }
 
