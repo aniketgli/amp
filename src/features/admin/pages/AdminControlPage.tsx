@@ -533,7 +533,7 @@ export const SuperAdminControlPanel: React.FC<AdminControlPageProps> = ({
   const renderUserOptions = (users: AdminUser[], emptyText: string) => { if (users.length === 0) return <option value="">{emptyText}</option>; return users.map((user) => <option key={user.id} value={getDisplayName(user)}>{getDisplayName(user)}</option>); };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="mx-auto box-border w-full max-w-7xl min-w-0 overflow-hidden space-y-6 pb-10">
       {toastMessage && <div className="fixed top-5 right-5 z-[200] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-emerald-500/50 flex items-center gap-3"><ShieldCheck className="w-5 h-5 text-emerald-400" /><span className="text-xs font-bold">{toastMessage}</span></div>}
 
       <div className="bg-slate-900 text-white rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-md flex flex-col sm:flex-row justify-between gap-5"><div><div className="flex items-center gap-2 mb-2"><span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5" />Access Management Portal</span><span className="text-xs text-slate-400">• Wildlife Institute of India</span></div><h1 className="text-2xl font-extrabold">Central Governance & Master Data Control</h1><p className="text-xs text-slate-300 mt-2">Complete administrative control over Users, Facilities, Services and system parameters.</p></div></div>
