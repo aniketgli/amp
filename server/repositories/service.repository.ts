@@ -17,7 +17,7 @@ export async function ensureRequiredAccessServices(): Promise<void> {
       await db.query(
         `INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status)
          VALUES (?, ?, 'Not Configured', ?, 'active')
-         ON DUPLICATE KEY UPDATE service_name = VALUES(service_name), status = 'active', updated_at = CURRENT_TIMESTAMP`,
+         ON DUPLICATE KEY UPDATE service_name = VALUES(service_name), updated_at = CURRENT_TIMESTAMP`,
         [service.id, service.name, service.quota],
       );
     } catch (_) {
@@ -25,7 +25,7 @@ export async function ensureRequiredAccessServices(): Promise<void> {
         await db.query(
           `INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status)
            VALUES (?, ?, 'Not Configured', ?, 'active')
-           ON DUPLICATE KEY UPDATE service_name = VALUES(service_name), status = 'active'`,
+           ON DUPLICATE KEY UPDATE service_name = VALUES(service_name)`,
           [service.id, service.name, service.quota],
         );
       } catch (_) {
