@@ -260,9 +260,24 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
   };
 
   const renderWorkflowPreview = (stages: WorkflowStage[], tone: "purple" | "emerald", type: WorkflowType, item: any) => (
-    <div className="mt-4 box-border w-full min-w-0 overflow-hidden border-t border-slate-200 pt-3">
-      <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-1 text-xs font-bold text-slate-700"><GitMerge className={`h-3.5 w-3.5 ${tone === "purple" ? "text-purple-600" : "text-purple-600"}`} />Approval Flow ({stages.length} Stages)</div><button type="button" onClick={() => openWorkflowEditor(type, item)} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold ${tone === "purple" ? "bg-purple-50 text-purple-700 hover:bg-purple-100" : "bg-purple-50 text-purple-700 hover:bg-purple-100"}`} title="Edit Approval Flow"><Pencil className="h-3 w-3" />Edit</button></div>
-      <div className="mt-2 flex min-w-0 max-w-full flex-wrap items-center gap-1 overflow-hidden text-[10px]">{stages.map((stage, index) => <React.Fragment key={`${stage.stageNumber}-${index}`}><span className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 font-medium text-purple-800">{String(stage.stageName).split(" ")[0]}</span>{index < stages.length - 1 && <span className="font-bold text-slate-400">➜</span>}</React.Fragment>)}</div>
+    <div className="mt-4 w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50/80">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-700">
+          <GitMerge className={`h-4 w-4 shrink-0 ${tone === "purple" ? "text-purple-600" : "text-emerald-600"}`} />
+          <span className="truncate">Approval Flow ({stages.length} Stages)</span>
+        </div>
+        <button type="button" onClick={() => openWorkflowEditor(type, item)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-purple-700 hover:bg-purple-50" title="Edit Approval Flow">
+          <Pencil className="h-3 w-3" />Edit
+        </button>
+      </div>
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 px-4 py-3">
+        {stages.map((stage, index) => (
+          <React.Fragment key={`${stage.stageNumber}-${index}`}>
+            <span className="max-w-full truncate rounded-md border border-purple-200 bg-purple-50 px-2.5 py-1 text-[10px] font-semibold text-purple-800">{String(stage.stageName).split(" ")[0]}</span>
+            {index < stages.length - 1 && <span className="shrink-0 font-bold text-slate-400">→</span>}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 
