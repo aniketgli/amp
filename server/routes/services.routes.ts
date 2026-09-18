@@ -9,6 +9,7 @@ import {
   getNextServiceId,
   createService,
   updateService,
+  updateServiceStatus,
   deleteService,
   ensureRequiredAccessServices,
 } from "../repositories/service.repository";
@@ -57,6 +58,24 @@ export function registerServicesRoutes(app: Express) {
     } catch (error) {
       console.error("POST /api/services ERROR:", error);
       return res.status(500).json({ success: false, message: "Unable to create service." });
+    }
+  });
+
+  app.patch("/api/services/:id/status", authenticateToken, requireRole(...ADMIN_ROLES), async (req, res) => {
+    try {
+      const status = String(req.body?.status || "").toLowerCase();
+      if (status !== "active" && status !== "inactive") {
+        return res.status(400).json({ success: false, message: "Status must be active or inactive." });
+      }
+      if (!isDbConnected) return res.status(503).json({ success: false, message: "Database is unavailable." });
+      const updated = await updateServiceStatus(req.params.id, status as "active" | "inactive");
+      if (!updated || Number(updated.affectedRows || 0) === 0) {
+        return res.status(404).json({ success: false, message: "Service not found." });
+      }
+      return res.json({ success: true, status, message: `Service marked ${status}.` });
+    } catch (error) {
+      console.error("PATCH /api/services/:id/status ERROR:", error);
+      return res.status(500).json({ success: false, message: "Unable to update service status." });
     }
   });
 
