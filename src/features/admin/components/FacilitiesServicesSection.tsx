@@ -69,7 +69,7 @@ function serviceWithDefaults(service: any, definition: ServiceDefinition) {
     manager: service?.manager || "Not Configured",
     approver: service?.approver || formConfig.approver || "Not Configured",
     quota: definition.quota ? service?.quota || definition.quota : "",
-    status: service?.status || "active",
+    status: String(service?.status || "active").toLowerCase() === "inactive" ? "inactive" : "active",
     formConfig,
   };
 }
@@ -243,6 +243,36 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
     finally { setWorkflowSaving(false); }
   };
 
+  const toggleServiceStatus = async (service: any) => {
+    const nextStatus = service.status === "inactive" ? "active" : "inactive";
+    setServiceError(null);
+    try {
+      const currentConfig = service.formConfig && typeof service.formConfig === "object" ? service.formConfig : {};
+      const workflowStages = Array.isArray(service.workflowStages) && service.workflowStages.length
+        ? normalizeStages(service.workflowStages, "service", service.manager, service.approver)
+        : getDefaultServiceWorkflow(service.manager, service.approver);
+      await apiRequest(`/api/services/${encodeURIComponent(String(service.id))}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: service.name,
+          manager: service.manager || "Not Configured",
+          quota: showQuotaAccess(service) ? service.quota || "" : "",
+          status: nextStatus,
+          workflowStages,
+          formConfig: {
+            ...currentConfig,
+            approvalWorkflowStages: workflowStages,
+            approver: service.approver || "Not Configured",
+          },
+        }),
+      });
+      await refreshMasters();
+      await fetchServices();
+    } catch (error) {
+      setServiceError(error instanceof Error ? error.message : "Unable to update service status.");
+    }
+  };
+
   const saveService = async () => {
     if (!editingService) return;
     if (!String(editingService.manager || "").trim()) { setServiceError("Manager is required."); return; }
@@ -286,7 +316,7 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
       <div className="mb-4 flex flex-wrap items-center justify-between border-b border-slate-200 pb-2"><div className="flex items-center gap-2"><Wrench className="h-5 w-5 text-purple-600" /><h3 className="font-bold text-slate-800">Services Master Directory</h3><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-800">{displayServices.length} Total</span></div></div>
       {(servicesLoading || masterLoading) && <div className="py-8 text-center text-xs text-slate-500">Loading Services...</div>}
       {(servicesError || masterError) && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{servicesError || masterError}</div>}
-      {!servicesLoading && !masterLoading && <div className="grid grid-cols-1 gap-5 md:grid-cols-2">{displayServices.map((service: any) => { const serviceStages = service.workflowStages?.length ? normalizeStages(service.workflowStages, "service", service.manager, service.approver) : getDefaultServiceWorkflow(service.manager, service.approver); const active = service.status !== "inactive"; return <div key={service.id} className={`min-h-[220px] rounded-xl border bg-slate-50/70 p-5 shadow-none transition-colors ${active ? "border-slate-200" : "border-slate-200 opacity-60"}`}><div className="flex items-start justify-between gap-3"><h4 className="text-base font-bold leading-snug text-slate-900">{service.name}</h4><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{active ? "Active" : "Inactive"}</span></div><div className="mt-4 space-y-2 text-sm"><div><span className="font-bold text-slate-700">Manager:</span> <span className="text-slate-600">{service.manager}</span><button type="button" onClick={() => setEditingService({ ...service })} className="ml-2 inline-flex rounded p-1 text-emerald-700 hover:bg-emerald-100" title="Edit Service"><Edit3 className="h-4 w-4" /></button></div><div><span className="font-bold text-slate-700">Approver:</span> <span className="text-slate-600">{service.approver}</span></div>{showQuotaAccess(service) && <div><span className="font-bold text-slate-700">Quota / Access:</span> <span className="text-slate-600">{service.quota || "Not Configured"}</span></div>}</div>{renderWorkflowPreview(serviceStages, "emerald", "service", service)}</div>; })}</div>}
+      {!servicesLoading && !masterLoading && <div className="grid grid-cols-1 gap-5 md:grid-cols-2">{displayServices.map((service: any) => { const serviceStages = service.workflowStages?.length ? normalizeStages(service.workflowStages, "service", service.manager, service.approver) : getDefaultServiceWorkflow(service.manager, service.approver); const active = service.status !== "inactive"; return <div key={service.id} className={`min-h-[220px] rounded-xl border bg-slate-50/70 p-5 shadow-none transition-colors ${active ? "border-slate-200" : "border-slate-200 opacity-60"}`}><div className="flex items-start justify-between gap-3"><h4 className="text-base font-bold leading-snug text-slate-900">{service.name}</h4><button type="button" onClick={() => void toggleServiceStatus(service)} className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors ${active ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`} title={active ? "Set service inactive" : "Set service active"}>{active ? "Active" : "Inactive"}</button></div><div className="mt-4 space-y-2 text-sm"><div><span className="font-bold text-slate-700">Manager:</span> <span className="text-slate-600">{service.manager}</span><button type="button" onClick={() => setEditingService({ ...service })} className="ml-2 inline-flex rounded p-1 text-emerald-700 hover:bg-emerald-100" title="Edit Service"><Edit3 className="h-4 w-4" /></button></div><div><span className="font-bold text-slate-700">Approver:</span> <span className="text-slate-600">{service.approver}</span></div>{showQuotaAccess(service) && <div><span className="font-bold text-slate-700">Quota / Access:</span> <span className="text-slate-600">{service.quota || "Not Configured"}</span></div>}</div>{renderWorkflowPreview(serviceStages, "emerald", "service", service)}</div>; })}</div>}
     </section>
 
     <section>
