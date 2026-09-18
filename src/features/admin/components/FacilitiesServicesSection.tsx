@@ -247,27 +247,15 @@ export function FacilitiesServicesSection({ facilitiesList, facilitiesLoading, f
     const nextStatus = service.status === "inactive" ? "active" : "inactive";
     setServiceError(null);
     try {
-      const currentConfig = service.formConfig && typeof service.formConfig === "object" ? service.formConfig : {};
-      const workflowStages = Array.isArray(service.workflowStages) && service.workflowStages.length
-        ? normalizeStages(service.workflowStages, "service", service.manager, service.approver)
-        : getDefaultServiceWorkflow(service.manager, service.approver);
-      await apiRequest(`/api/services/${encodeURIComponent(String(service.id))}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: service.name,
-          manager: service.manager || "Not Configured",
-          quota: showQuotaAccess(service) ? service.quota || "" : "",
-          status: nextStatus,
-          workflowStages,
-          formConfig: {
-            ...currentConfig,
-            approvalWorkflowStages: workflowStages,
-            approver: service.approver || "Not Configured",
-          },
-        }),
+      await apiRequest(`/api/services/${encodeURIComponent(String(service.id))}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
       });
       await refreshMasters();
       await fetchServices();
+      setEditingService((current: any) =>
+        current && String(current.id) === String(service.id) ? { ...current, status: nextStatus } : current,
+      );
     } catch (error) {
       setServiceError(error instanceof Error ? error.message : "Unable to update service status.");
     }
