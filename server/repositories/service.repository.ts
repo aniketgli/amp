@@ -91,6 +91,14 @@ export async function updateService(input: UpdateServiceInput): Promise<any> {
   }
 }
 
+export async function updateServiceStatus(id: string, status: "active" | "inactive"): Promise<any> {
+  const [result]: any = await db.query(
+    `UPDATE service_masters SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [status, id],
+  );
+  return result;
+}
+
 export async function deleteService(id: string): Promise<any> {
   const [result]: any = await db.query(`DELETE FROM service_masters WHERE id = ?`, [id]);
   return result;
