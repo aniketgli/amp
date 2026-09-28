@@ -20,16 +20,6 @@ export const REQUIRED_ACCESS_SERVICES = [
           placeholder: "Enter preferred email address prefix",
           helpText: "Only the prefix is required. The domain is supplied by the WII master record.",
         },
-        {
-          key: "requestedEmailGroups",
-          label: "Email Groups / Distribution Lists",
-          type: "multiselect",
-          required: false,
-          options: [
-            { value: "All Staff", label: "All Staff" },
-            { value: "Researchers & Fellows", label: "Researchers & Fellows" },
-          ],
-        },
       ],
     },
   },
