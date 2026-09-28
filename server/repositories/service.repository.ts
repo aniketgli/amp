@@ -4,7 +4,35 @@ export interface CreateServiceInput { id: string; name: string; manager: string;
 export interface UpdateServiceInput { id: string; name: string; manager: string; quota?: string | null; status?: string; workflowStages?: unknown[] | null; formConfig?: Record<string, unknown> | null; }
 
 export const REQUIRED_ACCESS_SERVICES = [
-  { id: "SRV-01", name: "Official WII Email ID (@wii.gov.in)", quota: "Institute Webmail Account, Domain Access & Group Mappings" },
+  {
+    id: "SRV-01",
+    name: "Official WII Email ID (@wii.gov.in)",
+    quota: "Institute Webmail Account, Domain Access & Group Mappings",
+    formConfig: {
+      scope: "email",
+      emailDomain: "@wii.gov.in",
+      fields: [
+        {
+          key: "requestedEmailPrefix",
+          label: "Requested Email Address Prefix",
+          type: "text",
+          required: true,
+          placeholder: "Enter preferred email address prefix",
+          helpText: "Only the prefix is required. The domain is supplied by the WII master record.",
+        },
+        {
+          key: "requestedEmailGroups",
+          label: "Email Groups / Distribution Lists",
+          type: "multiselect",
+          required: false,
+          options: [
+            { value: "All Staff", label: "All Staff" },
+            { value: "Researchers & Fellows", label: "Researchers & Fellows" },
+          ],
+        },
+      ],
+    },
+  },
   { id: "SRV-02", name: "Campus Internet & Wi-Fi MAC Address Registration", quota: "Device Hardware Address MAC Binding for High-Speed LAN & Campus Wi-Fi" },
   { id: "SRV-03", name: "HRMS / PMS Portal & Biometric Attendance", quota: null },
   { id: "SRV-04", name: "Institute Smart Identity Card & RFID Campus Pass", quota: null },
@@ -15,10 +43,10 @@ export async function ensureRequiredAccessServices(): Promise<void> {
   for (const service of REQUIRED_ACCESS_SERVICES) {
     try {
       await db.query(
-        `INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status)
-         VALUES (?, ?, 'Not Configured', ?, 'active')
-         ON DUPLICATE KEY UPDATE service_name = VALUES(service_name), updated_at = CURRENT_TIMESTAMP`,
-        [service.id, service.name, service.quota],
+        `INSERT INTO service_masters (id, service_name, manager_name, quota_access_specs, status, form_config)
+         VALUES (?, ?, 'Not Configured', ?, 'active', ?)
+         ON DUPLICATE KEY UPDATE service_name = VALUES(service_name), form_config = COALESCE(form_config, VALUES(form_config)), updated_at = CURRENT_TIMESTAMP`,
+        [service.id, service.name, service.quota, JSON.stringify((service as any).formConfig || null)],
       );
     } catch (_) {
       try {
