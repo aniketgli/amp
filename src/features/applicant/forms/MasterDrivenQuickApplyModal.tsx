@@ -79,11 +79,12 @@ function renderField(field: AccessFormField, value: unknown, setValue: (value: u
 export const MasterDrivenQuickApplyModal: React.FC<Props> = ({ isOpen, onClose, serviceScope, mode, applicantProfile, existingRequisitions = [], onSubmitRequisition, service, facility }) => {
   const config = service?.formConfig || facility?.formConfig || fallbackConfig(serviceScope);
   const [values, setValues] = useState<Record<string, unknown>>(() => initialValues(config, applicantProfile, mode));
-  const [declarationAccepted, setDeclarationAccepted] = useState(true);
-  const [signature, setSignature] = useState(applicantProfile.applicantName);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+  const [signature, setSignature] = useState("");
   const Icon = getIcon(serviceScope);
 
   const title = service?.name || facility?.name || "Access Application";
+  const headerTitle = serviceScope === "email" ? `Apply ${title}` : title;
   const manager = service?.manager || facility?.nodal || applicantProfile.supervisingOfficerName;
   const visibleFields = useMemo(() => (config.fields || []).filter((field) => isVisible(field, values)), [config.fields, values]);
 
@@ -157,7 +158,7 @@ export const MasterDrivenQuickApplyModal: React.FC<Props> = ({ isOpen, onClose, 
   return <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden">
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
       <div className="px-4 sm:px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 min-w-0"><div className="p-2 rounded-lg bg-blue-600 shrink-0"><Icon className="w-5 h-5" /></div><div className="min-w-0"><h3 className="text-sm font-extrabold truncate">{title}</h3><p className="text-[11px] text-slate-300">{mode === "renewal" ? "Renewal / Extension" : "Fresh Application"} • {service?.id || facility?.id || "Master"}</p></div></div>
+        <div className="flex items-center gap-3 min-w-0"><div className="p-2 rounded-lg bg-blue-600 shrink-0"><Icon className="w-5 h-5" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><h3 className="text-sm font-extrabold truncate">{headerTitle}</h3><span className="px-2 py-0.5 rounded bg-emerald-400 text-slate-900 text-[9px] font-extrabold uppercase">{mode === "renewal" ? "Renewal / Extension" : "Fresh Application"}</span></div><p className="text-[11px] text-slate-300">Wildlife Institute of India • Access Application Form</p></div></div>
         <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
       </div>
 
