@@ -46,7 +46,7 @@ function getIcon(scope: ServiceScope) {
 function initialValues(config: AccessFormConfig, profile: ApplicantProfile, mode: "new" | "renewal") {
   const values: Record<string, unknown> = {};
   for (const field of config.fields || []) {
-    if (field.key === "requestedEmailPrefix") values[field.key] = profile.applicantName.toLowerCase().trim().replace(/\s+/g, ".");
+    if (field.key === "requestedEmailPrefix") values[field.key] = "";
     else if (field.key === "requestedEmailGroups") values[field.key] = [];
     else if (field.key === "deviceType") values[field.key] = field.options?.[0]?.value || "";
     else if (field.key === "hasBiometricId") values[field.key] = profile.biometricId ? "yes" : "no";
@@ -171,7 +171,7 @@ export const MasterDrivenQuickApplyModal: React.FC<Props> = ({ isOpen, onClose, 
 
         <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-4">
           <div className="flex items-center justify-between gap-3"><div><h4 className="text-sm font-extrabold text-slate-900">{title}</h4><p className="text-[11px] text-slate-500">Form fields are loaded from the active Master record.</p></div><span className="text-[10px] font-bold text-slate-500">{service?.manager ? `Manager: ${service.manager}` : facility?.nodal ? `Nodal: ${facility.nodal}` : ""}</span></div>
-          {visibleFields.map((field) => field.type === "checkbox" ? <div key={field.key}>{renderField(field, values[field.key], (value) => setValue(field.key, value))}</div> : <div key={field.key}><label className="block text-xs font-semibold text-slate-700 mb-1">{field.label}{field.required ? " *" : ""}</label>{renderField(field, values[field.key], (value) => setValue(field.key, value))}{field.helpText && <p className="text-[10px] text-slate-400 mt-1">{field.helpText}</p>}</div>)}
+          {visibleFields.map((field) => field.type === "checkbox" ? <div key={field.key}>{renderField(field, values[field.key], (value) => setValue(field.key, value))}</div> : <div key={field.key}><label className="block text-xs font-semibold text-slate-700 mb-1">{field.label}{field.required ? " *" : ""}</label>{field.key === "requestedEmailPrefix" && serviceScope === "email" ? <div className="flex items-center"><input type="text" required={field.required} value={String(values[field.key] || "")} onChange={(e) => setValue(field.key, e.target.value)} placeholder={field.placeholder} className="flex-1 text-xs px-3 py-2 border border-slate-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 text-slate-900" /><span className="bg-slate-200 text-slate-700 font-mono font-bold text-xs px-3 py-2 border border-l-0 border-slate-300 rounded-r-lg">{config.emailDomain || "@wii.gov.in"}</span></div> : renderField(field, values[field.key], (value) => setValue(field.key, value))}{field.helpText && <p className="text-[10px] text-slate-400 mt-1">{field.helpText}</p>}</div>)}
         </div>
 
         {serviceScope === "mac" && config.maxDevices !== undefined && <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex gap-2"><Info className="w-4 h-4 text-amber-600 shrink-0" />Maximum concurrent device limit: <b>{config.maxDevices}</b> devices per user.</div>}
