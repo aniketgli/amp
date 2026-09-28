@@ -33,5 +33,6 @@ export interface AccessFormField {
 export interface AccessFormConfig {
   scope?: AccessFormScope;
   maxDevices?: number;
+  emailDomain?: string;
   fields: AccessFormField[];
 }
